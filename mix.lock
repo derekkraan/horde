@@ -1,0 +1,3 @@
+%{
+  "delta_crdt": {:git, "https://github.com/derekkraan/delta_crdt_ex", "4867237014a42e770f134b9895b140055d9ff8c2", []},
+}
