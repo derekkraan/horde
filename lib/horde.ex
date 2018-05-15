@@ -8,21 +8,36 @@ defmodule Horde do
   defmodule State do
     defstruct node_id: nil,
               members_pid: nil,
-              members: %{}
+              members: %{},
+              processes_pid: nil,
+              processes: %{}
   end
 
+  @doc """
+  Child spec to enable easy inclusion into a supervisor:
+  supervise([
+    [Horde, :node_1]
+  ])
+  """
   def child_spec(node_id) do
-    %{id: node_id, start: {__MODULE__, :start_link, [node_id]}}
+    %{id: node_id, start: {GenServer, :start_link, [__MODULE__, node_id]}}
   end
 
-  def start_link(node_id) do
-    GenServer.start_link(__MODULE__, node_id)
-  end
-
+  @doc """
+  Join two hordes into one big horde. Calling this once will inform every node in each horde of every node in the other horde.
+  """
   def join_hordes(horde, other_horde) do
     GenServer.cast(horde, {:join_horde, other_horde})
   end
 
+  @doc """
+  Remove a node from the hordes
+  """
+  def leave_hordes(horde)
+
+  @doc """
+  Get the members (nodes) of the horde
+  """
   def members(horde) do
     GenServer.call(horde, :members)
   end
@@ -64,7 +79,8 @@ defmodule Horde do
     state_member_pids =
       Enum.map(state.members, fn {_node_id, {pid}} -> pid end) |> Enum.into(MapSet.new())
 
-    if !MapSet.equal?(member_pids, state_member_pids) do
+    # if there are any new pids in `member_pids`
+    if MapSet.difference(member_pids, state_member_pids) |> Enum.any?() do
       send(state.members_pid, {:add_neighbours, member_pids})
       send(state.members_pid, :ship_interval_or_state_to_all)
     end
