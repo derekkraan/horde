@@ -68,4 +68,21 @@ defmodule HordeTest do
       assert processes == processes_2
     end
   end
+
+  describe "via callbacks" do
+    setup do
+      {:ok, horde} = GenServer.start_link(Horde, :horde_1, [name: Horde.Tracker])
+      {:ok, horde: horde}
+    end
+
+    test "register a name the 'via' way", %{horde: horde} do
+      name = {:via, Horde, {Horde.Tracker, "precious"}}
+      {:ok, apid} = Agent.start_link(fn -> 0 end, name: name)
+      Process.sleep(100)
+      assert 0 = Agent.get(name, &(&1))
+      assert apid == Horde.lookup(horde, "precious")
+    end
+
+
+  end
 end

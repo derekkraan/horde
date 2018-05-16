@@ -2,6 +2,7 @@ defmodule Horde do
   @moduledoc """
   Horde is a distributed process registry that takes advantage of Delta-CRDTs.
   """
+  import Kernel, except: [send: 2]
 
   alias DeltaCrdt.{CausalCrdt, AddWinsFirstWriteWinsMap, ObservedRemoveMap}
 
@@ -41,13 +42,16 @@ defmodule Horde do
     GenServer.cast(horde, {:register, name, pid})
   end
 
-  def unregister(name) do
+  def unregister(horde, name) do
 
   end
 
 
   def lookup(horde, name) do
-
+    case GenServer.call(horde, {:lookup, name}) do
+      {:ok, pid} -> pid
+      _ -> :undefined
+    end
   end
 
   def start_handoff(name) do
@@ -55,6 +59,32 @@ defmodule Horde do
   end
 
 
+  ### Via callbacks
+
+  @doc false
+  # @spec register_name({pid, term}, pid) :: :yes | :no
+  def register_name({horde, name}, pid) do
+    case GenServer.call(horde, {:register, name, pid}) do
+      :ok -> :yes
+      _   -> :no
+    end
+  end
+  @doc false
+  # @spec whereis_name({pid, term}) :: pid | :undefined
+  def whereis_name({horde, name}) do
+    lookup(horde, name)
+  end
+
+  @doc false
+  def unregister_name({horde, name}), do: unregister(horde, name)
+
+  @doc false
+  def send({horde, name}, msg) do
+    case lookup(horde, name) do
+      :undefined -> :erlang.error(:badarg, [{horde, name}, msg])
+      pid -> Kernel.send(pid, msg)
+    end
+  end
 
   @doc """
   Get the members (nodes) of the horde
@@ -93,8 +123,8 @@ defmodule Horde do
         {:request_to_join_horde, {other_node_id, other_members_pid}},
         state
       ) do
-    send(state.members_pid, {:add_neighbour, other_members_pid})
-    send(state.members_pid, :ship_interval_or_state_to_all)
+    Kernel.send(state.members_pid, {:add_neighbour, other_members_pid})
+    Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
     {:noreply, state}
   end
 
@@ -108,7 +138,7 @@ defmodule Horde do
       state.processes_pid,
       {:operation, {AddWinsFirstWriteWinsMap, :add, [name, {pid}]}}
     )
-    send(state.processes_pid, :ship_interval_or_state_to_all)
+    Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
     {:noreply, state}
   end
 
@@ -122,8 +152,7 @@ defmodule Horde do
       Enum.into(state.processes, MapSet.new(), fn {_name, {pid}} -> pid end)
 
     if MapSet.difference(processes_pids, state_processes_pids) |> Enum.any?() do
-      send(state.processes_pid, {:add_neighbours, processes_pids})
-      send(state.processes_pid, :ship_interval_or_state_to_all)
+      Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
     end
 
     {:noreply, %{state | processes: processes}}
@@ -142,13 +171,22 @@ defmodule Horde do
     # if there are any new pids in `member_pids`
     if MapSet.difference(member_pids, state_member_pids) |> Enum.any?() do
       processes_pids = Enum.into(members, MapSet.new(), fn {_node_id, {_mpid, pid}} -> pid end)
-      send(state.members_pid, {:add_neighbours, member_pids})
-      send(state.processes_pid, {:add_neighbours, processes_pids})
-      send(state.members_pid, :ship_interval_or_state_to_all)
-      send(state.processes_pid, :ship_interval_or_state_to_all)
+      Kernel.send(state.members_pid, {:add_neighbours, member_pids})
+      Kernel.send(state.processes_pid, {:add_neighbours, processes_pids})
+      Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
+      Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
     end
 
     {:noreply, %{state | members: members}}
+  end
+
+  def handle_call({:register, name, pid}, _from, state) do
+    result = GenServer.call(
+      state.processes_pid,
+      {:operation, {AddWinsFirstWriteWinsMap, :add, [name, {pid}]}}
+    )
+    Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
+    {:reply, result, state}
   end
 
   def handle_call(:members, _from, state) do
@@ -157,6 +195,13 @@ defmodule Horde do
 
   def handle_call(:processes, _from, state) do
     {:reply, {:ok, state.processes}, state}
+  end
+
+  def handle_call({:lookup, name}, _from, state) do
+    case Map.get(state.processes, name) do
+      nil -> {:reply, nil, state}
+      {pid} -> {:reply, {:ok, pid}, state}
+    end
   end
 
 end
