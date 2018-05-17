@@ -77,21 +77,36 @@ defmodule HordeSupervisorTest do
   end
 
   test "failed horde's processes are taken over by other hordes", context do
-    1..100
+    max = 200
+
+    1..max
     |> Enum.each(fn x ->
       Horde.Supervisor.start_child(context.horde_1, Map.put(context.task_def, :id, :"proc_#{x}"))
     end)
+
+    Process.sleep(2000)
 
     Process.unlink(context.horde_2)
     Process.exit(context.horde_2, :kill)
 
     %{workers: workers} = Horde.Supervisor.count_children(context.horde_1)
     IO.inspect({:number_of_workers, workers})
-    assert workers < 100
+    assert workers < max
 
-    Process.sleep(100)
+    Process.sleep(2000)
 
-    assert %{workers: 100} = Horde.Supervisor.count_children(context.horde_1)
+    assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1)
+  end
+
+  test "registering a lot of workers doesn't cause an exit", context do
+    max = 20_000
+
+    1..max
+    |> Enum.each(fn x ->
+      Horde.Supervisor.start_child(context.horde_1, Map.put(context.task_def, :id, :"proc_#{x}"))
+    end)
+
+    assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1) |> IO.inspect()
   end
 
   test "exiting horde's processes are gracefully moved to another horde"

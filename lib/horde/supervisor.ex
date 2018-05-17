@@ -1,6 +1,9 @@
 defmodule Horde.Supervisor do
   use GenServer
 
+  # 60s
+  @long_time 60_000
+
   alias DeltaCrdt.{CausalCrdt, AddWinsFirstWriteWinsMap, ObservedRemoveMap}
 
   defmodule State do
@@ -9,7 +12,8 @@ defmodule Horde.Supervisor do
               members_pid: nil,
               processes_pid: nil,
               members: %{},
-              processes: %{}
+              processes: %{},
+              processes_updated_counter: 0
   end
 
   def child_spec(id) do
@@ -38,7 +42,7 @@ defmodule Horde.Supervisor do
 
   def count_children(supervisor), do: call(supervisor, :count_children)
 
-  defp call(supervisor, msg), do: GenServer.call(supervisor, msg, :infinity)
+  defp call(supervisor, msg), do: GenServer.call(supervisor, msg, @long_time)
 
   ## GenServer callbacks
 
@@ -52,7 +56,7 @@ defmodule Horde.Supervisor do
       CausalCrdt.start_link(%ObservedRemoveMap{}, {self(), :processes_updated})
 
     # add self to members CRDT
-    GenServer.cast(
+    GenServer.call(
       members_pid,
       {:operation,
        {AddWinsFirstWriteWinsMap, :add,
@@ -131,30 +135,39 @@ defmodule Horde.Supervisor do
         {:noreply, state}
 
       {node_id, _node_state} ->
-        GenServer.cast(
+        GenServer.call(
           state.members_pid,
           {:operation, {AddWinsFirstWriteWinsMap, :add, [node_id, {:dead, nil, nil, nil}]}}
         )
-
-        send(state.members_pid, :ship_interval_or_state_to_all)
 
         {:noreply, state}
     end
   end
 
   def handle_info(:processes_updated, state) do
-    processes = GenServer.call(state.processes_pid, {:read, AddWinsFirstWriteWinsMap})
+    new_state = %{state | processes_updated_counter: state.processes_updated_counter + 1}
+    Process.send_after(self(), {:update_processes, new_state.processes_updated_counter}, 200)
+    {:noreply, new_state}
+  end
+
+  def handle_info({:update_processes, _c}, %{processes_updated_counter: _c} = state) do
+    processes = GenServer.call(state.processes_pid, {:read, AddWinsFirstWriteWinsMap}, 30_000)
     {:noreply, %{state | processes: processes}}
   end
 
+  def handle_info({:update_processes, _counter}, state) do
+    {:noreply, state}
+  end
+
   def handle_info(:members_updated, state) do
-    members = GenServer.call(state.members_pid, {:read, AddWinsFirstWriteWinsMap})
+    members = GenServer.call(state.members_pid, {:read, AddWinsFirstWriteWinsMap}, 30_000)
+
     new_state = %{state | members: members}
 
     monitor_supervisors(members)
     handle_updated_members_pids(state, new_state)
     handle_updated_process_pids(state, new_state)
-    handle_topology_changes(state, new_state)
+    handle_topology_changes(new_state)
 
     {:noreply, new_state}
   end
@@ -194,38 +207,27 @@ defmodule Horde.Supervisor do
     |> Enum.map(fn {node_id, _} -> node_id end)
   end
 
-  defp handle_topology_changes(state, new_state) do
+  defp handle_topology_changes(state) do
     this_node_id = state.node_id
 
-    old_dead_members =
-      dead_members(state)
-      |> Enum.into(MapSet.new())
-
-    new_dead_members =
-      dead_members(new_state)
-      |> Enum.into(MapSet.new())
-
-    if MapSet.difference(new_dead_members, old_dead_members) |> Enum.any?() do
-      IO.inspect(this_node_id)
-
-      new_dead_members
-      |> Enum.map(fn dead_node ->
-        state.processes
-        |> Enum.filter(fn
-          {_id, {^dead_node, _child_spec}} -> true
-          _ -> false
-        end)
-        |> Enum.filter(fn {id, {_node, child}} ->
-          choose_node(child.id, new_state)
-          |> IO.inspect()
-          |> case do
-            {^this_node_id, _node_info} -> true
-            _ -> false
-          end
-        end)
-        |> Enum.each(fn {id, {_node, child}} -> add_child(child, new_state) end)
+    dead_members(state)
+    |> Enum.map(fn dead_node ->
+      state.processes
+      |> Enum.filter(fn
+        {_id, {^dead_node, _child_spec}} -> true
+        _ -> false
       end)
-    end
+      |> Enum.filter(fn {id, {_node, child}} ->
+        chosen = choose_node(child.id, state)
+
+        chosen
+        |> case do
+          {^this_node_id, _node_info} -> true
+          _ -> false
+        end
+      end)
+      |> Enum.map(fn {id, {_node, child}} -> add_child(child, state) end)
+    end)
   end
 
   defp monitor_supervisors(members) do
@@ -257,8 +259,6 @@ defmodule Horde.Supervisor do
       state.processes_pid,
       {:operation, {AddWinsFirstWriteWinsMap, :add, [child.id, {node_id, child}]}}
     )
-
-    send(state.processes_pid, :ship_interval_or_state_to_all)
   end
 
   defp choose_node(identifier, state) do
