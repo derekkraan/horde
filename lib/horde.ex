@@ -33,9 +33,11 @@ defmodule Horde do
   end
 
   @doc """
-  Remove a node from the hordes
+  Remove own node from the hordes (gracefully retire node)
   """
-  def leave_hordes(horde)
+  def leave_hordes(horde) do
+    GenServer.cast(horde, :leave_horde)
+  end
 
   @doc "register a process under given name for entire horde"
   def register(horde, name, pid) do
@@ -43,7 +45,7 @@ defmodule Horde do
   end
 
   def unregister(horde, name) do
-
+    GenServer.cast(horde, {:unregister, name})
   end
 
 
@@ -133,10 +135,29 @@ defmodule Horde do
     {:noreply, state}
   end
 
+  def handle_cast(:leave_horde, state) do
+    GenServer.cast(
+      state.members_pid,
+      {:operation, {AddWinsFirstWriteWinsMap, :remove, [state.node_id]}}
+    )
+    Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
+    {:noreply, state}
+  end
+
+
   def handle_cast({:register, name, pid}, state) do
     GenServer.cast(
       state.processes_pid,
       {:operation, {AddWinsFirstWriteWinsMap, :add, [name, {pid}]}}
+    )
+    Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
+    {:noreply, state}
+  end
+
+  def handle_cast({:unregister, name}, state) do
+    GenServer.cast(
+      state.processes_pid,
+      {:operation, {AddWinsFirstWriteWinsMap, :remove, [name]}}
     )
     Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
     {:noreply, state}

@@ -69,7 +69,7 @@ defmodule HordeTest do
     end
   end
 
-  describe "via callbacks" do
+  describe "register via callbacks" do
     setup do
       {:ok, horde} = GenServer.start_link(Horde, :horde_1, [name: Horde.Tracker])
       {:ok, horde: horde}
@@ -82,7 +82,40 @@ defmodule HordeTest do
       assert 0 = Agent.get(name, &(&1))
       assert apid == Horde.lookup(horde, "precious")
     end
+  end
 
 
+  describe ".unregister/2" do
+    setup do
+      {:ok, horde_1} = GenServer.start_link(Horde, :horde_1)
+      {:ok, horde: horde_1}
+    end
+
+    test "can unregister processes", %{horde: horde} do
+      pid1 = spawn(fn -> Process.sleep(300) end)
+      Horde.register(horde, :one_day_fly, pid1)
+      Process.sleep(10)
+      assert {:ok, %{one_day_fly: {_id}}} = Horde.processes(horde)
+      Horde.unregister(horde, :one_day_fly)
+      Process.sleep(10)
+      assert {:ok, %{}} = Horde.processes(horde)
+    end
+  end
+
+  describe ".leave_horde/2" do
+    test "can leave horde" do
+      {:ok, horde_1} = GenServer.start_link(Horde, :horde_1)
+      {:ok, horde_2} = GenServer.start_link(Horde, :horde_2)
+      {:ok, horde_3} = GenServer.start_link(Horde, :horde_3)
+      Horde.join_hordes(horde_1, horde_2)
+      Horde.join_hordes(horde_2, horde_3)
+      Process.sleep(10)
+      {:ok, members} = Horde.members(horde_2)
+      assert [:horde_1, :horde_2, :horde_3] = Map.keys(members)
+      Horde.leave_hordes(horde_2)
+      Process.sleep(10)
+      {:ok, members} = Horde.members(horde_1)
+      assert [:horde_1, :horde_3] = Map.keys(members)
+    end
   end
 end
