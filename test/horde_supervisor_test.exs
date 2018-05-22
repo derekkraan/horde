@@ -21,7 +21,7 @@ defmodule HordeSupervisorTest do
          [
            fn ->
              send(pid, {:process_started, self()})
-             Process.sleep(100)
+             Process.sleep(1000)
            end
          ]},
       type: :worker,
@@ -90,13 +90,31 @@ defmodule HordeSupervisorTest do
     Process.exit(context.horde_2, :kill)
 
     %{workers: workers} = Horde.Supervisor.count_children(context.horde_1)
-    IO.inspect({:number_of_workers, workers})
     assert workers < max
 
     Process.sleep(2000)
 
     assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1)
   end
+
+  test "removing a node from a horde causes supervised processes to shut down", context do
+    max = 200
+
+    1..max
+    |> Enum.each(fn x ->
+      Horde.Supervisor.start_child(context.horde_1, Map.put(context.task_def, :id, :"proc_#{x}"))
+    end)
+
+    Process.sleep(2000)
+
+    Horde.Tracker.leave_hordes(context.horde_1)
+
+    Process.sleep(5000)
+
+    assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
+  end
+
+  test "netsplit"
 
   test "registering a lot of workers doesn't cause an exit", context do
     max = 20_000
@@ -106,8 +124,6 @@ defmodule HordeSupervisorTest do
       Horde.Supervisor.start_child(context.horde_1, Map.put(context.task_def, :id, :"proc_#{x}"))
     end)
 
-    assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1) |> IO.inspect()
+    assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1)
   end
-
-  test "exiting horde's processes are gracefully moved to another horde"
 end

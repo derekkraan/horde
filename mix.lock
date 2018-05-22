@@ -1,4 +1,4 @@
 %{
-  "delta_crdt": {:git, "https://github.com/derekkraan/delta_crdt_ex", "9767a4b7dfa30c23ffe68908acccd18ec3e6b444", []},
+  "delta_crdt": {:git, "https://github.com/derekkraan/delta_crdt_ex", "3e6e7b27994307f0ca79eacfb930ac4a111bffc4", []},
   "xxhash": {:hex, :xxhash, "0.2.0", "4f5ca6159df3732eae22fd942494375d17fe09a66d7711c2e106fc64dfce2356", [:mix], [], "hexpm"},
 }
