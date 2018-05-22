@@ -118,4 +118,48 @@ defmodule HordeTest do
       assert [:horde_1, :horde_3] = Map.keys(members)
     end
   end
+
+  describe "lookup" do
+    setup do
+      {:ok, horde} = GenServer.start_link(Horde, :horde, [name: Horde.Tracker])
+      pid1 = spawn(fn -> Process.sleep(300) end)
+      Horde.register(horde, :carmen, pid1)
+      Process.sleep(20)
+      {:ok, horde: horde, carmen: pid1}
+    end
+
+    test "existing process with lookup/2", %{horde: horde, carmen: carmen} do
+      assert carmen == Horde.lookup(horde, :carmen)
+    end
+
+    test "existing process the 'via' way", %{carmen: carmen} do
+      name = {:via, Horde, {Horde.Tracker, :carmen}}
+      assert carmen == Horde.lookup(name)
+    end
+  end
+
+  describe "sending messages" do
+    setup do
+      {:ok, horde} = GenServer.start_link(Horde, :horde, [name: Horde.Tracker])
+      pid1 = spawn(fn -> Process.sleep(300) end)
+      Horde.register(horde, :carmen, pid1)
+      Process.sleep(20)
+      {:ok, horde: horde, carmen: pid1}
+    end
+
+    test "sending message to non-existing process", %{horde: horde} do
+      assert_raise ArgumentError, fn ->
+        Horde.send({horde, :santiago}, "Where are you?")
+      end
+    end
+
+    test "sending message to non-existing horde", %{carmen: pid} do
+      assert {:normal, {GenServer,:call, _}} = catch_exit(Horde.send({pid, :santiago}, "Where are you?"))
+
+    end
+
+    test "sending message to existing process", %{horde: horde} do
+      assert "Where are you?" = Horde.send({horde, :carmen}, "Where are you?")
+    end
+  end
 end

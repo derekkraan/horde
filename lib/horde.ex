@@ -48,6 +48,8 @@ defmodule Horde do
     GenServer.cast(horde, {:unregister, name})
   end
 
+  def whereis(search), do: lookup(search)
+  def lookup({:via, _, {horde, name}}), do: lookup(horde, name)
 
   def lookup(horde, name) do
     case GenServer.call(horde, {:lookup, name}) do
@@ -122,7 +124,7 @@ defmodule Horde do
   end
 
   def handle_cast(
-        {:request_to_join_horde, {other_node_id, other_members_pid}},
+        {:request_to_join_horde, {_other_node_id, other_members_pid}},
         state
       ) do
     Kernel.send(state.members_pid, {:add_neighbour, other_members_pid})
