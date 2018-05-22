@@ -7,7 +7,7 @@ defmodule HordeTest do
       {:ok, horde_1} = GenServer.start_link(Horde, :horde_1)
       {:ok, horde_2} = GenServer.start_link(Horde, :horde_2)
       Horde.join_hordes(horde_1, horde_2)
-      Process.sleep(100)
+      Process.sleep(10)
       {:ok, members} = Horde.members(horde_2)
       assert [:horde_1, :horde_2] = Map.keys(members)
     end
@@ -18,7 +18,7 @@ defmodule HordeTest do
       {:ok, horde_3} = GenServer.start_link(Horde, :horde_3)
       Horde.join_hordes(horde_1, horde_2)
       Horde.join_hordes(horde_2, horde_3)
-      Process.sleep(100)
+      Process.sleep(20)
       {:ok, members} = Horde.members(horde_2)
       assert [:horde_1, :horde_2, :horde_3] = Map.keys(members)
     end
@@ -32,7 +32,7 @@ defmodule HordeTest do
           horde
         end)
 
-      Process.sleep(1000)
+      Process.sleep(500)
       {:ok, members} = Horde.members(last_horde)
       assert 25 = Enum.count(members)
     end
@@ -45,11 +45,11 @@ defmodule HordeTest do
     end
 
     test "cannot register 2 processes under same name with same horde", %{horde: horde} do
-      pid1 = spawn(fn -> Process.sleep(30) end)
-      pid2 = spawn(fn -> Process.sleep(30) end)
+      pid1 = spawn(fn -> Process.sleep(50) end)
+      pid2 = spawn(fn -> Process.sleep(50) end)
       Horde.register(horde, :highlander, pid1)
       Horde.register(horde, :highlander, pid2)
-      Process.sleep(10)
+      Process.sleep(20)
       {:ok, processes} = Horde.processes(horde)
       assert [:highlander] = Map.keys(processes)
     end
@@ -61,7 +61,7 @@ defmodule HordeTest do
       pid2 = spawn(fn -> Process.sleep(30) end)
       Horde.register(horde, :MacLeod, pid1)
       Horde.register(horde_2, :MacLeod, pid2)
-      Process.sleep(100)
+      Process.sleep(10)
       {:ok, processes} = Horde.processes(horde)
       {:ok, processes_2} = Horde.processes(horde_2)
       assert 1 = Map.size(processes)
@@ -78,7 +78,7 @@ defmodule HordeTest do
     test "register a name the 'via' way", %{horde: horde} do
       name = {:via, Horde, {Horde.Tracker, "precious"}}
       {:ok, apid} = Agent.start_link(fn -> 0 end, name: name)
-      Process.sleep(100)
+      Process.sleep(10)
       assert 0 = Agent.get(name, &(&1))
       assert apid == Horde.lookup(horde, "precious")
     end
