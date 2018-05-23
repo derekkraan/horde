@@ -168,10 +168,6 @@ defmodule Horde do
   def handle_info(:processes_updated, state) do
     processes = GenServer.call(state.processes_pid, {:read, AddWinsFirstWriteWinsMap})
 
-    processes_pids = Enum.into(processes, MapSet.new(), fn {_name, {pid}} -> pid end)
-
-    state_processes_pids = Enum.into(state.processes, MapSet.new(), fn {_name, {pid}} -> pid end)
-
     {:noreply, %{state | processes: processes}}
   end
 
