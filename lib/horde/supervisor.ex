@@ -33,21 +33,20 @@ defmodule Horde.Supervisor do
     )
   end
 
-  def stop
+  def stop(supervisor, reason, timeout \\ :infinity),
+    do: GenServer.stop(supervisor, reason, timeout)
 
   def start_child(supervisor, child_spec), do: call(supervisor, {:start_child, child_spec})
 
-  def terminate_child
+  def terminate_child(supervisor, child_id), do: call(supervisor, {:terminate_child, child_id})
 
-  def delete_child
+  def delete_child(supervisor, child_id), do: call(supervisor, {:delete_child, child_id})
 
-  def restart_child
+  def restart_child(supervisor, child_id), do: call(supervisor, {:restart_child, child_id})
 
   def which_children(supervisor), do: call(supervisor, :which_children)
 
   def count_children(supervisor), do: call(supervisor, :count_children)
-
-  def count_own_children(supervisor), do: call(supervisor, :count_own_children)
 
   defp call(supervisor, msg), do: GenServer.call(supervisor, msg, @long_time)
 
@@ -65,7 +64,8 @@ defmodule Horde.Supervisor do
     # add self to members CRDT
     GenServer.call(
       members_pid,
-      {:operation, {@crdt, :add, [node_id, {:alive, supervisor_pid, members_pid, processes_pid}]}}
+      {:operation,
+       {@crdt, :add, [node_id, {:alive, self(), supervisor_pid, members_pid, processes_pid}]}}
     )
 
     state = %State{
@@ -73,14 +73,59 @@ defmodule Horde.Supervisor do
       supervisor_pid: supervisor_pid,
       members_pid: members_pid,
       processes_pid: processes_pid,
-      members: %{node_id => {:alive, supervisor_pid, members_pid, processes_pid}}
+      members: %{node_id => {:alive, self(), supervisor_pid, members_pid, processes_pid}}
     }
 
     add_children(children, state)
     {:ok, state}
   end
 
-  def handle_call({:start_child, child_spec}, _from, %{shutting_down: true} = state),
+  def terminate(reason, state) do
+    Supervisor.stop(state.supervisor_pid, reason)
+    GenServer.stop(state.members_pid, reason)
+    GenServer.stop(state.processes_pid, reason)
+    :ok
+  end
+
+  def handle_call(:members, _from, state) do
+    {:reply, {:ok, state.members}, state}
+  end
+
+  def handle_call({:delete_child, child_id}, _from, state) do
+    with {:ok, supervisor_pid} <- which_supervisor(child_id, state),
+         :ok <- Supervisor.delete_child(supervisor_pid, child_id) do
+      GenServer.cast(
+        state.processes_pid,
+        {:operation, {@crdt, :remove, [child_id]}}
+      )
+
+      {:reply, :ok, state}
+    else
+      {:error, error} -> {:reply, {:error, error}, state}
+    end
+  end
+
+  def handle_call({:restart_child, child_id}, _from, state) do
+    case which_supervisor(child_id, state) do
+      {:ok, supervisor_pid} ->
+        {:reply, Supervisor.restart_child(supervisor_pid, child_id), state}
+
+      error ->
+        {:reply, error, state}
+    end
+  end
+
+  def handle_call({:terminate_child, child_id}, _from, state) do
+    case which_supervisor(child_id, state) do
+      {:ok, supervisor_pid} ->
+        {:reply, Supervisor.restart_child(supervisor_pid, child_id), state}
+
+      error ->
+        {:reply, error, state}
+    end
+  end
+
+  def handle_call({:start_child, _child_spec}, _from, %{shutting_down: true} = state),
     do: {:reply, {:error, "shutting down"}, state}
 
   def handle_call({:start_child, child_spec}, _from, state) do
@@ -89,17 +134,24 @@ defmodule Horde.Supervisor do
   end
 
   def handle_call(:which_children, _from, state) do
-    # delegate to all supervisor pids (probably slow)
-  end
+    which_children =
+      state.members
+      |> Enum.map(fn {_, {_, _, s, _, _}} -> s end)
+      |> Enum.flat_map(fn supervisor_pid ->
+        try do
+          Supervisor.which_children(supervisor_pid)
+        catch
+          :exit, _ -> []
+        end
+      end)
 
-  def handle_call(:count_own_children, _from, state) do
-    {:reply, Supervisor.count_children(state.supervisor_pid), state}
+    {:reply, which_children, state}
   end
 
   def handle_call(:count_children, _from, state) do
     count =
       state.members
-      |> Enum.map(fn {_, {_, s, _, _}} -> s end)
+      |> Enum.map(fn {_, {_, _, s, _, _}} -> s end)
       |> Enum.map(fn supervisor ->
         try do
           Supervisor.count_children(supervisor)
@@ -123,8 +175,14 @@ defmodule Horde.Supervisor do
     {:reply, count, state}
   end
 
+  def handle_cast({:join_horde, other_horde}, state) do
+    GenServer.cast(other_horde, {:request_to_join_horde, {state.node_id, state.members_pid}})
+    {:noreply, state}
+  end
+
   def handle_cast(:leave_hordes, state) do
-    node_info = {:shutting_down, state.supervisor_pid, state.members_pid, state.processes_pid}
+    node_info =
+      {:shutting_down, self(), state.supervisor_pid, state.members_pid, state.processes_pid}
 
     GenServer.call(state.members_pid, {:operation, {@crdt, :add, [state.node_id, node_info]}})
 
@@ -137,7 +195,7 @@ defmodule Horde.Supervisor do
   end
 
   def handle_cast(
-        {:request_to_join_horde, {other_node_id, other_members_pid}},
+        {:request_to_join_horde, {_other_node_id, other_members_pid}},
         state
       ) do
     send(state.members_pid, {:add_neighbour, other_members_pid})
@@ -145,14 +203,10 @@ defmodule Horde.Supervisor do
     {:noreply, state}
   end
 
-  @nodoc
-  @doc """
-  mark a node as dead if it's supervisor goes down
-  """
   def handle_info({:DOWN, _ref, _type, pid, _reason}, state) do
     state.members
     |> Enum.find(fn
-      {node_id, {_, ^pid, _, _}} -> true
+      {_node_id, {_, _, ^pid, _, _}} -> true
       _ -> false
     end)
     |> case do
@@ -162,7 +216,7 @@ defmodule Horde.Supervisor do
       {node_id, _node_state} ->
         GenServer.call(
           state.members_pid,
-          {:operation, {@crdt, :add, [node_id, {:dead, nil, nil, nil}]}}
+          {:operation, {@crdt, :add, [node_id, {:dead, nil, nil, nil, nil}]}}
         )
 
         {:noreply, state}
@@ -170,7 +224,6 @@ defmodule Horde.Supervisor do
   end
 
   def handle_info(:force_shutdown, state) do
-    # log("shutting down")
     {:stop, :force_shutdown, state}
   end
 
@@ -184,7 +237,7 @@ defmodule Horde.Supervisor do
 
   def handle_info({:update_processes, _c}, %{shutting_down: true} = state), do: {:noreply, state}
 
-  def handle_info({:update_processes, _c}, %{processes_updated_counter: _c} = state) do
+  def handle_info({:update_processes, c}, %{processes_updated_counter: c} = state) do
     processes = GenServer.call(state.processes_pid, {:read, @crdt}, 30_000)
     new_state = %{state | processes: processes}
     claim_unclaimed_processes(new_state)
@@ -197,7 +250,6 @@ defmodule Horde.Supervisor do
 
   def handle_info(:members_updated, state) do
     members = GenServer.call(state.members_pid, {:read, @crdt}, 30_000)
-    # |> log()
 
     new_state = %{state | members: members}
 
@@ -210,17 +262,11 @@ defmodule Horde.Supervisor do
     {:noreply, new_state}
   end
 
-  defp log(thing) do
-    {self(), thing} |> IO.inspect()
-    thing
-  end
-
   defp handle_this_node_shutting_down(state) do
     state.members
-    # |> log()
     |> Map.get(state.node_id)
     |> case do
-      {:alive, _, _, _} -> nil
+      {:alive, _, _, _, _} -> nil
       _ -> shut_down_all_processes(state)
     end
   end
@@ -263,10 +309,10 @@ defmodule Horde.Supervisor do
 
   defp handle_updated_members_pids(state, new_state) do
     new_pids =
-      Enum.map(new_state.members, fn {_key, {_, _, m, _}} -> m end) |> Enum.into(MapSet.new())
+      Enum.map(new_state.members, fn {_key, {_, _, _, m, _}} -> m end) |> Enum.into(MapSet.new())
 
     old_pids =
-      Enum.map(state.members, fn {_node_id, {_, _, m, _}} -> m end) |> Enum.into(MapSet.new())
+      Enum.map(state.members, fn {_node_id, {_, _, _, m, _}} -> m end) |> Enum.into(MapSet.new())
 
     # if there are any new pids in `member_pids`
     if MapSet.difference(new_pids, old_pids) |> Enum.any?() do
@@ -277,10 +323,10 @@ defmodule Horde.Supervisor do
 
   defp handle_updated_process_pids(state, new_state) do
     new_pids =
-      Enum.map(new_state.members, fn {_key, {_, _, _, p}} -> p end) |> Enum.into(MapSet.new())
+      Enum.map(new_state.members, fn {_key, {_, _, _, _, p}} -> p end) |> Enum.into(MapSet.new())
 
     old_pids =
-      Enum.map(state.members, fn {_node_id, {_, _, _, p}} -> p end) |> Enum.into(MapSet.new())
+      Enum.map(state.members, fn {_node_id, {_, _, _, _, p}} -> p end) |> Enum.into(MapSet.new())
 
     if MapSet.difference(new_pids, old_pids) |> Enum.any?() do
       send(state.processes_pid, {:add_neighbours, new_pids})
@@ -290,7 +336,7 @@ defmodule Horde.Supervisor do
 
   defp dead_members(%{members: members}) do
     Enum.filter(members, fn
-      {_, {:dead, _, _, _}} -> true
+      {_, {:dead, _, _, _, _}} -> true
       _ -> false
     end)
     |> Enum.map(fn {node_id, _} -> node_id end)
@@ -306,13 +352,13 @@ defmodule Horde.Supervisor do
         {_id, {^dead_node, _child_spec}} -> true
         _ -> false
       end)
-      |> Enum.filter(fn {id, {_node, child}} ->
+      |> Enum.filter(fn {_id, {_node, child}} ->
         case choose_node(child.id, state) do
           {^this_node_id, _node_info} -> true
           _ -> false
         end
       end)
-      |> Enum.map(fn {id, {_node, child}} -> add_child(child, state) end)
+      |> Enum.map(fn {_id, {_node, child}} -> add_child(child, state) end)
     end)
   end
 
@@ -333,16 +379,17 @@ defmodule Horde.Supervisor do
   end
 
   defp monitor_supervisors(members) do
-    Enum.each(members, fn {_, {_, s, _, _}} -> Process.monitor(s) end)
+    Enum.each(members, fn {_, {_, _, s, _, _}} -> Process.monitor(s) end)
   end
 
-  def handle_cast({:join_horde, other_horde}, state) do
-    GenServer.cast(other_horde, {:request_to_join_horde, {state.node_id, state.members_pid}})
-    {:noreply, state}
-  end
-
-  def handle_call(:members, _from, state) do
-    {:reply, {:ok, state.members}, state}
+  defp which_supervisor(child_id, state) do
+    with {node_id, _child_spec} <- Map.get(state.processes, child_id),
+         {_node_id, _h, supervisor_pid, _m, _p} when not is_nil(supervisor_pid) <-
+           Map.get(state.members, node_id) do
+      {:ok, supervisor_pid}
+    else
+      _ -> {:error, :not_found}
+    end
   end
 
   defp add_children([], _state), do: nil
@@ -353,7 +400,7 @@ defmodule Horde.Supervisor do
   end
 
   defp add_child(child, state) do
-    {node_id, {_, supervisor_pid, _, _}} = choose_node(child.id, state)
+    {node_id, {_, _, supervisor_pid, _, _}} = choose_node(child.id, state)
 
     Supervisor.start_child(supervisor_pid, child)
 
@@ -364,7 +411,7 @@ defmodule Horde.Supervisor do
     node_ids =
       state.members
       |> Enum.filter(fn
-        {_, {:alive, _, _, _}} -> true
+        {_, {:alive, _, _, _, _}} -> true
         _ -> false
       end)
       |> Enum.sort_by(fn {node_id, _} -> node_id end)
