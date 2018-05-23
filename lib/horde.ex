@@ -58,11 +58,6 @@ defmodule Horde do
     end
   end
 
-  def start_handoff(name) do
-
-  end
-
-
   ### Via callbacks
 
   @doc false
@@ -70,9 +65,10 @@ defmodule Horde do
   def register_name({horde, name}, pid) do
     case GenServer.call(horde, {:register, name, pid}) do
       :ok -> :yes
-      _   -> :no
+      _ -> :no
     end
   end
+
   @doc false
   # @spec whereis_name({pid, term}) :: pid | :undefined
   def whereis_name({horde, name}) do
@@ -108,7 +104,9 @@ defmodule Horde do
 
   def init(node_id) do
     {:ok, members_pid} = CausalCrdt.start_link(%ObservedRemoveMap{}, {self(), :members_updated})
-    {:ok, processes_pid} = CausalCrdt.start_link(%ObservedRemoveMap{}, {self(), :processes_updated})
+
+    {:ok, processes_pid} =
+      CausalCrdt.start_link(%ObservedRemoveMap{}, {self(), :processes_updated})
 
     GenServer.cast(
       members_pid,
@@ -142,16 +140,17 @@ defmodule Horde do
       state.members_pid,
       {:operation, {AddWinsFirstWriteWinsMap, :remove, [state.node_id]}}
     )
+
     Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
     {:noreply, state}
   end
-
 
   def handle_cast({:register, name, pid}, state) do
     GenServer.cast(
       state.processes_pid,
       {:operation, {AddWinsFirstWriteWinsMap, :add, [name, {pid}]}}
     )
+
     Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
     {:noreply, state}
   end
@@ -161,6 +160,7 @@ defmodule Horde do
       state.processes_pid,
       {:operation, {AddWinsFirstWriteWinsMap, :remove, [name]}}
     )
+
     Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
     {:noreply, state}
   end
@@ -168,28 +168,21 @@ defmodule Horde do
   def handle_info(:processes_updated, state) do
     processes = GenServer.call(state.processes_pid, {:read, AddWinsFirstWriteWinsMap})
 
-    processes_pids =
-      Enum.into(processes, MapSet.new(), fn {_name, {pid}} -> pid end)
+    processes_pids = Enum.into(processes, MapSet.new(), fn {_name, {pid}} -> pid end)
 
-    state_processes_pids =
-      Enum.into(state.processes, MapSet.new(), fn {_name, {pid}} -> pid end)
-
-    if MapSet.difference(processes_pids, state_processes_pids) |> Enum.any?() do
-      Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
-    end
+    state_processes_pids = Enum.into(state.processes, MapSet.new(), fn {_name, {pid}} -> pid end)
 
     {:noreply, %{state | processes: processes}}
   end
 
-    def handle_info(:members_updated, state) do
+  def handle_info(:members_updated, state) do
     members = GenServer.call(state.members_pid, {:read, AddWinsFirstWriteWinsMap})
 
     member_pids =
-      Enum.map(members, fn {_key, {members_pid, _processes_pid}} -> members_pid end)
-      |> Enum.into(MapSet.new())
+      Enum.into(members, MapSet.new(), fn {_key, {members_pid, _processes_pid}} -> members_pid end)
 
     state_member_pids =
-      Enum.map(state.members, fn {_node_id, {pid, _processes_pid}} -> pid end) |> Enum.into(MapSet.new())
+      Enum.into(state.members, MapSet.new(), fn {_node_id, {pid, _processes_pid}} -> pid end)
 
     # if there are any new pids in `member_pids`
     if MapSet.difference(member_pids, state_member_pids) |> Enum.any?() do
@@ -204,10 +197,12 @@ defmodule Horde do
   end
 
   def handle_call({:register, name, pid}, _from, state) do
-    result = GenServer.call(
-      state.processes_pid,
-      {:operation, {AddWinsFirstWriteWinsMap, :add, [name, {pid}]}}
-    )
+    result =
+      GenServer.call(
+        state.processes_pid,
+        {:operation, {AddWinsFirstWriteWinsMap, :add, [name, {pid}]}}
+      )
+
     Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
     {:reply, result, state}
   end
@@ -226,5 +221,4 @@ defmodule Horde do
       {pid} -> {:reply, {:ok, pid}, state}
     end
   end
-
 end
