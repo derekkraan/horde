@@ -308,11 +308,8 @@ defmodule Horde.Supervisor do
   end
 
   defp handle_updated_members_pids(state, new_state) do
-    new_pids =
-      Enum.map(new_state.members, fn {_key, {_, _, _, m, _}} -> m end) |> Enum.into(MapSet.new())
-
-    old_pids =
-      Enum.map(state.members, fn {_node_id, {_, _, _, m, _}} -> m end) |> Enum.into(MapSet.new())
+    new_pids = MapSet.new(new_state.members, fn {_key, {_, _, _, m, _}} -> m end)
+    old_pids = MapSet.new(state.members, fn {_key, {_, _, _, m, _}} -> m end)
 
     # if there are any new pids in `member_pids`
     if MapSet.difference(new_pids, old_pids) |> Enum.any?() do
