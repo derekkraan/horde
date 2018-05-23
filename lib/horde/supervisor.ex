@@ -339,23 +339,26 @@ defmodule Horde.Supervisor do
     |> Enum.map(fn {node_id, _} -> node_id end)
   end
 
+  defp processes_for_node(state, node_id) do
+    Enum.filter(state.processes, fn
+      {_id, {^node_id, _child_spec}} -> true
+      _ -> false
+    end)
+  end
+
   defp handle_topology_changes(state) do
     this_node_id = state.node_id
 
-    dead_members(state)
-    |> Enum.map(fn dead_node ->
-      state.processes
-      |> Enum.filter(fn
-        {_id, {^dead_node, _child_spec}} -> true
-        _ -> false
-      end)
-      |> Enum.filter(fn {_id, {_node, child}} ->
+    Enum.map(dead_members(state), fn dead_node ->
+      processes_for_node(state, dead_node)
+      |> Enum.map(fn {_id, {_node, child}} -> child end)
+      |> Enum.filter(fn child ->
         case choose_node(child.id, state) do
           {^this_node_id, _node_info} -> true
           _ -> false
         end
       end)
-      |> Enum.map(fn {_id, {_node, child}} -> add_child(child, state) end)
+      |> Enum.each(fn child -> add_child(child, state) end)
     end)
   end
 
