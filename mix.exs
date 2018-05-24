@@ -22,7 +22,9 @@ defmodule Horde.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:delta_crdt, git: "https://github.com/derekkraan/delta_crdt_ex"}
+      {:delta_crdt, git: "https://github.com/derekkraan/delta_crdt_ex"},
+      {:credo, "~> 0.9", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 0.5", only: [:dev], runtime: false}
     ]
   end
 
