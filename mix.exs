@@ -23,6 +23,7 @@ defmodule Horde.MixProject do
   defp deps do
     [
       {:delta_crdt, git: "https://github.com/derekkraan/delta_crdt_ex"},
+      {:xxhash, "~> 0.1"},
       {:credo, "~> 0.9", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false}
     ]
