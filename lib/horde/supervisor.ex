@@ -14,6 +14,7 @@ defmodule Horde.Supervisor do
   @crdt DeltaCrdt.AWLWWMap
 
   defmodule State do
+    @moduledoc false
     defstruct node_id: nil,
               supervisor_pid: nil,
               members_pid: nil,
