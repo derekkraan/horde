@@ -1,6 +1,6 @@
-defmodule Horde do
+defmodule Horde.Registry do
   @moduledoc """
-  Horde is a distributed process registry that takes advantage of Delta-CRDTs.
+  A distributed process registry that takes advantage of δ-CRDTs.
   """
   import Kernel, except: [send: 2]
 

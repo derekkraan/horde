@@ -1,4 +1,8 @@
 defmodule Horde.Supervisor do
+  @moduledoc """
+  A distributed supervisor built on top of δ-CRDTs.
+  """
+
   use GenServer
 
   # 60s
