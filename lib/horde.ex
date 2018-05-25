@@ -4,8 +4,6 @@ defmodule Horde do
   """
   import Kernel, except: [send: 2]
 
-  alias DeltaCrdt.{CausalCrdt, AddWinsFirstWriteWinsMap, ObservedRemoveMap}
-
   defmodule State do
     @moduledoc false
     defstruct node_id: nil,
@@ -14,6 +12,8 @@ defmodule Horde do
               processes_pid: nil,
               processes: %{}
   end
+
+  @crdt DeltaCrdt.AWLWWMap
 
   @doc """
   Child spec to enable easy inclusion into a supervisor:
@@ -103,14 +103,13 @@ defmodule Horde do
   ### GenServer callbacks
 
   def init(node_id) do
-    {:ok, members_pid} = CausalCrdt.start_link(%ObservedRemoveMap{}, {self(), :members_updated})
+    {:ok, members_pid} = @crdt.start_link({self(), :members_updated})
 
-    {:ok, processes_pid} =
-      CausalCrdt.start_link(%ObservedRemoveMap{}, {self(), :processes_updated})
+    {:ok, processes_pid} = @crdt.start_link({self(), :processes_updated})
 
     GenServer.cast(
       members_pid,
-      {:operation, {AddWinsFirstWriteWinsMap, :add, [node_id, {members_pid, processes_pid}]}}
+      {:operation, {@crdt, :add, [node_id, {members_pid, processes_pid}]}}
     )
 
     {:ok,
@@ -138,7 +137,7 @@ defmodule Horde do
   def handle_cast(:leave_horde, state) do
     GenServer.cast(
       state.members_pid,
-      {:operation, {AddWinsFirstWriteWinsMap, :remove, [state.node_id]}}
+      {:operation, {@crdt, :remove, [state.node_id]}}
     )
 
     Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
@@ -148,7 +147,7 @@ defmodule Horde do
   def handle_cast({:register, name, pid}, state) do
     GenServer.cast(
       state.processes_pid,
-      {:operation, {AddWinsFirstWriteWinsMap, :add, [name, {pid}]}}
+      {:operation, {@crdt, :add, [name, {pid}]}}
     )
 
     Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
@@ -158,7 +157,7 @@ defmodule Horde do
   def handle_cast({:unregister, name}, state) do
     GenServer.cast(
       state.processes_pid,
-      {:operation, {AddWinsFirstWriteWinsMap, :remove, [name]}}
+      {:operation, {@crdt, :remove, [name]}}
     )
 
     Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
@@ -166,13 +165,13 @@ defmodule Horde do
   end
 
   def handle_info(:processes_updated, state) do
-    processes = GenServer.call(state.processes_pid, {:read, AddWinsFirstWriteWinsMap})
+    processes = GenServer.call(state.processes_pid, {:read, @crdt})
 
     {:noreply, %{state | processes: processes}}
   end
 
   def handle_info(:members_updated, state) do
-    members = GenServer.call(state.members_pid, {:read, AddWinsFirstWriteWinsMap})
+    members = GenServer.call(state.members_pid, {:read, @crdt})
 
     member_pids =
       Enum.into(members, MapSet.new(), fn {_key, {members_pid, _processes_pid}} -> members_pid end)
@@ -196,7 +195,7 @@ defmodule Horde do
     result =
       GenServer.call(
         state.processes_pid,
-        {:operation, {AddWinsFirstWriteWinsMap, :add, [name, {pid}]}}
+        {:operation, {@crdt, :add, [name, {pid}]}}
       )
 
     Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)

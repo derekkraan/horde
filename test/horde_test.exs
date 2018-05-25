@@ -32,7 +32,7 @@ defmodule HordeTest do
           horde
         end)
 
-      Process.sleep(500)
+      Process.sleep(2000)
       {:ok, members} = Horde.members(last_horde)
       assert 25 = Enum.count(members)
     end
@@ -71,7 +71,7 @@ defmodule HordeTest do
 
   describe "register via callbacks" do
     setup do
-      {:ok, horde} = GenServer.start_link(Horde, :horde_1, [name: Horde.Tracker])
+      {:ok, horde} = GenServer.start_link(Horde, :horde_1, name: Horde.Tracker)
       {:ok, horde: horde}
     end
 
@@ -79,11 +79,10 @@ defmodule HordeTest do
       name = {:via, Horde, {Horde.Tracker, "precious"}}
       {:ok, apid} = Agent.start_link(fn -> 0 end, name: name)
       Process.sleep(10)
-      assert 0 = Agent.get(name, &(&1))
+      assert 0 = Agent.get(name, & &1)
       assert apid == Horde.lookup(horde, "precious")
     end
   end
-
 
   describe ".unregister/2" do
     setup do
@@ -121,7 +120,7 @@ defmodule HordeTest do
 
   describe "lookup" do
     setup do
-      {:ok, horde} = GenServer.start_link(Horde, :horde, [name: Horde.Tracker])
+      {:ok, horde} = GenServer.start_link(Horde, :horde, name: Horde.Tracker)
       pid1 = spawn(fn -> Process.sleep(300) end)
       Horde.register(horde, :carmen, pid1)
       Process.sleep(20)
@@ -140,7 +139,7 @@ defmodule HordeTest do
 
   describe "sending messages" do
     setup do
-      {:ok, horde} = GenServer.start_link(Horde, :horde, [name: Horde.Tracker])
+      {:ok, horde} = GenServer.start_link(Horde, :horde, name: Horde.Tracker)
       pid1 = spawn(fn -> Process.sleep(300) end)
       Horde.register(horde, :carmen, pid1)
       Process.sleep(20)
@@ -154,8 +153,8 @@ defmodule HordeTest do
     end
 
     test "sending message to non-existing horde", %{carmen: pid} do
-      assert {:normal, {GenServer,:call, _}} = catch_exit(Horde.send({pid, :santiago}, "Where are you?"))
-
+      assert {:normal, {GenServer, :call, _}} =
+               catch_exit(Horde.send({pid, :santiago}, "Where are you?"))
     end
 
     test "sending message to existing process", %{horde: horde} do

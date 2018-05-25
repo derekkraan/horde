@@ -1,6 +1,5 @@
 defmodule Horde.Supervisor do
   use GenServer
-  alias DeltaCrdt.{CausalCrdt, AddWinsFirstWriteWinsMap, ObservedRemoveMap}
 
   # 60s
   @long_time 60_000
@@ -8,7 +7,7 @@ defmodule Horde.Supervisor do
   # 30 minutes
   @shutdown_wait 30 * 60 * 1000
 
-  @crdt AddWinsFirstWriteWinsMap
+  @crdt DeltaCrdt.AWLWWMap
 
   defmodule State do
     defstruct node_id: nil,
@@ -56,10 +55,9 @@ defmodule Horde.Supervisor do
     node_id = Keyword.get(options, :node_id)
     {:ok, supervisor_pid} = Supervisor.start_link(children, options)
 
-    {:ok, members_pid} = CausalCrdt.start_link(%ObservedRemoveMap{}, {self(), :members_updated})
+    {:ok, members_pid} = @crdt.start_link({self(), :members_updated})
 
-    {:ok, processes_pid} =
-      CausalCrdt.start_link(%ObservedRemoveMap{}, {self(), :processes_updated})
+    {:ok, processes_pid} = @crdt.start_link({self(), :processes_updated})
 
     # add self to members CRDT
     GenServer.call(
