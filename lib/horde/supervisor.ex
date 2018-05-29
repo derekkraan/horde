@@ -136,7 +136,7 @@ defmodule Horde.Supervisor do
   def handle_call({:terminate_child, child_id}, _from, state) do
     case which_supervisor(child_id, state) do
       {:ok, supervisor_pid} ->
-        {:reply, Supervisor.restart_child(supervisor_pid, child_id), state}
+        {:reply, Supervisor.terminate_child(supervisor_pid, child_id), state}
 
       error ->
         {:reply, error, state}
