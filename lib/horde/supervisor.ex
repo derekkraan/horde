@@ -48,7 +48,8 @@ defmodule Horde.Supervisor do
   def stop(supervisor, reason, timeout \\ :infinity),
     do: GenServer.stop(supervisor, reason, timeout)
 
-  def start_child(supervisor, child_spec), do: call(supervisor, {:start_child, child_spec})
+  def start_child(supervisor, child_spec),
+    do: call(supervisor, {:start_child, Supervisor.child_spec(child_spec, [])})
 
   def terminate_child(supervisor, child_id), do: call(supervisor, {:terminate_child, child_id})
 
