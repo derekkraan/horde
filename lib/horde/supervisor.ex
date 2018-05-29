@@ -25,8 +25,16 @@ defmodule Horde.Supervisor do
               shutting_down: false
   end
 
-  def child_spec(id) do
-    %{id: id, start: {__MODULE__, :start_link, [id]}}
+  def child_spec(options \\ []) do
+    options =
+      Keyword.put_new(options, :id, __MODULE__)
+      |> Keyword.put_new(:children, [])
+
+    %{
+      id: options[:id],
+      start:
+        {__MODULE__, :start_link, [options[:children], Keyword.drop(options, [:id, :children])]}
+    }
   end
 
   def start_link(children, options) do
@@ -56,8 +64,9 @@ defmodule Horde.Supervisor do
 
   ## GenServer callbacks
 
+  @doc false
   def init({children, options}) do
-    node_id = Keyword.get(options, :node_id)
+    node_id = generate_node_id()
     {:ok, supervisor_pid} = Supervisor.start_link(children, options)
 
     {:ok, members_pid} = @crdt.start_link({self(), :members_updated})
@@ -83,6 +92,7 @@ defmodule Horde.Supervisor do
     {:ok, state}
   end
 
+  @doc false
   def terminate(reason, state) do
     Supervisor.stop(state.supervisor_pid, reason)
     GenServer.stop(state.members_pid, reason)
@@ -90,10 +100,12 @@ defmodule Horde.Supervisor do
     :ok
   end
 
+  @doc false
   def handle_call(:members, _from, state) do
     {:reply, {:ok, state.members}, state}
   end
 
+  @doc false
   def handle_call({:delete_child, child_id}, _from, state) do
     with {:ok, supervisor_pid} <- which_supervisor(child_id, state),
          :ok <- Supervisor.delete_child(supervisor_pid, child_id) do
@@ -108,6 +120,7 @@ defmodule Horde.Supervisor do
     end
   end
 
+  @doc false
   def handle_call({:restart_child, child_id}, _from, state) do
     case which_supervisor(child_id, state) do
       {:ok, supervisor_pid} ->
@@ -118,6 +131,7 @@ defmodule Horde.Supervisor do
     end
   end
 
+  @doc false
   def handle_call({:terminate_child, child_id}, _from, state) do
     case which_supervisor(child_id, state) do
       {:ok, supervisor_pid} ->
@@ -128,14 +142,17 @@ defmodule Horde.Supervisor do
     end
   end
 
+  @doc false
   def handle_call({:start_child, _child_spec}, _from, %{shutting_down: true} = state),
     do: {:reply, {:error, "shutting down"}, state}
 
+  @doc false
   def handle_call({:start_child, child_spec}, _from, state) do
     add_child(child_spec, state)
     {:reply, :ok, state}
   end
 
+  @doc false
   def handle_call(:which_children, _from, state) do
     which_children =
       state.members
@@ -151,6 +168,7 @@ defmodule Horde.Supervisor do
     {:reply, which_children, state}
   end
 
+  @doc false
   def handle_call(:count_children, _from, state) do
     count =
       state.members
@@ -178,11 +196,13 @@ defmodule Horde.Supervisor do
     {:reply, count, state}
   end
 
+  @doc false
   def handle_cast({:join_horde, other_horde}, state) do
     GenServer.cast(other_horde, {:request_to_join_horde, {state.node_id, state.members_pid}})
     {:noreply, state}
   end
 
+  @doc false
   def handle_cast(:leave_hordes, state) do
     node_info =
       {:shutting_down, self(), state.supervisor_pid, state.members_pid, state.processes_pid}
@@ -197,6 +217,7 @@ defmodule Horde.Supervisor do
     {:noreply, new_state}
   end
 
+  @doc false
   def handle_cast(
         {:request_to_join_horde, {_other_node_id, other_members_pid}},
         state
@@ -206,6 +227,7 @@ defmodule Horde.Supervisor do
     {:noreply, state}
   end
 
+  @doc false
   def handle_info({:DOWN, _ref, _type, pid, _reason}, state) do
     state.members
     |> Enum.find(fn
@@ -226,20 +248,25 @@ defmodule Horde.Supervisor do
     end
   end
 
+  @doc false
   def handle_info(:force_shutdown, state) do
     {:stop, :force_shutdown, state}
   end
 
+  @doc false
   def handle_info(:processes_updated, %{shutting_down: true} = state), do: {:noreply, state}
 
+  @doc false
   def handle_info(:processes_updated, state) do
     new_state = %{state | processes_updated_counter: state.processes_updated_counter + 1}
     Process.send_after(self(), {:update_processes, new_state.processes_updated_counter}, 200)
     {:noreply, new_state}
   end
 
+  @doc false
   def handle_info({:update_processes, _c}, %{shutting_down: true} = state), do: {:noreply, state}
 
+  @doc false
   def handle_info({:update_processes, c}, %{processes_updated_counter: c} = state) do
     processes = GenServer.call(state.processes_pid, {:read, @crdt}, 30_000)
     new_state = %{state | processes: processes}
@@ -247,10 +274,13 @@ defmodule Horde.Supervisor do
     {:noreply, new_state}
   end
 
+  @doc false
   def handle_info({:update_processes, _counter}, state), do: {:noreply, state}
 
+  @doc false
   def handle_info(:members_updated, %{shutting_down: true} = state), do: {:noreply, state}
 
+  @doc false
   def handle_info(:members_updated, state) do
     members = GenServer.call(state.members_pid, {:read, @crdt}, 30_000)
 
@@ -265,6 +295,7 @@ defmodule Horde.Supervisor do
     {:noreply, new_state}
   end
 
+  @doc false
   defp handle_this_node_shutting_down(state) do
     state.members
     |> Map.get(state.node_id)
@@ -274,6 +305,7 @@ defmodule Horde.Supervisor do
     end
   end
 
+  @doc false
   defp shut_down_all_processes(state) do
     horde = self()
     Process.send_after(horde, :force_shutdown, @shutdown_wait + 10_000)
@@ -422,5 +454,14 @@ defmodule Horde.Supervisor do
     index = XXHash.xxh32("#{identifier}") |> rem(Enum.count(node_ids))
 
     Enum.at(node_ids, index)
+  end
+
+  defp generate_node_id(bits \\ 128) do
+    <<num::bits>> =
+      Enum.reduce(0..Integer.floor_div(bits, 8), <<>>, fn _x, bin ->
+        <<Enum.random(0..255)>> <> bin
+      end)
+
+    num
   end
 end
