@@ -149,8 +149,7 @@ defmodule Horde.Supervisor do
 
   @doc false
   def handle_call({:start_child, child_spec}, _from, state) do
-    add_child(child_spec, state)
-    {:reply, :ok, state}
+    {:reply, add_child(child_spec, state), state}
   end
 
   @doc false
@@ -438,9 +437,26 @@ defmodule Horde.Supervisor do
   defp add_child(child, state) do
     {node_id, {_, _, supervisor_pid, _, _}} = choose_node(child.id, state)
 
-    Supervisor.start_child(supervisor_pid, child)
+    case Supervisor.start_child(supervisor_pid, child) do
+      {:ok, pid} ->
+        GenServer.cast(
+          state.processes_pid,
+          {:operation, {@crdt, :add, [child.id, {node_id, child}]}}
+        )
 
-    GenServer.cast(state.processes_pid, {:operation, {@crdt, :add, [child.id, {node_id, child}]}})
+        {:ok, pid}
+
+      {:ok, pid, term} ->
+        GenServer.cast(
+          state.processes_pid,
+          {:operation, {@crdt, :add, [child.id, {node_id, child}]}}
+        )
+
+        {:ok, pid, term}
+
+      {:error, error} ->
+        {:error, error}
+    end
   end
 
   defp choose_node(identifier, state) do

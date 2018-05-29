@@ -38,7 +38,7 @@ defmodule HordeSupervisorTest do
 
   describe ".start_child/2" do
     test "starts a process", context do
-      Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      assert {:ok, _pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
 
       assert_receive {:process_started, _pid}
     end
