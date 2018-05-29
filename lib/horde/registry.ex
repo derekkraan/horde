@@ -63,7 +63,7 @@ defmodule Horde.Registry do
   def lookup(horde, name) do
     case GenServer.call(horde, {:lookup, name}) do
       {:ok, pid} ->
-        if Process.alive?(pid), do: pid, else: :undefined
+        pid
 
       _ ->
         :undefined
