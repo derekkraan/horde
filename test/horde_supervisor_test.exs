@@ -38,9 +38,9 @@ defmodule HordeSupervisorTest do
 
   describe ".start_child/2" do
     test "starts a process", context do
-      Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      assert {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
 
-      assert_receive {:process_started, _pid}
+      assert_receive {:process_started, ^pid}
     end
 
     test "failed process is restarted", context do
@@ -75,10 +75,10 @@ defmodule HordeSupervisorTest do
   describe ".restart_child/2" do
     test "restarts a process", context do
       Horde.Supervisor.start_child(context.horde_1, context.task_def)
-      assert_receive({:process_started, pid})
+      assert_receive({:process_started, _pid})
       Process.sleep(1000)
       Horde.Supervisor.restart_child(context.horde_1, context.task_def.id)
-      assert_receive({:process_started, pid})
+      assert_receive({:process_started, _pid})
     end
   end
 

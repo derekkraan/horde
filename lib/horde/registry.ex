@@ -18,11 +18,24 @@ defmodule Horde.Registry do
   @doc """
   Child spec to enable easy inclusion into a supervisor:
   supervise([
-    [Horde, :node_1]
+    {Horde, id: MyId, name: MyName}
   ])
   """
-  def child_spec(node_id) do
-    %{id: node_id, start: {GenServer, :start_link, [__MODULE__, node_id]}}
+  def child_spec(options \\ []) do
+    %{
+      id: Keyword.get(options, :name, __MODULE__),
+      start: {__MODULE__, :start_link, [options]}
+    }
+  end
+
+  def start_link(options) do
+    name = Keyword.get(options, :name)
+
+    unless is_atom(name) do
+      raise ArgumentError, "expected :name to be given and to be an atom, got: #{inspect(name)}"
+    end
+
+    GenServer.start_link(__MODULE__, options, name: name)
   end
 
   @doc """
@@ -40,12 +53,14 @@ defmodule Horde.Registry do
   end
 
   @doc "register a process under given name for entire horde"
+  def register(horde, name, pid \\ self())
+
   def register(horde, name, pid) do
-    GenServer.cast(horde, {:register, name, pid})
+    GenServer.call(horde, {:register, name, pid})
   end
 
   def unregister(horde, name) do
-    GenServer.cast(horde, {:unregister, name})
+    GenServer.call(horde, {:unregister, name})
   end
 
   def whereis(search), do: lookup(search)
@@ -53,8 +68,11 @@ defmodule Horde.Registry do
 
   def lookup(horde, name) do
     case GenServer.call(horde, {:lookup, name}) do
-      {:ok, pid} -> pid
-      _ -> :undefined
+      {:ok, pid} ->
+        pid
+
+      _ ->
+        :undefined
     end
   end
 
@@ -64,7 +82,7 @@ defmodule Horde.Registry do
   # @spec register_name({pid, term}, pid) :: :yes | :no
   def register_name({horde, name}, pid) do
     case GenServer.call(horde, {:register, name, pid}) do
-      :ok -> :yes
+      {:ok, _pid} -> :yes
       _ -> :no
     end
   end
@@ -102,7 +120,8 @@ defmodule Horde.Registry do
 
   ### GenServer callbacks
 
-  def init(node_id) do
+  def init(_opts) do
+    node_id = generate_node_id()
     {:ok, members_pid} = @crdt.start_link({self(), :members_updated})
 
     {:ok, processes_pid} = @crdt.start_link({self(), :processes_updated})
@@ -144,26 +163,6 @@ defmodule Horde.Registry do
     {:noreply, state}
   end
 
-  def handle_cast({:register, name, pid}, state) do
-    GenServer.cast(
-      state.processes_pid,
-      {:operation, {@crdt, :add, [name, {pid}]}}
-    )
-
-    Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
-    {:noreply, state}
-  end
-
-  def handle_cast({:unregister, name}, state) do
-    GenServer.cast(
-      state.processes_pid,
-      {:operation, {@crdt, :remove, [name]}}
-    )
-
-    Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
-    {:noreply, state}
-  end
-
   def handle_info(:processes_updated, state) do
     processes = GenServer.call(state.processes_pid, {:read, @crdt})
 
@@ -192,14 +191,25 @@ defmodule Horde.Registry do
   end
 
   def handle_call({:register, name, pid}, _from, state) do
-    result =
-      GenServer.call(
-        state.processes_pid,
-        {:operation, {@crdt, :add, [name, {pid}]}}
-      )
+    GenServer.cast(
+      state.processes_pid,
+      {:operation, {@crdt, :add, [name, {pid}]}}
+    )
 
-    Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
-    {:reply, result, state}
+    new_processes = Map.put(state.processes, name, {pid})
+
+    {:reply, {:ok, pid}, %{state | processes: new_processes}}
+  end
+
+  def handle_call({:unregister, name}, _from, state) do
+    GenServer.cast(
+      state.processes_pid,
+      {:operation, {@crdt, :remove, [name]}}
+    )
+
+    new_processes = Map.delete(state.processes, name)
+
+    {:reply, :ok, %{state | processes: new_processes}}
   end
 
   def handle_call(:members, _from, state) do
@@ -215,5 +225,14 @@ defmodule Horde.Registry do
       nil -> {:reply, nil, state}
       {pid} -> {:reply, {:ok, pid}, state}
     end
+  end
+
+  defp generate_node_id(bits \\ 128) do
+    <<num::bits>> =
+      Enum.reduce(0..Integer.floor_div(bits, 8), <<>>, fn _x, bin ->
+        <<Enum.random(0..255)>> <> bin
+      end)
+
+    num
   end
 end
