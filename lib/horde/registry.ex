@@ -22,14 +22,20 @@ defmodule Horde.Registry do
   ])
   """
   def child_spec(options \\ []) do
-    options = Keyword.put_new(options, :id, __MODULE__)
-
     %{
-      id: options[:id],
-      start:
-        {GenServer, :start_link,
-         [__MODULE__, Keyword.delete(options, :id), Keyword.take(options, [:name])]}
+      id: Keyword.get(options, :name, __MODULE__),
+      start: {__MODULE__, :start_link, [options]}
     }
+  end
+
+  def start_link(options) do
+    name = Keyword.get(options, :name)
+
+    unless is_atom(name) do
+      raise ArgumentError, "expected :name to be given and to be an atom, got: #{inspect(name)}"
+    end
+
+    GenServer.start_link(__MODULE__, options, name: name)
   end
 
   @doc """

@@ -27,7 +27,8 @@ defmodule Horde.Supervisor do
 
   def child_spec(options \\ []) do
     options =
-      Keyword.put_new(options, :id, __MODULE__)
+      options
+      |> Keyword.put_new(:id, __MODULE__)
       |> Keyword.put_new(:children, [])
 
     %{
@@ -295,7 +296,6 @@ defmodule Horde.Supervisor do
     {:noreply, new_state}
   end
 
-  @doc false
   defp handle_this_node_shutting_down(state) do
     state.members
     |> Map.get(state.node_id)
@@ -305,7 +305,6 @@ defmodule Horde.Supervisor do
     end
   end
 
-  @doc false
   defp shut_down_all_processes(state) do
     horde = self()
     Process.send_after(horde, :force_shutdown, @shutdown_wait + 10_000)
