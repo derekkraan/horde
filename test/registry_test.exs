@@ -32,7 +32,7 @@ defmodule RegistryTest do
           horde
         end)
 
-      Process.sleep(2000)
+      Process.sleep(3000)
       {:ok, members} = Horde.Registry.members(last_horde)
       assert 25 = Enum.count(members)
     end
