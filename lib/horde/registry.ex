@@ -176,18 +176,18 @@ defmodule Horde.Registry do
     members = GenServer.call(state.members_pid, {:read, @crdt})
 
     member_pids =
-      Enum.map(members, fn {_key, {members_pid, _processes_pid}} -> members_pid end)
-      |> Enum.filter(fn x -> x end)
-      |> MapSet.new()
+      MapSet.new(members, fn {_key, {members_pid, _processes_pid}} -> members_pid end)
+      |> MapSet.delete(nil)
 
     state_member_pids =
-      Enum.map(state.members, fn {_key, {members_pid, _processes_pid}} -> members_pid end)
-      |> Enum.filter(fn x -> x end)
-      |> MapSet.new()
+      MapSet.new(state.members, fn {_key, {members_pid, _processes_pid}} -> members_pid end)
+      |> MapSet.delete(nil)
 
     # if there are any new pids in `member_pids`
     if MapSet.difference(member_pids, state_member_pids) |> Enum.any?() do
-      processes_pids = MapSet.new(members, fn {_node_id, {_mpid, pid}} -> pid end)
+      processes_pids =
+        MapSet.new(members, fn {_node_id, {_mpid, pid}} -> pid end) |> MapSet.delete(nil)
+
       Kernel.send(state.members_pid, {:add_neighbours, member_pids})
       Kernel.send(state.processes_pid, {:add_neighbours, processes_pids})
       Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
