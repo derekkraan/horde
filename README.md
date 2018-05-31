@@ -16,6 +16,14 @@ Horde attempts to replicate the public API of both `Supervisor` and `Registry` a
 
 If a node fails (or otherwise becomes unreachable) then Horde.Supervisor will redistribute processes among the remaining nodes.
 
+You can choose what to do in the event of a network partition by specifying `:distribution_strategy` in the options for `Supervisor.start_link/2`. Setting this option to `Horde.UniformDistribution` (which is the default) distributes processes using a hash mechanism among all reachable nodes. In the event of a network partition, both sides of the partition will continue to operate. Setting it to `Horde.UniformQuorumDistribution` will operate in the same way, but will shut down if less than half of the cluster is reachable.
+
+In the case of a race condition (example: while adding a new member to the cluster, two nodes independently start the same process in different places), one of the processes will be shut down when the underlying CRDT converges. So it's possible to have race conditions but they will always heal themselves (and depending on the workload, could be very rare).
+
+## Graceful shutdown
+
+Using `Horde.Supervisor.stop` will cause the local supervisor to stop and any processes it was running will be shut down and redistributed to remaining supervisers in the horde. (This should happen automatically if `:init.stop()` is called).
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
@@ -24,7 +32,7 @@ by adding `horde` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:horde, "~> 0.1.0"}
+    {:horde, "~> 0.1.1"}
   ]
 end
 ```

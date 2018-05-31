@@ -69,7 +69,10 @@ defmodule Horde.Registry do
   def lookup(horde, name) do
     case GenServer.call(horde, {:lookup, name}) do
       {:ok, pid} ->
-        pid
+        case :rpc.call(node(pid), Process, :alive?, [pid]) do
+          true -> pid
+          false -> :undefined
+        end
 
       _ ->
         :undefined
