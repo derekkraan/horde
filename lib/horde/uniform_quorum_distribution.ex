@@ -9,9 +9,9 @@ defmodule Horde.UniformQuorumDistribution do
     end
   end
 
-  defp has_quorum?([]), do: false
+  def has_quorum?([]), do: false
 
-  defp has_quorum?(members) do
+  def has_quorum?(members) do
     case active_nodes(members) do
       [] ->
         nil
