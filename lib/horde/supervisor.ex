@@ -404,11 +404,13 @@ defmodule Horde.Supervisor do
   defp handle_updated_process_pids(state, new_state) do
     new_pids =
       Enum.map(new_state.members, fn {_key, {_, {_, _, _, p}}} -> p end)
-      |> Enum.into(MapSet.new())
+      |> Enum.filter(fn x -> x end)
+      |> MapSet.new()
 
     old_pids =
       Enum.map(state.members, fn {_node_id, {_, {_, _, _, p}}} -> p end)
-      |> Enum.into(MapSet.new())
+      |> Enum.filter(fn x -> x end)
+      |> MapSet.new()
 
     if MapSet.difference(new_pids, old_pids) |> Enum.any?() do
       send(state.processes_pid, {:add_neighbours, new_pids})
