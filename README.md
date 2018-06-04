@@ -1,8 +1,10 @@
 # Horde
 
-Horde is an eventually-consistent distributed supervisor (`Horde.Supervisor`) and registry (`Horde.Registry`). 
+Horde is an eventually-consistent distributed supervisor (`Horde.Supervisor`) and registry (`Horde.Registry`). Horde is built on top of an add-wins last-write-wins [δ-CRDT](github.com/derekkraan/delta_crdt_ex). Horde tracks all child specs in the CRDT along with the nodes on which they are running. Since CRDTs are guaranteed to eventually converge, we can guarantee that Horde will also converge to a single representation of the shared state.
 
-Horde is built using a add-wins last-write-wins δ-CRDT map. By using a CRDT, Horde is guaranteed to eventually convergeon a single representation of the data.
+Cluster membership in Horde is fully dynamic. Nodes can be added and removed at any time and Horde will keep working like you expect it to.
+
+You can use Horde to build fault-tolerant distributed systems that need either a global registry or a global supervisor, or both.
 
 `Horde.Supervisor` makes use of a hash ring to limit any possible race conditions to times when cluster membership is changing.
 
@@ -18,7 +20,13 @@ If a node fails (or otherwise becomes unreachable) then Horde.Supervisor will re
 
 You can choose what to do in the event of a network partition by specifying `:distribution_strategy` in the options for `Supervisor.start_link/2`. Setting this option to `Horde.UniformDistribution` (which is the default) distributes processes using a hash mechanism among all reachable nodes. In the event of a network partition, both sides of the partition will continue to operate. Setting it to `Horde.UniformQuorumDistribution` will operate in the same way, but will shut down if less than half of the cluster is reachable.
 
-In the case of a race condition (example: while adding a new member to the cluster, two nodes independently start the same process in different places), one of the processes will be shut down when the underlying CRDT converges. So it's possible to have race conditions but they will always heal themselves (and depending on the workload, could be very rare).
+## CAP Theorem
+
+Horde is eventually consistent, which means that Horde can guarantee availability and partition tolerancy. When Horde cluster membership is constant (ie, there is no node being removed or added), Horde also guarantees consistency. When adding or removing a node from the cluster, there will be a small window in which it is possible for race conditions to occur. Horde aggressively closes this window by distributing cluster membership updates as quickly as possible (after 5ms).
+
+Example race condition: While a node is being added to the cluster, for a short period of time, some nodes know about the new node and some do not. If in this period of time, two nodes attempt to start the same process, this process will be started on two nodes simultaneously. This condition will persist until these two nodes have received deltas from each other and the state has converged (assigning the process to just one of the two nodes). The node that "loses" the process will kill it when it checks and realizes that it no longer owns it.
+
+It's possible to run Horde and add and remove nodes without running into this limitation (depending on load), but one should always keep in mind that it's a plausible scenario.
 
 ## Graceful shutdown
 
@@ -26,13 +34,14 @@ Using `Horde.Supervisor.stop` will cause the local supervisor to stop and any pr
 
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `horde` to your list of dependencies in `mix.exs`:
+Horde is [available in Hex](https://hex.pm/packages/horde).
+
+The package can be installed by adding `horde` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:horde, "~> 0.1.1"}
+    {:horde, "~> 0.1.2"}
   ]
 end
 ```
