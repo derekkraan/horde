@@ -1,6 +1,14 @@
 defmodule Horde.Supervisor do
   @moduledoc """
-  A distributed supervisor built on top of δ-CRDTs.
+  A distributed supervisor
+
+  Horde.Supervisor implements a distributed Supervisor backed by a add-wins last-write-wins δ-CRDT (provided by `DeltaCrdt.AWLWWMap`). This CRDT is used for both tracking membership of the cluster and tracking supervised processes.
+
+  Using CRDTs guarantees that the distributed, shared state will eventually converge. It also means that Horde.Supervisor is eventually-consistent, and is optimized for availability and partition tolerance. This can result in temporary inconsistencies under certain conditions (when cluster membership is changing, for example).
+
+  Cluster membership is managed with `Horde.Cluster`. Joining and leaving a cluster can be done with `Horde.Cluster.join_hordes/2` and leaving is done with `Horde.Cluster.leave_hordes/1`.
+
+  Each Horde.Supervisor node wraps its own local instance of `Supervisor`. `Horde.Supervisor.start_child/2` (for example) delegates to the local instance of Supervisor to actually start and monitor the child. The child spec is also written into the processes CRDT, along with a reference to the node on which it is running. When there is an update to the processes CRDT, Horde makes a comparison and corrects any inconsistencies (for example, if a conflict has been resolved and there is a process that no longer should be running on its node, it will kill that process and remove it from the local supervisor). So while most functions map 1:1 to the equivalent Supervisor functions, the eventually consistent nature of Horde requires extra behaviour not present in Supervisor.
   """
 
   use GenServer
@@ -54,20 +62,45 @@ defmodule Horde.Supervisor do
     )
   end
 
+  @doc """
+  Works like `Supervisor.stop/3`.
+  """
   def stop(supervisor, reason, timeout \\ :infinity),
     do: GenServer.stop(supervisor, reason, timeout)
 
+  @doc """
+  Works like `Supervisor.start_child/2`.
+  """
   def start_child(supervisor, child_spec),
     do: call(supervisor, {:start_child, Supervisor.child_spec(child_spec, [])})
 
+  @doc """
+  Works like `Supervisor.terminate_child/2`
+  """
   def terminate_child(supervisor, child_id), do: call(supervisor, {:terminate_child, child_id})
 
+  @doc """
+  Works like `Supervisor.delete_child/2`
+  """
   def delete_child(supervisor, child_id), do: call(supervisor, {:delete_child, child_id})
 
+  @doc """
+  Works like `Supervisor.restart_child/2`
+  """
   def restart_child(supervisor, child_id), do: call(supervisor, {:restart_child, child_id})
 
+  @doc """
+  Works like `Supervisor.which_children/1`.
+
+  This function delegates to all supervisors in the cluster and returns the aggregated output. Where memory warnings apply to `Supervisor.which_children`, these count double for `Horde.Supervisor.which_children`.
+  """
   def which_children(supervisor), do: call(supervisor, :which_children)
 
+  @doc """
+  Works like `Supervisor.count_children/1`.
+
+  This function delegates to all supervisors in the cluster and returns the aggregated output.
+  """
   def count_children(supervisor), do: call(supervisor, :count_children)
 
   defp call(supervisor, msg), do: GenServer.call(supervisor, msg, @long_time)
@@ -208,8 +241,8 @@ defmodule Horde.Supervisor do
   end
 
   @doc false
-  def handle_cast({:join_horde, other_horde}, state) do
-    GenServer.cast(other_horde, {:request_to_join_horde, {state.node_id, state.members_pid}})
+  def handle_cast({:join_hordes, other_horde}, state) do
+    GenServer.cast(other_horde, {:request_to_join_hordes, {state.node_id, state.members_pid}})
     {:noreply, state}
   end
 
@@ -230,7 +263,7 @@ defmodule Horde.Supervisor do
 
   @doc false
   def handle_cast(
-        {:request_to_join_horde, {_other_node_id, other_members_pid}},
+        {:request_to_join_hordes, {_other_node_id, other_members_pid}},
         state
       ) do
     send(state.members_pid, {:add_neighbour, other_members_pid})

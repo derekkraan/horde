@@ -72,14 +72,14 @@ Horde.Supervisor.start_child(MyApp.DistributedSupervisor, %{id: :gen_server, sta
 
 And so on. The public API should be the same as `Supervisor` (and please open an issue if it turns out not to be).
 
-Joining supervisors into a single distributed supervisor can be done using `Horde.Tracker`:
+Joining supervisors into a single distributed supervisor can be done using `Horde.Cluster`:
 
 ```elixir
 {:ok, supervisor} = Horde.Supervisor.start_link([], name: :distributed_supervisor_1, strategy: :one_for_one)
 
-Horde.Tracker.join_hordes(supervisor_1, supervisor_2)
+Horde.Cluster.join_hordes(supervisor_1, supervisor_2)
 
-Horde.Tracker.leave_hordes(supervisor_2)
+Horde.Cluster.leave_hordes(supervisor_2)
 ```
 
 If you tell `Horde.Supervisor` to leave the horde, then it will kill all processes and disassociate them (to be picked up by other nodes). This can be used to implement graceful shutdown / failover.

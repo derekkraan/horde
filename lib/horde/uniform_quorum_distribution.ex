@@ -1,4 +1,7 @@
 defmodule Horde.UniformQuorumDistribution do
+  @moduledoc """
+  Distributes processes to nodes uniformly using a hash ring. Contains a quorum mechanism to handle netsplits.
+  """
   require Integer
 
   def choose_node(identifier, members) do

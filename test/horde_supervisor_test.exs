@@ -6,8 +6,8 @@ defmodule HordeSupervisorTest do
     {:ok, horde_2} = Horde.Supervisor.start_link([], node_id: :horde_2, strategy: :one_for_one)
     {:ok, horde_3} = Horde.Supervisor.start_link([], node_id: :horde_3, strategy: :one_for_one)
 
-    Horde.Tracker.join_hordes(horde_1, horde_2)
-    Horde.Tracker.join_hordes(horde_3, horde_2)
+    Horde.Cluster.join_hordes(horde_1, horde_2)
+    Horde.Cluster.join_hordes(horde_3, horde_2)
 
     # give the processes a couple ms to sync up
     Process.sleep(20)
@@ -146,7 +146,7 @@ defmodule HordeSupervisorTest do
 
       Process.sleep(2000)
 
-      Horde.Tracker.leave_hordes(context.horde_1)
+      Horde.Cluster.leave_hordes(context.horde_1)
 
       Process.sleep(5000)
 

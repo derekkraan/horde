@@ -1,6 +1,6 @@
 defmodule Horde.Registry do
   @moduledoc """
-  A distributed process registry that takes advantage of δ-CRDTs.
+  A distributed process registry.
   """
   import Kernel, except: [send: 2]
 
@@ -36,20 +36,6 @@ defmodule Horde.Registry do
     end
 
     GenServer.start_link(__MODULE__, options, name: name)
-  end
-
-  @doc """
-  Join two hordes into one big horde. Calling this once will inform every node in each horde of every node in the other horde.
-  """
-  def join_hordes(horde, other_horde) do
-    GenServer.cast(horde, {:join_horde, other_horde})
-  end
-
-  @doc """
-  Remove own node from the hordes (gracefully retire node)
-  """
-  def leave_hordes(horde) do
-    GenServer.cast(horde, :leave_horde)
   end
 
   @doc "register a process under given name for entire horde"
@@ -108,13 +94,6 @@ defmodule Horde.Registry do
   end
 
   @doc """
-  Get the members (nodes) of the horde
-  """
-  def members(horde) do
-    GenServer.call(horde, :members)
-  end
-
-  @doc """
   Get the process regsitry of the horde
   """
   def processes(horde) do
@@ -143,7 +122,7 @@ defmodule Horde.Registry do
   end
 
   def handle_cast(
-        {:request_to_join_horde, {_other_node_id, other_members_pid}},
+        {:request_to_join_hordes, {_other_node_id, other_members_pid}},
         state
       ) do
     Kernel.send(state.members_pid, {:add_neighbour, other_members_pid})
@@ -151,12 +130,12 @@ defmodule Horde.Registry do
     {:noreply, state}
   end
 
-  def handle_cast({:join_horde, other_horde}, state) do
-    GenServer.cast(other_horde, {:request_to_join_horde, {state.node_id, state.members_pid}})
+  def handle_cast({:join_hordes, other_horde}, state) do
+    GenServer.cast(other_horde, {:request_to_join_hordes, {state.node_id, state.members_pid}})
     {:noreply, state}
   end
 
-  def handle_cast(:leave_horde, state) do
+  def handle_cast(:leave_hordes, state) do
     GenServer.cast(
       state.members_pid,
       {:operation, {@crdt, :remove, [state.node_id]}}

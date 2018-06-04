@@ -1,4 +1,8 @@
 defmodule Horde.UniformDistribution do
+  @moduledoc """
+  Distributes processes to nodes uniformly using a hash ring
+  """
+
   def choose_node(identifier, members) do
     members =
       members

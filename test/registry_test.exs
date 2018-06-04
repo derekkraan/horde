@@ -6,9 +6,9 @@ defmodule RegistryTest do
     test "two hordes can join each other" do
       {:ok, horde_1} = GenServer.start_link(Horde.Registry, :horde_1)
       {:ok, horde_2} = GenServer.start_link(Horde.Registry, :horde_2)
-      Horde.Registry.join_hordes(horde_1, horde_2)
+      Horde.Cluster.join_hordes(horde_1, horde_2)
       Process.sleep(10)
-      {:ok, members} = Horde.Registry.members(horde_2)
+      {:ok, members} = Horde.Cluster.members(horde_2)
       assert 2 = Enum.count(members)
     end
 
@@ -16,10 +16,10 @@ defmodule RegistryTest do
       {:ok, horde_1} = GenServer.start_link(Horde.Registry, :horde_1)
       {:ok, horde_2} = GenServer.start_link(Horde.Registry, :horde_2)
       {:ok, horde_3} = GenServer.start_link(Horde.Registry, :horde_3)
-      Horde.Registry.join_hordes(horde_1, horde_2)
-      Horde.Registry.join_hordes(horde_2, horde_3)
+      Horde.Cluster.join_hordes(horde_1, horde_2)
+      Horde.Cluster.join_hordes(horde_2, horde_3)
       Process.sleep(20)
-      {:ok, members} = Horde.Registry.members(horde_2)
+      {:ok, members} = Horde.Cluster.members(horde_2)
       assert 3 = Enum.count(members)
     end
 
@@ -28,12 +28,12 @@ defmodule RegistryTest do
         1..25
         |> Enum.reduce(nil, fn x, last_horde ->
           {:ok, horde} = GenServer.start_link(Horde.Registry, :"horde_#{x}")
-          if last_horde, do: Horde.Registry.join_hordes(horde, last_horde)
+          if last_horde, do: Horde.Cluster.join_hordes(horde, last_horde)
           horde
         end)
 
       Process.sleep(3000)
-      {:ok, members} = Horde.Registry.members(last_horde)
+      {:ok, members} = Horde.Cluster.members(last_horde)
       assert 25 = Enum.count(members)
     end
   end
@@ -56,7 +56,7 @@ defmodule RegistryTest do
 
     test "cannot register 2 processes under same name with different hordes", %{horde: horde} do
       {:ok, horde_2} = GenServer.start_link(Horde.Registry, :horde_2)
-      Horde.Registry.join_hordes(horde, horde_2)
+      Horde.Cluster.join_hordes(horde, horde_2)
       pid1 = spawn(fn -> Process.sleep(30) end)
       pid2 = spawn(fn -> Process.sleep(30) end)
       Horde.Registry.register(horde, :MacLeod, pid1)
@@ -71,12 +71,12 @@ defmodule RegistryTest do
 
   describe "register via callbacks" do
     setup do
-      {:ok, horde} = GenServer.start_link(Horde.Registry, :horde_1, name: Horde.Registry.Tracker)
+      {:ok, horde} = GenServer.start_link(Horde.Registry, :horde_1, name: Horde.Registry.Cluster)
       {:ok, horde: horde}
     end
 
     test "register a name the 'via' way", %{horde: horde} do
-      name = {:via, Horde.Registry, {Horde.Registry.Tracker, "precious"}}
+      name = {:via, Horde.Registry, {Horde.Registry.Cluster, "precious"}}
       {:ok, apid} = Agent.start_link(fn -> 0 end, name: name)
       Process.sleep(10)
       assert 0 = Agent.get(name, & &1)
@@ -106,21 +106,21 @@ defmodule RegistryTest do
       {:ok, horde_1} = GenServer.start_link(Horde.Registry, :horde_1)
       {:ok, horde_2} = GenServer.start_link(Horde.Registry, :horde_2)
       {:ok, horde_3} = GenServer.start_link(Horde.Registry, :horde_3)
-      Horde.Registry.join_hordes(horde_1, horde_2)
-      Horde.Registry.join_hordes(horde_2, horde_3)
+      Horde.Cluster.join_hordes(horde_1, horde_2)
+      Horde.Cluster.join_hordes(horde_2, horde_3)
       Process.sleep(20)
-      {:ok, members} = Horde.Registry.members(horde_2)
+      {:ok, members} = Horde.Cluster.members(horde_2)
       assert 3 = Enum.count(members)
-      Horde.Registry.leave_hordes(horde_2)
+      Horde.Cluster.leave_hordes(horde_2)
       Process.sleep(20)
-      {:ok, members} = Horde.Registry.members(horde_1)
+      {:ok, members} = Horde.Cluster.members(horde_1)
       assert 2 = Enum.count(members)
     end
   end
 
   describe "lookup" do
     setup do
-      {:ok, horde} = GenServer.start_link(Horde.Registry, :horde, name: Horde.Registry.Tracker)
+      {:ok, horde} = GenServer.start_link(Horde.Registry, :horde, name: Horde.Registry.Cluster)
       pid1 = spawn(fn -> Process.sleep(300) end)
       Horde.Registry.register(horde, :carmen, pid1)
       Process.sleep(20)
@@ -132,14 +132,14 @@ defmodule RegistryTest do
     end
 
     test "existing process the 'via' way", %{carmen: carmen} do
-      name = {:via, Horde.Registry, {Horde.Registry.Tracker, :carmen}}
+      name = {:via, Horde.Registry, {Horde.Registry.Cluster, :carmen}}
       assert carmen == Horde.Registry.lookup(name)
     end
   end
 
   describe "sending messages" do
     setup do
-      {:ok, horde} = GenServer.start_link(Horde.Registry, :horde, name: Horde.Registry.Tracker)
+      {:ok, horde} = GenServer.start_link(Horde.Registry, :horde, name: Horde.Registry.Cluster)
       pid1 = spawn(fn -> Process.sleep(300) end)
       Horde.Registry.register(horde, :carmen, pid1)
       Process.sleep(20)
