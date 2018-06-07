@@ -1,6 +1,6 @@
 # Horde
 
-Horde is an eventually-consistent distributed supervisor (`Horde.Supervisor`) and registry (`Horde.Registry`). Horde is built on top of an add-wins last-write-wins [δ-CRDT](github.com/derekkraan/delta_crdt_ex). Horde tracks all child specs in the CRDT along with the nodes on which they are running. Since CRDTs are guaranteed to eventually converge, we can guarantee that Horde will also converge to a single representation of the shared state.
+Horde is an eventually-consistent distributed supervisor (`Horde.Supervisor`) and registry (`Horde.Registry`). Horde is built on top of an add-wins last-write-wins [δ-CRDT](https://github.com/derekkraan/delta_crdt_ex). Horde tracks all child specs in the CRDT along with the nodes on which they are running. Since CRDTs are guaranteed to eventually converge, we can guarantee that Horde will also converge to a single representation of the shared state.
 
 Cluster membership in Horde is fully dynamic. Nodes can be added and removed at any time and Horde will keep working like you expect it to.
 
