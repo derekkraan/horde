@@ -33,7 +33,7 @@ defmodule Horde.MixProject do
 
   def package do
     [
-      description: "Distributed process registry taking advantage of δ-CRDTs",
+      description: "Distributed supervisor & process registry built with δ-CRDTs",
       licenses: ["MIT"],
       maintainers: ["Derek Kraan"],
       links: %{github: "https://github.com/derekkraan/horde"}
