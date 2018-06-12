@@ -1,6 +1,14 @@
 defmodule Horde.Registry do
   @moduledoc """
   A distributed process registry.
+
+  Horde.Registry implements a distributed Registry backed by an add-wins last-write-wins δ-CRDT (provided by `DeltaCrdt.AWLWWMap`). This CRDT is used for both tracking membership of the cluster and implementing the registry functionality itself. Local changes to the registry will automatically be synced to other nodes in the cluster.
+
+  Because of the semantics of an AWLWWMap, the guarantees provided by Horde.Registry are more relaxed than those provided by the standard library Registry. Conflicts will be automatically silently resolved by the underlying AWLWWMap.
+
+  Cluster membership is managed with `Horde.Cluster`. Joining and leaving a cluster can be done with `Horde.Cluster.join_hordes/2` and `Horde.Cluster.leave_hordes/1`.
+
+  Horde.Registry supports the common "via tuple", described in the [documentation](https://hexdocs.pm/elixir/GenServer.html#module-name-registration) for `GenServer`.
   """
   import Kernel, except: [send: 2]
 
@@ -16,11 +24,23 @@ defmodule Horde.Registry do
   @crdt DeltaCrdt.AWLWWMap
 
   @doc """
-  Child spec to enable easy inclusion into a supervisor:
+  Child spec to enable easy inclusion into a supervisor.
+
+  Example:
+  ```elixir
   supervise([
-    {Horde, id: MyId, name: MyName}
+    Horde.Registry
   ])
+  ```
+
+  Example:
+  ```elixir
+  supervise([
+    {Horde.Registry, [name: MyApp.GlobalRegistry]}
+  ])
+  ```
   """
+  @spec child_spec(options :: list()) :: Supervisor.child_spec()
   def child_spec(options \\ []) do
     %{
       id: Keyword.get(options, :name, __MODULE__),
@@ -28,6 +48,7 @@ defmodule Horde.Registry do
     }
   end
 
+  @spec start_link(options :: list()) :: GenServer.on_start()
   def start_link(options) do
     name = Keyword.get(options, :name)
 
@@ -38,13 +59,16 @@ defmodule Horde.Registry do
     GenServer.start_link(__MODULE__, options, name: name)
   end
 
-  @doc "register a process under given name for entire horde"
+  @doc "register a process under the given name"
+  @spec register(horde :: GenServer.server(), name :: atom(), pid :: pid()) :: {:ok, pid()}
   def register(horde, name, pid \\ self())
 
   def register(horde, name, pid) do
     GenServer.call(horde, {:register, name, pid})
   end
 
+  @doc "unregister the process under the given name"
+  @spec unregister(horde :: GenServer.server(), name :: GenServer.name()) :: :ok
   def unregister(horde, name) do
     GenServer.call(horde, {:unregister, name})
   end

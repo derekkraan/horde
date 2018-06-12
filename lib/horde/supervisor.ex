@@ -1,12 +1,12 @@
 defmodule Horde.Supervisor do
   @moduledoc """
-  A distributed supervisor
+  A distributed supervisor.
 
   Horde.Supervisor implements a distributed Supervisor backed by a add-wins last-write-wins δ-CRDT (provided by `DeltaCrdt.AWLWWMap`). This CRDT is used for both tracking membership of the cluster and tracking supervised processes.
 
   Using CRDTs guarantees that the distributed, shared state will eventually converge. It also means that Horde.Supervisor is eventually-consistent, and is optimized for availability and partition tolerance. This can result in temporary inconsistencies under certain conditions (when cluster membership is changing, for example).
 
-  Cluster membership is managed with `Horde.Cluster`. Joining and leaving a cluster can be done with `Horde.Cluster.join_hordes/2` and leaving is done with `Horde.Cluster.leave_hordes/1`.
+  Cluster membership is managed with `Horde.Cluster`. Joining and leaving a cluster can be done with `Horde.Cluster.join_hordes/2` and `Horde.Cluster.leave_hordes/1`.
 
   Each Horde.Supervisor node wraps its own local instance of `Supervisor`. `Horde.Supervisor.start_child/2` (for example) delegates to the local instance of Supervisor to actually start and monitor the child. The child spec is also written into the processes CRDT, along with a reference to the node on which it is running. When there is an update to the processes CRDT, Horde makes a comparison and corrects any inconsistencies (for example, if a conflict has been resolved and there is a process that no longer should be running on its node, it will kill that process and remove it from the local supervisor). So while most functions map 1:1 to the equivalent Supervisor functions, the eventually consistent nature of Horde requires extra behaviour not present in Supervisor.
   """
