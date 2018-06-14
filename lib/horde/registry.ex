@@ -207,8 +207,6 @@ defmodule Horde.Registry do
   end
 
   def handle_info({:update_processes, c}, %{processes_updated_counter: c} = state) do
-    require Logger
-    Logger.debug("updating processes")
     processes = GenServer.call(state.processes_pid, {:read, @crdt})
 
     :ets.insert(state.ets_table, Map.to_list(processes))
