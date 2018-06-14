@@ -61,7 +61,7 @@ defmodule RegistryTest do
       pid2 = spawn(fn -> Process.sleep(30) end)
       Horde.Registry.register(horde, :MacLeod, pid1)
       Horde.Registry.register(horde_2, :MacLeod, pid2)
-      Process.sleep(10)
+      Process.sleep(100)
       processes = Horde.Registry.processes(horde)
       processes_2 = Horde.Registry.processes(horde_2)
       assert 1 = Map.size(processes)
@@ -95,7 +95,7 @@ defmodule RegistryTest do
     test "can unregister processes", %{horde: horde, horde_2: horde_2} do
       pid1 = spawn(fn -> Process.sleep(300) end)
       Horde.Registry.register(horde, :one_day_fly, pid1)
-      Process.sleep(20)
+      Process.sleep(100)
       assert %{one_day_fly: {_id}} = Horde.Registry.processes(horde)
       assert %{one_day_fly: {_id}} = Horde.Registry.processes(horde_2)
       Horde.Registry.unregister(horde, :one_day_fly)

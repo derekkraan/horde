@@ -12,12 +12,17 @@ defmodule Horde.Registry do
   """
   import Kernel, except: [send: 2]
 
+  @update_processes_debounce 50
+  @force_update_processes 1000
+
   defmodule State do
     @moduledoc false
     defstruct node_id: nil,
               members_pid: nil,
               members: %{},
               processes_pid: nil,
+              processes_updated_counter: 0,
+              processes_updated_at: 0,
               ets_table: nil
   end
 
@@ -182,6 +187,28 @@ defmodule Horde.Registry do
   end
 
   def handle_info(:processes_updated, state) do
+    new_state = %{state | processes_updated_counter: state.processes_updated_counter + 1}
+
+    Process.send_after(
+      self(),
+      {:update_processes, new_state.processes_updated_counter},
+      @update_processes_debounce
+    )
+
+    {:noreply, new_state}
+  end
+
+  def handle_info(
+        {:update_processes, c},
+        %{processes_updated_at: d, processes_updated_counter: new_c} = state
+      )
+      when d - c > @force_update_processes do
+    handle_info({:update_processes, new_c}, state)
+  end
+
+  def handle_info({:update_processes, c}, %{processes_updated_counter: c} = state) do
+    require Logger
+    Logger.debug("updating processes")
     processes = GenServer.call(state.processes_pid, {:read, @crdt})
 
     :ets.insert(state.ets_table, Map.to_list(processes))
@@ -192,8 +219,10 @@ defmodule Horde.Registry do
 
     to_delete_keys |> Enum.each(fn key -> :ets.delete(state.ets_table, key) end)
 
-    {:noreply, state}
+    {:noreply, %{state | processes_updated_at: c}}
   end
+
+  def handle_info({:update_processes, _c}, state), do: {:noreply, state}
 
   def handle_info(:members_updated, state) do
     members = GenServer.call(state.members_pid, {:read, @crdt})
