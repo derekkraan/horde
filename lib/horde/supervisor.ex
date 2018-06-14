@@ -21,6 +21,9 @@ defmodule Horde.Supervisor do
 
   @crdt DeltaCrdt.AWLWWMap
 
+  @update_processes_debounce 50
+  @force_update_processes 1000
+
   defmodule State do
     @moduledoc false
     defstruct node_id: nil,
@@ -30,6 +33,7 @@ defmodule Horde.Supervisor do
               members: %{},
               processes: %{},
               processes_updated_counter: 0,
+              processes_updated_at: 0,
               shutting_down: false,
               distribution_strategy: Horde.UniformDistribution
   end
@@ -334,17 +338,31 @@ defmodule Horde.Supervisor do
   @doc false
   def handle_info(:processes_updated, state) do
     new_state = %{state | processes_updated_counter: state.processes_updated_counter + 1}
-    Process.send_after(self(), {:update_processes, new_state.processes_updated_counter}, 200)
+
+    Process.send_after(
+      self(),
+      {:update_processes, new_state.processes_updated_counter},
+      @update_processes_debounce
+    )
+
     {:noreply, new_state}
   end
 
   @doc false
   def handle_info({:update_processes, _c}, %{shutting_down: true} = state), do: {:noreply, state}
 
+  def handle_info(
+        {:update_processes, c},
+        %{processes_updated_at: d, processes_updated_counter: new_c} = state
+      )
+      when d - c > @force_update_processes do
+    handle_info({:update_processes, new_c}, state)
+  end
+
   @doc false
   def handle_info({:update_processes, c}, %{processes_updated_counter: c} = state) do
     processes = GenServer.call(state.processes_pid, {:read, @crdt}, 30_000)
-    new_state = %{state | processes: processes}
+    new_state = %{state | processes: processes, processes_updated_at: c}
     claim_unclaimed_processes(new_state)
     {:noreply, new_state}
   end

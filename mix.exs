@@ -27,7 +27,8 @@ defmodule Horde.MixProject do
       {:credo, "~> 0.9", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 0.5", only: :dev, runtime: false},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
-      {:stream_data, "~> 0.4", only: :test}
+      {:stream_data, "~> 0.4", only: :test},
+      {:benchee, "> 0.0.1", only: :dev}
     ]
   end
 
