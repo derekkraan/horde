@@ -18,7 +18,7 @@ defmodule Horde.Registry do
               members_pid: nil,
               members: %{},
               processes_pid: nil,
-              processes: %{}
+              ets_table: nil
   end
 
   @crdt DeltaCrdt.AWLWWMap
@@ -77,8 +77,8 @@ defmodule Horde.Registry do
   def lookup({:via, _, {horde, name}}), do: lookup(horde, name)
 
   def lookup(horde, name) do
-    case GenServer.call(horde, {:lookup, name}) do
-      {:ok, pid} ->
+    case :ets.lookup(get_ets_table(horde), name) do
+      [{^name, {pid}}] ->
         case :rpc.call(node(pid), Process, :alive?, [pid]) do
           true -> pid
           false -> :undefined
@@ -88,6 +88,9 @@ defmodule Horde.Registry do
         :undefined
     end
   end
+
+  defp get_ets_table(tab) when is_atom(tab), do: tab
+  defp get_ets_table(tab), do: GenServer.call(tab, :get_ets_table)
 
   ### Via callbacks
 
@@ -121,16 +124,24 @@ defmodule Horde.Registry do
   Get the process regsitry of the horde
   """
   def processes(horde) do
-    GenServer.call(horde, :processes)
+    :ets.match(get_ets_table(horde), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
   end
 
   ### GenServer callbacks
 
-  def init(_opts) do
+  def init(opts) do
     node_id = generate_node_id()
     {:ok, members_pid} = @crdt.start_link({self(), :members_updated})
 
     {:ok, processes_pid} = @crdt.start_link({self(), :processes_updated})
+
+    name = Keyword.get(opts, :name)
+
+    unless is_atom(name) do
+      raise ArgumentError, "expected :name to be given and to be an atom, got: #{inspect(name)}"
+    end
+
+    :ets.new(name, [:named_table, {:read_concurrency, true}])
 
     GenServer.cast(
       members_pid,
@@ -141,7 +152,8 @@ defmodule Horde.Registry do
      %State{
        node_id: node_id,
        members_pid: members_pid,
-       processes_pid: processes_pid
+       processes_pid: processes_pid,
+       ets_table: name
      }}
   end
 
@@ -172,7 +184,15 @@ defmodule Horde.Registry do
   def handle_info(:processes_updated, state) do
     processes = GenServer.call(state.processes_pid, {:read, @crdt})
 
-    {:noreply, %{state | processes: processes}}
+    :ets.insert(state.ets_table, Map.to_list(processes))
+
+    all_keys = :ets.match(state.ets_table, {:"$1", :_}) |> MapSet.new(fn [x] -> x end)
+    new_keys = Map.keys(processes) |> MapSet.new()
+    to_delete_keys = MapSet.difference(all_keys, new_keys)
+
+    to_delete_keys |> Enum.each(fn key -> :ets.delete(state.ets_table, key) end)
+
+    {:noreply, state}
   end
 
   def handle_info(:members_updated, state) do
@@ -200,15 +220,18 @@ defmodule Horde.Registry do
     {:noreply, %{state | members: members}}
   end
 
+  def handle_call(:get_ets_table, _from, %{ets_table: ets_table} = state),
+    do: {:reply, ets_table, state}
+
   def handle_call({:register, name, pid}, _from, state) do
     GenServer.cast(
       state.processes_pid,
       {:operation, {@crdt, :add, [name, {pid}]}}
     )
 
-    new_processes = Map.put(state.processes, name, {pid})
+    :ets.insert(state.ets_table, {name, {pid}})
 
-    {:reply, {:ok, pid}, %{state | processes: new_processes}}
+    {:reply, {:ok, pid}, state}
   end
 
   def handle_call({:unregister, name}, _from, state) do
@@ -217,24 +240,13 @@ defmodule Horde.Registry do
       {:operation, {@crdt, :remove, [name]}}
     )
 
-    new_processes = Map.delete(state.processes, name)
+    :ets.delete(state.ets_table, name)
 
-    {:reply, :ok, %{state | processes: new_processes}}
+    {:reply, :ok, state}
   end
 
   def handle_call(:members, _from, state) do
     {:reply, {:ok, state.members}, state}
-  end
-
-  def handle_call(:processes, _from, state) do
-    {:reply, {:ok, state.processes}, state}
-  end
-
-  def handle_call({:lookup, name}, _from, state) do
-    case Map.get(state.processes, name) do
-      nil -> {:reply, nil, state}
-      {pid} -> {:reply, {:ok, pid}, state}
-    end
   end
 
   defp generate_node_id(bits \\ 128) do
