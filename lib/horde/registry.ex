@@ -82,16 +82,18 @@ defmodule Horde.Registry do
   def lookup({:via, _, {horde, name}}), do: lookup(horde, name)
 
   def lookup(horde, name) do
-    case :ets.lookup(get_ets_table(horde), name) do
-      [{^name, {pid}}] ->
-        case :rpc.call(node(pid), Process, :alive?, [pid]) do
-          true -> pid
-          false -> :undefined
-        end
-
-      _ ->
-        :undefined
+    with [{^name, {pid}}] <- :ets.lookup(get_ets_table(horde), name),
+         true <- process_alive?(pid) do
+      pid
+    else
+      _ -> :undefined
     end
+  end
+
+  defp process_alive?(pid) when node(pid) == node(self()), do: Process.alive?(pid)
+
+  defp process_alive?(pid) do
+    :rpc.call(node(pid), Process, :alive?, [pid])
   end
 
   defp get_ets_table(tab) when is_atom(tab), do: tab
