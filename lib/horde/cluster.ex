@@ -6,8 +6,10 @@ defmodule Horde.Cluster do
   ```elixir
   {:ok, sup1} = Horde.Supervisor.start_link([], name: :supervisor_1, strategy: :one_for_one)
   {:ok, sup2} = Horde.Supervisor.start_link([], name: :supervisor_2, strategy: :one_for_one)
+  {:ok, sup3} = Horde.Supervisor.start_link([], name: :supervisor_3, strategy: :one_for_one)
 
   :ok = Horde.Cluster.join_hordes(sup1, sup2)
+  :ok = Horde.Cluster.join_hordes(sup2, sup3)
   ```
 
   Calling `Horde.Cluster.leave_hordes/1` will instruct a node to remove itself from the cluster.

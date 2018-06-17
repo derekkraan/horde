@@ -50,6 +50,8 @@ end
 
 See the full docs at [https://hexdocs.pm/horde](https://hexdocs.pm/horde).
 
+There is also an example app at `examples/hello_world`.
+
 Putting `Horde.Supervisor` in a supervisor:
 
 ```elixir
