@@ -391,10 +391,10 @@ defmodule Horde.Supervisor do
   end
 
   defp stop_not_owned_processes(state, new_state) do
-    process_ids = processes_for_node(state, state.node_id) |> MapSet.new(fn {id, rest} -> id end)
+    process_ids = processes_for_node(state, state.node_id) |> MapSet.new(fn {id, _rest} -> id end)
 
     new_process_ids =
-      processes_for_node(new_state, state.node_id) |> MapSet.new(fn {id, rest} -> id end)
+      processes_for_node(new_state, state.node_id) |> MapSet.new(fn {id, _rest} -> id end)
 
     MapSet.difference(process_ids, new_process_ids)
     |> Enum.map(fn id ->
