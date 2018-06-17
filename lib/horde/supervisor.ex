@@ -114,7 +114,7 @@ defmodule Horde.Supervisor do
   @doc false
   def init({children, options}) do
     node_id = generate_node_id()
-    {:ok, supervisor_pid} = Supervisor.start_link(children, options)
+    {:ok, supervisor_pid} = Supervisor.start_link([], options)
 
     {:ok, members_pid} = @crdt.start_link({self(), :members_updated})
 
@@ -137,7 +137,7 @@ defmodule Horde.Supervisor do
       }
       |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
 
-    add_children(children, state)
+    Enum.map(children, fn child -> Supervisor.child_spec(child, []) end) |> add_children(state)
     {:ok, state}
   end
 
