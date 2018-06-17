@@ -363,6 +363,7 @@ defmodule Horde.Supervisor do
   def handle_info({:update_processes, c}, %{processes_updated_counter: c} = state) do
     processes = GenServer.call(state.processes_pid, {:read, @crdt}, 30_000)
     new_state = %{state | processes: processes, processes_updated_at: c}
+    stop_not_owned_processes(state, new_state)
     claim_unclaimed_processes(new_state)
     {:noreply, new_state}
   end
@@ -387,6 +388,19 @@ defmodule Horde.Supervisor do
     claim_unclaimed_processes(new_state)
 
     {:noreply, new_state}
+  end
+
+  defp stop_not_owned_processes(state, new_state) do
+    process_ids = processes_for_node(state, state.node_id) |> MapSet.new(fn {id, rest} -> id end)
+
+    new_process_ids =
+      processes_for_node(new_state, state.node_id) |> MapSet.new(fn {id, rest} -> id end)
+
+    MapSet.difference(process_ids, new_process_ids)
+    |> Enum.map(fn id ->
+      :ok = Supervisor.terminate_child(state.supervisor_pid, id)
+      :ok = Supervisor.delete_child(state.supervisor_pid, id)
+    end)
   end
 
   defp handle_loss_of_quorum(state) do
@@ -417,13 +431,7 @@ defmodule Horde.Supervisor do
 
   defp shut_down_all_processes(state) do
     Task.start_link(fn ->
-      this_node = state.node_id
-
-      state.processes
-      |> Enum.filter(fn
-        {_id, {^this_node, _child_spec}} -> true
-        _ -> false
-      end)
+      processes_for_node(state, state.node_id)
       |> Enum.map(fn {id, {_this_node, child_spec}} ->
         Task.async(fn ->
           # shut down the child, remove from the supervisor
