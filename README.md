@@ -48,11 +48,9 @@ end
 
 ## Usage
 
-See the full docs at [https://hexdocs.pm/horde](https://hexdocs.pm/horde).
+Here is a small taste of Horde's usage. See the full docs at [https://hexdocs.pm/horde](https://hexdocs.pm/horde) for more information and examples. There is also an example application at `examples/hello_world` that you can refer to if you get stuck.
 
-There is also an example app at `examples/hello_world`.
-
-Putting `Horde.Supervisor` in a supervisor:
+Starting `Horde.Supervisor`:
 
 ```elixir
 defmodule MyApp.Application do
@@ -72,16 +70,21 @@ Adding a child to the supervisor:
 Horde.Supervisor.start_child(MyApp.DistributedSupervisor, %{id: :gen_server, start: {GenServer, :start_link, []}})
 ```
 
-And so on. The public API should be the same as `Supervisor` (and please open an issue if it turns out not to be).
+And so on. The public API should be the same as `Supervisor` (and please open an issue if you find a difference).
 
 Joining supervisors into a single distributed supervisor can be done using `Horde.Cluster`:
 
 ```elixir
-{:ok, supervisor} = Horde.Supervisor.start_link([], name: :distributed_supervisor_1, strategy: :one_for_one)
+{:ok, supervisor_1} = Horde.Supervisor.start_link([], name: :distributed_supervisor_1, strategy: :one_for_one)
+{:ok, supervisor_2} = Horde.Supervisor.start_link([], name: :distributed_supervisor_2, strategy: :one_for_one)
+{:ok, supervisor_3} = Horde.Supervisor.start_link([], name: :distributed_supervisor_3, strategy: :one_for_one)
 
 Horde.Cluster.join_hordes(supervisor_1, supervisor_2)
+Horde.Cluster.join_hordes(supervisor_2, supervisor_3)
+# supervisor_1, supervisor_2 and supervisor_3 will be joined in a single cluster.
 
 Horde.Cluster.leave_hordes(supervisor_2)
+# supervisor_2 will no longer be part of the cluster, but supervisor_1 and supervisor_3 will remain.
 ```
 
 If you tell `Horde.Supervisor` to leave the horde, then it will kill all processes and disassociate them (to be picked up by other nodes). This can be used to implement graceful shutdown / failover.
@@ -89,5 +92,3 @@ If you tell `Horde.Supervisor` to leave the horde, then it will kill all process
 # Contributing
 
 Contributions are welcome! Feel free to open an issue if you'd like to discuss a problem or a possible solution. Pull requests are much appreciated.
-
-If you end up using `Horde` then feel free to ping me on twitter: @derekkraan.
