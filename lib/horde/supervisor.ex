@@ -245,8 +245,12 @@ defmodule Horde.Supervisor do
   end
 
   @doc false
-  def handle_cast({:join_hordes, other_horde}, state) do
-    GenServer.cast(other_horde, {:request_to_join_hordes, {state.node_id, state.members_pid}})
+  def handle_call({:join_hordes, other_horde}, from, state) do
+    GenServer.cast(
+      other_horde,
+      {:request_to_join_hordes, {state.node_id, state.members_pid, from}}
+    )
+
     {:noreply, state}
   end
 
@@ -255,23 +259,24 @@ defmodule Horde.Supervisor do
     node_info =
       {:shutting_down, {self(), state.supervisor_pid, state.members_pid, state.processes_pid}}
 
-    GenServer.call(state.members_pid, {:operation, {@crdt, :add, [state.node_id, node_info]}})
+    GenServer.cast(state.members_pid, {:operation, {@crdt, :add, [state.node_id, node_info]}})
 
     new_members = state.members |> Map.put(state.node_id, node_info)
     new_state = %{state | shutting_down: true, members: new_members}
 
-    handle_this_node_shutting_down(new_state)
+    shut_down_this_node(new_state)
 
     {:noreply, new_state}
   end
 
   @doc false
   def handle_cast(
-        {:request_to_join_hordes, {_other_node_id, other_members_pid}},
+        {:request_to_join_hordes, {_other_node_id, other_members_pid, reply_to}},
         state
       ) do
     send(state.members_pid, {:add_neighbour, other_members_pid})
     send(state.members_pid, :ship_interval_or_state_to_all)
+    GenServer.reply(reply_to, true)
     {:noreply, state}
   end
 
@@ -409,24 +414,16 @@ defmodule Horde.Supervisor do
     end
   end
 
-  defp handle_this_node_shutting_down(state) do
-    state.members
-    |> Map.get(state.node_id)
-    |> case do
-      {:alive, _} ->
-        nil
+  defp shut_down_this_node(state) do
+    shut_down_all_processes(state)
+    Process.send_after(self(), :force_shutdown, @shutdown_wait + 10_000)
 
-      _ ->
-        shut_down_all_processes(state)
-        Process.send_after(self(), :force_shutdown, @shutdown_wait + 10_000)
+    # allow time for state to propagate normally to other nodes
+    Process.sleep(10000)
 
-        # allow time for state to propagate normally to other nodes
-        Process.sleep(10000)
+    :ok = Supervisor.stop(state.supervisor_pid)
 
-        :ok = Supervisor.stop(state.supervisor_pid)
-
-        send(self(), :force_shutdown)
-    end
+    send(self(), :force_shutdown)
   end
 
   defp shut_down_all_processes(state) do

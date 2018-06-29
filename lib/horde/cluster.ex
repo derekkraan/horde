@@ -21,9 +21,11 @@ defmodule Horde.Cluster do
   @doc """
   Join two hordes into one big horde. Calling this once will inform every node in each horde of every node in the other horde.
   """
-  @spec join_hordes(horde :: pid(), other_horde :: pid()) :: :ok
-  def join_hordes(horde, other_horde) do
-    GenServer.cast(horde, {:join_hordes, other_horde})
+  @spec join_hordes(horde :: pid(), other_horde :: pid()) :: boolean()
+  def join_hordes(horde, other_horde, timeout \\ 5000) do
+    GenServer.call(horde, {:join_hordes, other_horde}, timeout)
+  catch
+    :exit, {:timeout, _details} -> false
   end
 
   @doc """

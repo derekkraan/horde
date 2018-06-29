@@ -54,10 +54,10 @@ defmodule Horde.Registry do
   end
 
   @spec start_link(options :: list()) :: GenServer.on_start()
-  def start_link(options) do
+  def start_link(options \\ []) do
     name = Keyword.get(options, :name)
 
-    unless is_atom(name) do
+    if !is_atom(name) || is_nil(name) do
       raise ArgumentError, "expected :name to be given and to be an atom, got: #{inspect(name)}"
     end
 
@@ -165,16 +165,12 @@ defmodule Horde.Registry do
   end
 
   def handle_cast(
-        {:request_to_join_hordes, {_other_node_id, other_members_pid}},
+        {:request_to_join_hordes, {_other_node_id, other_members_pid, reply_to}},
         state
       ) do
     Kernel.send(state.members_pid, {:add_neighbour, other_members_pid})
     Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
-    {:noreply, state}
-  end
-
-  def handle_cast({:join_hordes, other_horde}, state) do
-    GenServer.cast(other_horde, {:request_to_join_hordes, {state.node_id, state.members_pid}})
+    GenServer.reply(reply_to, true)
     {:noreply, state}
   end
 
@@ -247,6 +243,15 @@ defmodule Horde.Registry do
     end
 
     {:noreply, %{state | members: members}}
+  end
+
+  def handle_call({:join_hordes, other_horde}, from, state) do
+    GenServer.cast(
+      other_horde,
+      {:request_to_join_hordes, {state.node_id, state.members_pid, from}}
+    )
+
+    {:noreply, state}
   end
 
   def handle_call(:get_ets_table, _from, %{ets_table: ets_table} = state),
