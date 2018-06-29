@@ -19,21 +19,13 @@ defmodule Horde.Cluster do
   """
 
   @doc """
-  Join two hordes into one big horde. Calling this once will inform every node in each horde of every node in the other horde.
+  Join two hordes into one big horde. Calling this once will inform every node in each horde of every node in the other horde. Leave the hordes by calling `Horde.Supervisor.stop/1` or `Horde.Registry.stop/1`
   """
   @spec join_hordes(horde :: pid(), other_horde :: pid()) :: boolean()
   def join_hordes(horde, other_horde, timeout \\ 5000) do
     GenServer.call(horde, {:join_hordes, other_horde}, timeout)
   catch
     :exit, {:timeout, _details} -> false
-  end
-
-  @doc """
-  Remove an instance of horde from the greater hordes.
-  """
-  @spec leave_hordes(horde :: pid()) :: :ok
-  def leave_hordes(horde) do
-    GenServer.cast(horde, :leave_hordes)
   end
 
   @doc """

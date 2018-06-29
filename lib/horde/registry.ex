@@ -6,7 +6,7 @@ defmodule Horde.Registry do
 
   Because of the semantics of an AWLWWMap, the guarantees provided by Horde.Registry are more relaxed than those provided by the standard library Registry. Conflicts will be automatically silently resolved by the underlying AWLWWMap.
 
-  Cluster membership is managed with `Horde.Cluster`. Joining and leaving a cluster can be done with `Horde.Cluster.join_hordes/2` and `Horde.Cluster.leave_hordes/1`.
+  Cluster membership is managed with `Horde.Cluster`. Joining a cluster can be done with `Horde.Cluster.join_hordes/2` and leaving the cluster happens automatically with `Horde.Registry.stop/3.
 
   Horde.Registry supports the common "via tuple", described in the [documentation](https://hexdocs.pm/elixir/GenServer.html#module-name-registration) for `GenServer`.
   """
@@ -62,6 +62,26 @@ defmodule Horde.Registry do
     end
 
     GenServer.start_link(__MODULE__, options, name: name)
+  end
+
+  @spec stop(GenServer.server(), reason :: term(), timeout()) :: :ok
+  def stop(registry, reason, timeout \\ 5000) do
+    GenServer.stop(registry, reason, timeout)
+  end
+
+  def terminate(reason, state) do
+    GenServer.cast(
+      state.members_pid,
+      {:operation, {@crdt, :remove, [state.node_id]}}
+    )
+
+    Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
+
+    # sleep for 200ms to give the CRDT time to send its delta.
+    Process.sleep(200)
+
+    GenServer.stop(state.members_pid, reason)
+    GenServer.stop(state.processes_pid, reason)
   end
 
   @doc "register a process under the given name"
@@ -171,16 +191,6 @@ defmodule Horde.Registry do
     Kernel.send(state.members_pid, {:add_neighbour, other_members_pid})
     Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
     GenServer.reply(reply_to, true)
-    {:noreply, state}
-  end
-
-  def handle_cast(:leave_hordes, state) do
-    GenServer.cast(
-      state.members_pid,
-      {:operation, {@crdt, :remove, [state.node_id]}}
-    )
-
-    Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
     {:noreply, state}
   end
 
