@@ -2,9 +2,9 @@ defmodule HordeSupervisorTest do
   use ExUnit.Case, async: true
 
   setup do
-    {:ok, horde_1} = Horde.Supervisor.start_link([], node_id: :horde_1, strategy: :one_for_one)
-    {:ok, horde_2} = Horde.Supervisor.start_link([], node_id: :horde_2, strategy: :one_for_one)
-    {:ok, horde_3} = Horde.Supervisor.start_link([], node_id: :horde_3, strategy: :one_for_one)
+    {:ok, horde_1} = Horde.Supervisor.start_link(node_id: :horde_1, strategy: :one_for_one)
+    {:ok, horde_2} = Horde.Supervisor.start_link(node_id: :horde_2, strategy: :one_for_one)
+    {:ok, horde_3} = Horde.Supervisor.start_link(node_id: :horde_3, strategy: :one_for_one)
 
     Horde.Cluster.join_hordes(horde_1, horde_2)
     Horde.Cluster.join_hordes(horde_3, horde_2)
@@ -21,10 +21,11 @@ defmodule HordeSupervisorTest do
          [
            fn ->
              send(pid, {:process_started, self()})
-             Process.sleep(1000)
+             Process.sleep(100_000)
            end
          ]},
       type: :worker,
+      shutdown: 10,
       restart: :transient
     }
 
@@ -69,16 +70,6 @@ defmodule HordeSupervisorTest do
         |> Enum.uniq()
 
       assert Enum.uniq(supervisor_pids) |> Enum.count() > 1
-    end
-  end
-
-  describe ".restart_child/2" do
-    test "restarts a process", context do
-      Horde.Supervisor.start_child(context.horde_1, context.task_def)
-      assert_receive({:process_started, _pid})
-      Process.sleep(1000)
-      Horde.Supervisor.restart_child(context.horde_1, context.task_def.id)
-      assert_receive({:process_started, _pid})
     end
   end
 
@@ -132,9 +123,9 @@ defmodule HordeSupervisorTest do
     # test "netsplit"
   end
 
-  describe ".leave_horde/1" do
-    test "removing a node from a horde causes supervised processes to shut down", context do
-      max = 200
+  describe ".stop/3" do
+    test "stopping a node causes supervised processes to shut down", context do
+      max = 10
 
       1..max
       |> Enum.each(fn x ->
@@ -146,15 +137,119 @@ defmodule HordeSupervisorTest do
 
       Process.sleep(2000)
 
-      Horde.Cluster.leave_hordes(context.horde_1)
+      assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1)
 
-      Process.sleep(5000)
+      Horde.Supervisor.stop(context.horde_1)
+
+      Process.sleep(2000)
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
     end
   end
 
+  describe "graceful shutdown" do
+    test "stopping a node moves processes over as soon as they are ready" do
+      {:ok, horde_1} = Horde.Supervisor.start_link(node_id: :horde_1, strategy: :one_for_one)
+
+      {:ok, horde_2} = Horde.Supervisor.start_link(node_id: :horde_2, strategy: :one_for_one)
+
+      defmodule TerminationDelay do
+        use GenServer
+
+        def init({timeout, pid}) do
+          Process.flag(:trap_exit, true)
+          send(pid, {:starting, timeout})
+          {:ok, {timeout, pid}}
+        end
+
+        def terminate(_reason, {timeout, pid}) do
+          send(pid, {:stopping, timeout})
+          Process.sleep(timeout)
+        end
+      end
+
+      pid = self()
+
+      Horde.Supervisor.start_child(horde_1, %{
+        id: :fast,
+        start: {GenServer, :start_link, [TerminationDelay, {500, pid}]},
+        shutdown: 2000
+      })
+
+      Horde.Supervisor.start_child(horde_1, %{
+        id: :slow,
+        start: {GenServer, :start_link, [TerminationDelay, {5000, pid}]},
+        shutdown: 10000
+      })
+
+      Horde.Cluster.join_hordes(horde_1, horde_2)
+
+      Process.sleep(1000)
+
+      assert_receive {:starting, 500}
+      assert_receive {:starting, 5000}
+
+      Task.start_link(fn -> Horde.Supervisor.stop(horde_1) end)
+
+      assert_receive {:stopping, 500}, 100
+      assert_receive {:stopping, 5000}
+
+      Process.sleep(1000)
+
+      assert_received {:starting, 500}
+      refute_received {:starting, 5000}
+
+      Process.sleep(5000)
+      assert_received {:starting, 5000}
+    end
+  end
+
   describe "stress test" do
+    test "joining hordes dedups processes" do
+      {:ok, horde_1} = Horde.Supervisor.start_link(node_id: :horde_1, strategy: :one_for_one)
+      {:ok, horde_2} = Horde.Supervisor.start_link(node_id: :horde_2, strategy: :one_for_one)
+
+      pid = self()
+
+      Horde.Supervisor.start_child(horde_1, %{
+        id: :foo,
+        start:
+          {Task, :start_link,
+           [
+             fn ->
+               send(pid, :twice)
+               Process.sleep(100)
+               send(pid, :just_once)
+             end
+           ]}
+      })
+
+      Horde.Supervisor.start_child(horde_2, %{
+        id: :foo,
+        start:
+          {Task, :start_link,
+           [
+             fn ->
+               send(pid, :twice)
+               Process.sleep(100)
+               send(pid, :just_once)
+             end
+           ]}
+      })
+
+      Horde.Supervisor.which_children(horde_1)
+      Horde.Supervisor.which_children(horde_2)
+
+      Horde.Cluster.join_hordes(horde_1, horde_2)
+
+      Process.sleep(150)
+
+      assert_received :twice
+      assert_received :twice
+      assert_received :just_once
+      refute_received :just_once
+    end
+
     test "registering a lot of workers doesn't cause an exit", context do
       max = 20_000
 

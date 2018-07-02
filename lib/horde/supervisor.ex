@@ -2,22 +2,19 @@ defmodule Horde.Supervisor do
   @moduledoc """
   A distributed supervisor.
 
-  Horde.Supervisor implements a distributed Supervisor backed by a add-wins last-write-wins δ-CRDT (provided by `DeltaCrdt.AWLWWMap`). This CRDT is used for both tracking membership of the cluster and tracking supervised processes.
+  Horde.Supervisor implements a distributed DynamicSupervisor backed by a add-wins last-write-wins δ-CRDT (provided by `DeltaCrdt.AWLWWMap`). This CRDT is used for both tracking membership of the cluster and tracking supervised processes.
 
   Using CRDTs guarantees that the distributed, shared state will eventually converge. It also means that Horde.Supervisor is eventually-consistent, and is optimized for availability and partition tolerance. This can result in temporary inconsistencies under certain conditions (when cluster membership is changing, for example).
 
-  Cluster membership is managed with `Horde.Cluster`. Joining and leaving a cluster can be done with `Horde.Cluster.join_hordes/2` and `Horde.Cluster.leave_hordes/1`.
+  Cluster membership is managed with `Horde.Cluster`. Joining a cluster can be done with `Horde.Cluster.join_hordes/2` and leaving a cluster happens automatically when `Horde.Supervisor.stop/3` is called.
 
-  Each Horde.Supervisor node wraps its own local instance of `Supervisor`. `Horde.Supervisor.start_child/2` (for example) delegates to the local instance of Supervisor to actually start and monitor the child. The child spec is also written into the processes CRDT, along with a reference to the node on which it is running. When there is an update to the processes CRDT, Horde makes a comparison and corrects any inconsistencies (for example, if a conflict has been resolved and there is a process that no longer should be running on its node, it will kill that process and remove it from the local supervisor). So while most functions map 1:1 to the equivalent Supervisor functions, the eventually consistent nature of Horde requires extra behaviour not present in Supervisor.
+  Each Horde.Supervisor node wraps its own local instance of `DynamicSupervisor`. `Horde.Supervisor.start_child/2` (for example) delegates to the local instance of DynamicSupervisor to actually start and monitor the child. The child spec is also written into the processes CRDT, along with a reference to the node on which it is running. When there is an update to the processes CRDT, Horde makes a comparison and corrects any inconsistencies (for example, if a conflict has been resolved and there is a process that no longer should be running on its node, it will kill that process and remove it from the local supervisor). So while most functions map 1:1 to the equivalent DynamicSupervisor functions, the eventually consistent nature of Horde requires extra behaviour not present in DynamicSupervisor.
   """
 
   use GenServer
 
   # 60s
   @long_time 60_000
-
-  # 30 minutes
-  @shutdown_wait 30 * 60 * 1000
 
   @crdt DeltaCrdt.AWLWWMap
 
@@ -30,6 +27,7 @@ defmodule Horde.Supervisor do
               supervisor_pid: nil,
               members_pid: nil,
               processes_pid: nil,
+              options: [],
               members: %{},
               processes: %{},
               processes_updated_counter: 0,
@@ -42,66 +40,53 @@ defmodule Horde.Supervisor do
   See `start_link/2` for options.
   """
   def child_spec(options \\ []) do
-    options =
-      options
-      |> Keyword.put_new(:id, __MODULE__)
-      |> Keyword.put_new(:children, [])
+    options = Keyword.put_new(options, :id, __MODULE__)
 
     %{
       id: options[:id],
-      start:
-        {__MODULE__, :start_link, [options[:children], Keyword.drop(options, [:id, :children])]}
+      start: {__MODULE__, :start_link, [Keyword.drop(options, [:id])]}
     }
   end
 
   @doc """
-  Works like `Supervisor.start_link`. Extra options are documented here:
+  Works like `DynamicSupervisor.start_link`. Extra options are documented here:
   - `:distribution_strategy`, defaults to `Horde.UniformDistribution` but can also be set to `Horde.UniformQuorumDistribution`. `Horde.UniformQuorumDistribution` enforces a quorum and will shut down all processes on a node if it is split from the rest of the cluster.
   """
-  def start_link(children, options) do
+  def start_link(options) do
     GenServer.start_link(
       __MODULE__,
-      {children, Keyword.drop(options, [:name])},
+      Keyword.drop(options, [:name]),
       Keyword.take(options, [:name])
     )
   end
 
   @doc """
-  Works like `Supervisor.stop/3`.
+  Works like `DynamicSupervisor.stop/3`.
   """
-  def stop(supervisor, reason, timeout \\ :infinity),
+  def stop(supervisor, reason \\ :normal, timeout \\ :infinity),
     do: GenServer.stop(supervisor, reason, timeout)
 
   @doc """
-  Works like `Supervisor.start_child/2`.
+  Works like `DynamicSupervisor.start_child/2`.
   """
-  def start_child(supervisor, child_spec),
-    do: call(supervisor, {:start_child, Supervisor.child_spec(child_spec, [])})
+  def start_child(supervisor, child_spec) do
+    call(supervisor, {:start_child, Supervisor.child_spec(child_spec, [])})
+  end
 
   @doc """
-  Works like `Supervisor.terminate_child/2`
+  Works like `DynamicSupervisor.terminate_child/2`
   """
   def terminate_child(supervisor, child_id), do: call(supervisor, {:terminate_child, child_id})
 
   @doc """
-  Works like `Supervisor.delete_child/2`
-  """
-  def delete_child(supervisor, child_id), do: call(supervisor, {:delete_child, child_id})
+  Works like `DynamicSupervisor.which_children/1`.
 
-  @doc """
-  Works like `Supervisor.restart_child/2`
-  """
-  def restart_child(supervisor, child_id), do: call(supervisor, {:restart_child, child_id})
-
-  @doc """
-  Works like `Supervisor.which_children/1`.
-
-  This function delegates to all supervisors in the cluster and returns the aggregated output. Where memory warnings apply to `Supervisor.which_children`, these count double for `Horde.Supervisor.which_children`.
+  This function delegates to all supervisors in the cluster and returns the aggregated output. Where memory warnings apply to `DynamicSupervisor.which_children`, these count double for `Horde.Supervisor.which_children`.
   """
   def which_children(supervisor), do: call(supervisor, :which_children)
 
   @doc """
-  Works like `Supervisor.count_children/1`.
+  Works like `DynamicSupervisor.count_children/1`.
 
   This function delegates to all supervisors in the cluster and returns the aggregated output.
   """
@@ -112,9 +97,12 @@ defmodule Horde.Supervisor do
   ## GenServer callbacks
 
   @doc false
-  def init({children, options}) do
+  def init(options) do
+    Process.flag(:trap_exit, true)
+
     node_id = generate_node_id()
-    {:ok, supervisor_pid} = Supervisor.start_link([], options)
+
+    {:ok, supervisor_pid} = DynamicSupervisor.start_link(options)
 
     {:ok, members_pid} = @crdt.start_link({self(), :members_updated})
 
@@ -133,19 +121,27 @@ defmodule Horde.Supervisor do
         supervisor_pid: supervisor_pid,
         members_pid: members_pid,
         processes_pid: processes_pid,
+        options: options,
         members: %{node_id => {:alive, {self(), supervisor_pid, members_pid, processes_pid}}}
       }
       |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
 
-    Enum.map(children, fn child -> Supervisor.child_spec(child, []) end) |> add_children(state)
     {:ok, state}
   end
 
   @doc false
   def terminate(reason, state) do
-    Supervisor.stop(state.supervisor_pid, reason)
+    node_info =
+      {:shutting_down, {self(), state.supervisor_pid, state.members_pid, state.processes_pid}}
+
+    GenServer.cast(state.members_pid, {:operation, {@crdt, :add, [state.node_id, node_info]}})
+
+    GenServer.stop(state.supervisor_pid, reason)
+
     GenServer.stop(state.members_pid, reason)
+
     GenServer.stop(state.processes_pid, reason)
+
     :ok
   end
 
@@ -155,36 +151,16 @@ defmodule Horde.Supervisor do
   end
 
   @doc false
-  def handle_call({:delete_child, child_id}, _from, state) do
-    with {:ok, supervisor_pid} <- which_supervisor(child_id, state),
-         :ok <- Supervisor.delete_child(supervisor_pid, child_id) do
-      GenServer.cast(
-        state.processes_pid,
-        {:operation, {@crdt, :remove, [child_id]}}
-      )
-
-      {:reply, :ok, state}
-    else
-      {:error, error} -> {:reply, {:error, error}, state}
-    end
-  end
-
-  @doc false
-  def handle_call({:restart_child, child_id}, _from, state) do
-    case which_supervisor(child_id, state) do
-      {:ok, supervisor_pid} ->
-        {:reply, Supervisor.restart_child(supervisor_pid, child_id), state}
-
-      error ->
-        {:reply, error, state}
-    end
-  end
-
-  @doc false
   def handle_call({:terminate_child, child_id}, _from, state) do
     case which_supervisor(child_id, state) do
       {:ok, supervisor_pid} ->
-        {:reply, Supervisor.terminate_child(supervisor_pid, child_id), state}
+        reply =
+          DynamicSupervisor.terminate_child(
+            supervisor_pid,
+            Process.whereis(Horde.ProcessSupervisor.name(state.node_id, child_id))
+          )
+
+        {:reply, reply, state}
 
       error ->
         {:reply, error, state}
@@ -197,7 +173,9 @@ defmodule Horde.Supervisor do
 
   @doc false
   def handle_call({:start_child, child_spec}, _from, state) do
-    {:reply, add_child(child_spec, state), state}
+    {reply, new_state} = add_child(child_spec, state)
+
+    {:reply, reply, new_state}
   end
 
   @doc false
@@ -207,7 +185,11 @@ defmodule Horde.Supervisor do
       |> Enum.map(fn {_, {_, {_, s, _, _}}} -> s end)
       |> Enum.flat_map(fn supervisor_pid ->
         try do
-          Supervisor.which_children(supervisor_pid)
+          DynamicSupervisor.which_children(supervisor_pid)
+          |> Enum.map(fn
+            {:undefined, :restarting, _, _} = child -> child
+            {:undefined, pid, _, _} -> Supervisor.which_children(pid)
+          end)
         catch
           :exit, _ -> []
         end
@@ -221,24 +203,27 @@ defmodule Horde.Supervisor do
     count =
       state.members
       |> Enum.map(fn {_, {_, {_, s, _, _}}} -> s end)
-      |> Enum.map(fn supervisor ->
+      |> Enum.flat_map(fn supervisor_pid ->
         try do
-          Supervisor.count_children(supervisor)
+          DynamicSupervisor.which_children(supervisor_pid)
+          |> Enum.map(fn
+            {:undefined, :restarting, _, _} ->
+              %{restarting: 1}
+
+            {:undefined, pid, _, _} ->
+              count = Supervisor.count_children(pid)
+              %{count | workers: count.workers - 1}
+          end)
         catch
-          :exit, _ -> nil
+          :exit, _ -> [nil]
         end
       end)
       |> Enum.reject(fn
         nil -> true
         _ -> false
       end)
-      |> Enum.reduce(%{active: 0, specs: 0, supervisors: 0, workers: 0}, fn a, b ->
-        %{
-          active: a.active + b.active,
-          specs: a.specs + b.specs,
-          supervisors: a.supervisors + b.supervisors,
-          workers: a.workers + b.workers
-        }
+      |> Enum.reduce(%{}, fn a, b ->
+        Map.merge(a, b, fn _key, v1, v2 -> v1 + v2 end)
       end)
 
     {:reply, count, state}
@@ -252,21 +237,6 @@ defmodule Horde.Supervisor do
     )
 
     {:noreply, state}
-  end
-
-  @doc false
-  def handle_cast(:leave_hordes, state) do
-    node_info =
-      {:shutting_down, {self(), state.supervisor_pid, state.members_pid, state.processes_pid}}
-
-    GenServer.cast(state.members_pid, {:operation, {@crdt, :add, [state.node_id, node_info]}})
-
-    new_members = state.members |> Map.put(state.node_id, node_info)
-    new_state = %{state | shutting_down: true, members: new_members}
-
-    shut_down_this_node(new_state)
-
-    {:noreply, new_state}
   end
 
   @doc false
@@ -367,9 +337,12 @@ defmodule Horde.Supervisor do
   @doc false
   def handle_info({:update_processes, c}, %{processes_updated_counter: c} = state) do
     processes = GenServer.call(state.processes_pid, {:read, @crdt}, 30_000)
-    new_state = %{state | processes: processes, processes_updated_at: c}
-    stop_not_owned_processes(state, new_state)
-    claim_unclaimed_processes(new_state)
+
+    new_state =
+      %{state | processes: processes, processes_updated_at: c}
+      |> stop_not_owned_processes(state)
+      |> claim_unclaimed_processes()
+
     {:noreply, new_state}
   end
 
@@ -383,70 +356,54 @@ defmodule Horde.Supervisor do
   def handle_info(:members_updated, state) do
     members = GenServer.call(state.members_pid, {:read, @crdt}, 30_000)
 
-    new_state = %{state | members: members} |> mark_alive()
-
     monitor_supervisors(members)
-    handle_loss_of_quorum(new_state)
-    handle_updated_members_pids(state, new_state)
-    handle_updated_process_pids(state, new_state)
-    handle_topology_changes(new_state)
-    claim_unclaimed_processes(new_state)
+
+    new_state =
+      %{state | members: members}
+      |> mark_alive()
+      |> handle_loss_of_quorum()
+      |> handle_updated_members_pids(state)
+      |> handle_updated_process_pids(state)
+      |> handle_topology_changes()
+      |> claim_unclaimed_processes()
 
     {:noreply, new_state}
   end
 
-  defp stop_not_owned_processes(state, new_state) do
-    process_ids = processes_for_node(state, state.node_id) |> MapSet.new(fn {id, _rest} -> id end)
+  defp stop_not_owned_processes(new_state, old_state) do
+    old_process_ids =
+      processes_for_node(old_state, old_state.node_id) |> MapSet.new(fn {id, _rest} -> id end)
 
     new_process_ids =
-      processes_for_node(new_state, state.node_id) |> MapSet.new(fn {id, _rest} -> id end)
+      processes_for_node(new_state, new_state.node_id) |> MapSet.new(fn {id, _rest} -> id end)
 
-    MapSet.difference(process_ids, new_process_ids)
+    MapSet.difference(old_process_ids, new_process_ids)
     |> Enum.map(fn id ->
-      :ok = Supervisor.terminate_child(state.supervisor_pid, id)
-      :ok = Supervisor.delete_child(state.supervisor_pid, id)
+      :ok =
+        DynamicSupervisor.terminate_child(
+          new_state.supervisor_pid,
+          Process.whereis(Horde.ProcessSupervisor.name(new_state.node_id, id))
+        )
     end)
+
+    new_state
   end
 
   defp handle_loss_of_quorum(state) do
     if !state.distribution_strategy.has_quorum?(state.members) do
       shut_down_all_processes(state)
+    else
+      state
     end
   end
 
-  defp shut_down_this_node(state) do
-    shut_down_all_processes(state)
-    Process.send_after(self(), :force_shutdown, @shutdown_wait + 10_000)
-
-    # allow time for state to propagate normally to other nodes
-    Process.sleep(10000)
-
-    :ok = Supervisor.stop(state.supervisor_pid)
-
-    send(self(), :force_shutdown)
-  end
-
   defp shut_down_all_processes(state) do
-    Task.start_link(fn ->
-      processes_for_node(state, state.node_id)
-      |> Enum.map(fn {id, {_this_node, child_spec}} ->
-        Task.async(fn ->
-          # shut down the child, remove from the supervisor
-          :ok = Supervisor.terminate_child(state.supervisor_pid, id)
-          :ok = Supervisor.delete_child(state.supervisor_pid, id)
-
-          # mark child as unassigned in the CRDT
-          GenServer.cast(
-            state.processes_pid,
-            {:operation, {@crdt, :add, [child_spec.id, {nil, child_spec}]}}
-          )
-        end)
-      end)
-      |> Enum.map(fn task -> Task.await(task, @shutdown_wait) end)
-    end)
+    :ok = GenServer.stop(state.supervisor_piod, :normal, :infinity)
+    {:ok, supervisor_pid} = DynamicSupervisor.start_link(state.options)
+    %{state | supervisor_pid: supervisor_pid}
   end
 
-  defp handle_updated_members_pids(state, new_state) do
+  defp handle_updated_members_pids(new_state, state) do
     new_pids =
       MapSet.new(new_state.members, fn {_key, {_, {_, _, m, _}}} -> m end)
       |> MapSet.delete(nil)
@@ -460,9 +417,11 @@ defmodule Horde.Supervisor do
       send(state.members_pid, {:add_neighbours, new_pids})
       send(state.members_pid, :ship_interval_or_state_to_all)
     end
+
+    new_state
   end
 
-  defp handle_updated_process_pids(state, new_state) do
+  defp handle_updated_process_pids(new_state, state) do
     new_pids =
       MapSet.new(new_state.members, fn {_key, {_, {_, _, _, p}}} -> p end)
       |> MapSet.delete(nil)
@@ -475,6 +434,8 @@ defmodule Horde.Supervisor do
       send(state.processes_pid, {:add_neighbours, new_pids})
       send(state.processes_pid, :ship_interval_or_state_to_all)
     end
+
+    new_state
   end
 
   defp dead_members(%{members: members}) do
@@ -495,7 +456,7 @@ defmodule Horde.Supervisor do
   defp handle_topology_changes(state) do
     this_node_id = state.node_id
 
-    Enum.map(dead_members(state), fn dead_node ->
+    Enum.flat_map(dead_members(state), fn dead_node ->
       processes_for_node(state, dead_node)
       |> Enum.map(fn {_id, {_node, child}} -> child end)
       |> Enum.filter(fn child ->
@@ -504,7 +465,10 @@ defmodule Horde.Supervisor do
           _ -> false
         end
       end)
-      |> Enum.each(fn child -> add_child(child, state) end)
+    end)
+    |> Enum.reduce(state, fn child, state ->
+      {_ret, state} = add_child(child, state)
+      state
     end)
   end
 
@@ -512,15 +476,19 @@ defmodule Horde.Supervisor do
     this_node_id = state.node_id
 
     state.processes
-    |> Enum.each(fn
+    |> Enum.flat_map(fn
       {id, {nil, child_spec}} ->
         case state.distribution_strategy.choose_node(id, state.members) do
-          {^this_node_id, _node_info} -> add_child(child_spec, state)
-          _ -> false
+          {^this_node_id, _node_info} -> [child_spec]
+          _ -> []
         end
 
       _ ->
-        false
+        []
+    end)
+    |> Enum.reduce(state, fn child_spec, state ->
+      {_ret, state} = add_child(child_spec, state)
+      state
     end)
   end
 
@@ -538,36 +506,42 @@ defmodule Horde.Supervisor do
     end
   end
 
-  defp add_children([], _state), do: nil
-
-  defp add_children([child | children], state) do
-    add_child(child, state)
-    add_children(children, state)
-  end
-
   defp add_child(child, state) do
     {node_id, {_, {_, supervisor_pid, _, _}}} =
       state.distribution_strategy.choose_node(child.id, state.members)
 
-    case Supervisor.start_child(supervisor_pid, child) do
-      {:ok, pid} ->
-        GenServer.cast(
-          state.processes_pid,
-          {:operation, {@crdt, :add, [child.id, {node_id, child}]}}
-        )
+    wrapped_child = {Horde.ProcessSupervisor, {child, state.processes_pid, state.node_id}}
 
-        {:ok, pid}
+    case DynamicSupervisor.start_child(supervisor_pid, wrapped_child) do
+      {:ok, process_supervisor_pid} ->
+        case Supervisor.start_child(process_supervisor_pid, child) do
+          {:ok, child_pid} ->
+            GenServer.cast(
+              state.processes_pid,
+              {:operation, {@crdt, :add, [child.id, {node_id, child}]}}
+            )
 
-      {:ok, pid, term} ->
-        GenServer.cast(
-          state.processes_pid,
-          {:operation, {@crdt, :add, [child.id, {node_id, child}]}}
-        )
+            new_state = %{state | processes: Map.put(state.processes, child.id, {node_id, child})}
 
-        {:ok, pid, term}
+            {{:ok, child_pid}, new_state}
+
+          {:ok, child_pid, term} ->
+            GenServer.cast(
+              state.processes_pid,
+              {:operation, {@crdt, :add, [child.id, {node_id, child}]}}
+            )
+
+            new_state = %{state | processes: Map.put(state.processes, child.id, {node_id, child})}
+
+            {{:ok, child_pid, term}, new_state}
+
+          {:error, error} ->
+            DynamicSupervisor.terminate_child(supervisor_pid, process_supervisor_pid)
+            {{:error, error}, state}
+        end
 
       {:error, error} ->
-        {:error, error}
+        {{:error, error}, state}
     end
   end
 

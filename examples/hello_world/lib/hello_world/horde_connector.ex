@@ -2,8 +2,6 @@ defmodule HelloWorld.HordeConnector do
   require Logger
 
   def connect() do
-    Logger.debug("join the hordes")
-
     Node.list()
     |> Enum.each(fn node ->
       Horde.Cluster.join_hordes(HelloWorld.HelloSupervisor, {HelloWorld.HelloSupervisor, node})

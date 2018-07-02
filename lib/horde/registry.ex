@@ -65,7 +65,7 @@ defmodule Horde.Registry do
   end
 
   @spec stop(GenServer.server(), reason :: term(), timeout()) :: :ok
-  def stop(registry, reason, timeout \\ 5000) do
+  def stop(registry, reason \\ :normal, timeout \\ 5000) do
     GenServer.stop(registry, reason, timeout)
   end
 

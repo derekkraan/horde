@@ -11,11 +11,6 @@ defmodule Horde.Cluster do
   :ok = Horde.Cluster.join_hordes(sup1, sup2)
   :ok = Horde.Cluster.join_hordes(sup2, sup3)
   ```
-
-  Calling `Horde.Cluster.leave_hordes/1` will instruct a node to remove itself from the cluster.
-  ```elixir
-  :ok = Horde.Cluster.leave_hordes(sup1)
-  ```
   """
 
   @doc """

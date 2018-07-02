@@ -115,7 +115,7 @@ defmodule RegistryTest do
       Process.sleep(20)
       {:ok, members} = Horde.Cluster.members(horde_2)
       assert 3 = Enum.count(members)
-      Horde.Cluster.leave_hordes(horde_2)
+      Horde.Registry.stop(horde_2)
       Process.sleep(20)
       {:ok, members} = Horde.Cluster.members(horde_1)
       assert 2 = Enum.count(members)

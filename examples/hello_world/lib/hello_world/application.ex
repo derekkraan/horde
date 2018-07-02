@@ -10,8 +10,7 @@ defmodule HelloWorld.Application do
       {Horde.Supervisor,
        [
          name: HelloWorld.HelloSupervisor,
-         strategy: :one_for_one,
-         children: [HelloWorld.SayHello]
+         strategy: :one_for_one
        ]},
       %{
         id: HelloWorld.ClusterConnector,
@@ -22,6 +21,7 @@ defmodule HelloWorld.Application do
              fn ->
                HelloWorld.ClusterConnector.connect()
                HelloWorld.HordeConnector.connect()
+               Horde.Supervisor.start_child(HelloWorld.HelloSupervisor, HelloWorld.SayHello)
              end
            ]}
       }
