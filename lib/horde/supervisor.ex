@@ -9,6 +9,20 @@ defmodule Horde.Supervisor do
   Cluster membership is managed with `Horde.Cluster`. Joining a cluster can be done with `Horde.Cluster.join_hordes/2` and leaving a cluster happens automatically when `Horde.Supervisor.stop/3` is called.
 
   Each Horde.Supervisor node wraps its own local instance of `DynamicSupervisor`. `Horde.Supervisor.start_child/2` (for example) delegates to the local instance of DynamicSupervisor to actually start and monitor the child. The child spec is also written into the processes CRDT, along with a reference to the node on which it is running. When there is an update to the processes CRDT, Horde makes a comparison and corrects any inconsistencies (for example, if a conflict has been resolved and there is a process that no longer should be running on its node, it will kill that process and remove it from the local supervisor). So while most functions map 1:1 to the equivalent DynamicSupervisor functions, the eventually consistent nature of Horde requires extra behaviour not present in DynamicSupervisor.
+
+  ## Divergence from standard DynamicSupervisor behaviour
+
+  While Horde wraps DynamicSupervisor, it does keep track of processes by the `id` in the child specification. This is a divergence from the behaviour of DynamicSupervisor, which ignores ids altogether. Using DynamicSupervisor is useful for its shutdown behaviour (it shuts down all child processes simultaneously, unlike `Supervisor`).
+
+  ## Graceful shutdown
+
+  Horde migrates processes from one node to another when you stop a node. The state of child processes is not preserved, the process is simply restarted on another node.
+
+  To implement graceful shutdown a few extra steps are necessary.
+
+  1. Trap exits. Running `Process.flag(:trap_exit)` in the `init/1` callback of any `worker` processes will convert exit signals to messages and allow running `terminate/2` callbacks. It is also important to include the `shutdown` option in your child spec (the default is 5000ms).
+
+  2. Use `:init.stop()` to shut down your node. How you accomplish this is up to you, but by simply calling `:init.stop()` somewhere, graceful shutdown will be triggered.
   """
 
   use GenServer

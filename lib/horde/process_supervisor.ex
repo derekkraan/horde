@@ -1,4 +1,6 @@
 defmodule Horde.ProcessSupervisor do
+  @moduledoc false
+
   use Supervisor
 
   def child_spec({child_spec, processes_crdt_pid, node_id}) do

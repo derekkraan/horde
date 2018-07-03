@@ -1,4 +1,6 @@
 defmodule Horde.ProcessCanary do
+  @moduledoc false
+
   use GenServer
   @crdt DeltaCrdt.AWLWWMap
 
@@ -15,7 +17,7 @@ defmodule Horde.ProcessCanary do
     {:ok, {child_spec, processes_pid}}
   end
 
-  def terminate(reason, {child_spec, processes_pid}) do
+  def terminate(_reason, {child_spec, processes_pid}) do
     GenServer.cast(
       processes_pid,
       {:operation, {@crdt, :add, [child_spec.id, {nil, child_spec}]}}
