@@ -75,13 +75,8 @@ defmodule Horde.Registry do
       {:operation, {@crdt, :remove, [state.node_id]}}
     )
 
-    Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
-
-    # sleep for 200ms to give the CRDT time to send its delta.
-    Process.sleep(200)
-
-    GenServer.stop(state.members_pid, reason)
-    GenServer.stop(state.processes_pid, reason)
+    GenServer.stop(state.members_pid, reason, 2000)
+    GenServer.stop(state.processes_pid, reason, 2000)
   end
 
   @doc "register a process under the given name"

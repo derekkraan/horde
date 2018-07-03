@@ -152,9 +152,9 @@ defmodule Horde.Supervisor do
 
     GenServer.stop(state.supervisor_pid, reason)
 
-    GenServer.stop(state.members_pid, reason)
+    GenServer.stop(state.members_pid, reason, 2000)
 
-    GenServer.stop(state.processes_pid, reason)
+    GenServer.stop(state.processes_pid, reason, 2000)
 
     :ok
   end
