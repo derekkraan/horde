@@ -16,9 +16,9 @@ defmodule Horde.Supervisor do
 
   ## Graceful shutdown
 
-  Horde migrates processes from one node to another when you stop a node. The state of child processes is not preserved, the process is simply restarted on another node.
+  When a node is stopped (either manually or by calling `:init.stop`), Horde restarts the child processes of the stopped node on another node. The state of child processes is not preserved, they are simply restarted.
 
-  To implement graceful shutdown a few extra steps are necessary.
+  To implement graceful shutdown of worker processes, a few extra steps are necessary.
 
   1. Trap exits. Running `Process.flag(:trap_exit)` in the `init/1` callback of any `worker` processes will convert exit signals to messages and allow running `terminate/2` callbacks. It is also important to include the `shutdown` option in your child spec (the default is 5000ms).
 
@@ -185,7 +185,7 @@ defmodule Horde.Supervisor do
 
   @doc false
   def handle_call({:start_child, _child_spec}, _from, %{shutting_down: true} = state),
-    do: {:reply, {:error, {:shutting_down, "this node is shutting down. please retry."}}, state}
+    do: {:reply, {:error, {:shutting_down, "this node is shutting down."}}, state}
 
   @doc false
   def handle_call({:start_child, child_spec} = msg, from, %{node_id: this_node_id} = state) do
