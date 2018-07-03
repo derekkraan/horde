@@ -125,7 +125,7 @@ defmodule HordeSupervisorTest do
 
   describe ".stop/3" do
     test "stopping a node causes supervised processes to shut down", context do
-      max = 10
+      max = 200
 
       1..max
       |> Enum.each(fn x ->
@@ -141,7 +141,7 @@ defmodule HordeSupervisorTest do
 
       Horde.Supervisor.stop(context.horde_1)
 
-      Process.sleep(2000)
+      Process.sleep(4000)
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
     end

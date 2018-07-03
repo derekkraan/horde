@@ -151,31 +151,38 @@ defmodule Horde.Supervisor do
   end
 
   @doc false
-  def handle_call({:terminate_child, child_id}, _from, state) do
-    case which_supervisor(child_id, state) do
-      {:ok, supervisor_pid} ->
+  def handle_call({:terminate_child, child_id} = msg, from, %{node_id: this_node_id} = state) do
+    case Map.get(state.processes, child_id) do
+      {^this_node_id, _child_spec} ->
         reply =
           DynamicSupervisor.terminate_child(
-            supervisor_pid,
-            Process.whereis(Horde.ProcessSupervisor.name(state.node_id, child_id))
+            state.supervisor_pid,
+            Process.whereis(Horde.ProcessSupervisor.name(this_node_id, child_id))
           )
 
-        {:reply, reply, state}
+        new_state = %{state | processes: Map.delete(state.processes, child_id)}
+        :ok = GenServer.cast(state.processes_pid, {:operation, {@crdt, :remove, [child_id]}})
+        {:reply, reply, new_state}
 
-      error ->
-        {:reply, error, state}
+      {other_node, _child_spec} ->
+        proxy_to_node(other_node, msg, from, state)
     end
   end
 
   @doc false
   def handle_call({:start_child, _child_spec}, _from, %{shutting_down: true} = state),
-    do: {:reply, {:error, "shutting down"}, state}
+    do: {:reply, {:error, {:shutting_down, "this node is shutting down. please retry."}}, state}
 
   @doc false
-  def handle_call({:start_child, child_spec}, _from, state) do
-    {reply, new_state} = add_child(child_spec, state)
+  def handle_call({:start_child, child_spec} = msg, from, %{node_id: this_node_id} = state) do
+    case state.distribution_strategy.choose_node(child_spec.id, state.members) do
+      {^this_node_id, _} ->
+        {reply, new_state} = add_child(child_spec, state)
+        {:reply, reply, new_state}
 
-    {:reply, reply, new_state}
+      {other_node_id, _} ->
+        proxy_to_node(other_node_id, msg, from, state)
+    end
   end
 
   @doc false
@@ -250,11 +257,26 @@ defmodule Horde.Supervisor do
     {:noreply, state}
   end
 
+  defp proxy_to_node(node_id, message, reply_to, state) do
+    case Map.get(state.members, node_id) do
+      {:alive, {other_node_pid, _, _, _}} ->
+        send(other_node_pid, {:proxy_operation, message, reply_to})
+        {:noreply, state}
+
+      _ ->
+        {:reply,
+         {:error,
+          {:node_dead_or_shutting_down,
+           "the node responsible for this process is shutting down or dead, try again soon"}},
+         state}
+    end
+  end
+
   defp mark_alive(state) do
     case Map.get(state.members, state.node_id) do
       {:dead, _, _} ->
         member_data =
-          {:alive, self(), {state.supervisor_pid, state.members_pid, state.processes_pid}}
+          {:alive, {self(), state.supervisor_pid, state.members_pid, state.processes_pid}}
 
         GenServer.call(
           state.members_pid,
@@ -270,7 +292,7 @@ defmodule Horde.Supervisor do
           Map.put(
             state.members,
             state.node_id,
-            {:alive, self(), {state.supervisor_pid, state.members_pid, state.processes_pid}}
+            {:alive, {self(), state.supervisor_pid, state.members_pid, state.processes_pid}}
           )
 
         %{state | members: new_members}
@@ -287,6 +309,17 @@ defmodule Horde.Supervisor do
     )
 
     state
+  end
+
+  def handle_info({:proxy_operation, msg, reply_to}, state) do
+    case handle_call(msg, reply_to, state) do
+      {:reply, reply, new_state} ->
+        GenServer.reply(reply_to, reply)
+        {:noreply, new_state}
+
+      {:noreply, new_state} ->
+        {:noreply, new_state}
+    end
   end
 
   @doc false
