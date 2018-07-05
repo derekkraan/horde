@@ -4,7 +4,7 @@ defmodule UniformDistributionTest do
 
   property "chooses one of the members" do
     member =
-      ExUnitProperties.gen all node_id <- integer(100_000),
+      ExUnitProperties.gen all node_id <- integer(1..100_000),
                                status <- StreamData.member_of([:alive, :dead, :shutting_down]),
                                name <- binary(),
                                pid <- atom(:alias) do
