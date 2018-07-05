@@ -112,11 +112,10 @@ defmodule RegistryTest do
       {:ok, horde_3} = Horde.Registry.start_link(name: :horde_3_g)
       Horde.Cluster.join_hordes(horde_1, horde_2)
       Horde.Cluster.join_hordes(horde_2, horde_3)
-      Process.sleep(20)
+      Process.sleep(200)
       {:ok, members} = Horde.Cluster.members(horde_2)
       assert 3 = Enum.count(members)
-      Horde.Registry.stop(horde_2)
-      Process.sleep(20)
+      :ok = Horde.Registry.stop(horde_2)
       {:ok, members} = Horde.Cluster.members(horde_1)
       assert 2 = Enum.count(members)
     end
