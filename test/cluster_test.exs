@@ -11,7 +11,7 @@ defmodule ClusterTest do
     test "returns true when supervisors joined" do
       {:ok, sup1} = Horde.Supervisor.start_link(name: :sup1, strategy: :one_for_one)
       {:ok, sup2} = Horde.Supervisor.start_link(name: :sup2, strategy: :one_for_one)
-      assert true = Horde.Cluster.join_hordes(sup1, sup2)
+      assert true = Horde.Cluster.join_hordes(:sup1, :sup2)
     end
 
     test "returns false when other registry doesn't exist" do
@@ -21,7 +21,7 @@ defmodule ClusterTest do
 
     test "returns false when other supervisor doesn't exist" do
       {:ok, sup3} = Horde.Supervisor.start_link(name: :sup3, strategy: :one_for_one)
-      assert false == Horde.Cluster.join_hordes(sup3, :doesnt_exist, 100)
+      assert false == Horde.Cluster.join_hordes(:sup3, :doesnt_exist, 100)
     end
   end
 end

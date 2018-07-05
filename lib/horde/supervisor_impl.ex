@@ -284,7 +284,6 @@ defmodule Horde.SupervisorImpl do
 
   @doc false
   def handle_info({:processes_updated, reply_to}, state) do
-    IO.inspect(":processes_updated")
     processes = DeltaCrdt.CausalCrdt.read(processes_name(state.name), 30_000)
 
     new_state =

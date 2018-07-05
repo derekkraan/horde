@@ -72,7 +72,7 @@ defmodule Horde.Registry do
   def terminate(reason, state) do
     GenServer.cast(
       state.members_pid,
-      {:operation, {@crdt, :remove, [state.node_id]}}
+      {:operation, {:remove, [state.node_id]}}
     )
 
     GenServer.stop(state.members_pid, reason, 2000)
@@ -153,9 +153,20 @@ defmodule Horde.Registry do
 
   def init(opts) do
     node_id = generate_node_id()
-    {:ok, members_pid} = @crdt.start_link({self(), :members_updated})
 
-    {:ok, processes_pid} = @crdt.start_link({self(), :processes_updated})
+    {:ok, members_pid} =
+      DeltaCrdt.CausalCrdt.start_link(
+        DeltaCrdt.AWLWWMap,
+        notify: {self(), :members_updated},
+        ship_interval: 5,
+        ship_debounce: 1
+      )
+
+    {:ok, processes_pid} =
+      DeltaCrdt.CausalCrdt.start_link(
+        DeltaCrdt.AWLWWMap,
+        notify: {self(), :processes_updated}
+      )
 
     name = Keyword.get(opts, :name)
 
@@ -167,7 +178,7 @@ defmodule Horde.Registry do
 
     GenServer.cast(
       members_pid,
-      {:operation, {@crdt, :add, [node_id, {members_pid, processes_pid}]}}
+      {:operation, {:add, [node_id, {members_pid, processes_pid}]}}
     )
 
     {:ok,
@@ -189,28 +200,8 @@ defmodule Horde.Registry do
     {:noreply, state}
   end
 
-  def handle_info(:processes_updated, state) do
-    new_state = %{state | processes_updated_counter: state.processes_updated_counter + 1}
-
-    Process.send_after(
-      self(),
-      {:update_processes, new_state.processes_updated_counter},
-      @update_processes_debounce
-    )
-
-    {:noreply, new_state}
-  end
-
-  def handle_info(
-        {:update_processes, c},
-        %{processes_updated_at: d, processes_updated_counter: new_c} = state
-      )
-      when d - c > @force_update_processes do
-    handle_info({:update_processes, new_c}, state)
-  end
-
-  def handle_info({:update_processes, c}, %{processes_updated_counter: c} = state) do
-    processes = GenServer.call(state.processes_pid, {:read, @crdt})
+  def handle_info({:processes_updated, reply_to}, state) do
+    processes = DeltaCrdt.CausalCrdt.read(state.processes_pid, 30_000)
 
     :ets.insert(state.ets_table, Map.to_list(processes))
 
@@ -220,13 +211,13 @@ defmodule Horde.Registry do
 
     to_delete_keys |> Enum.each(fn key -> :ets.delete(state.ets_table, key) end)
 
-    {:noreply, %{state | processes_updated_at: c}}
+    GenServer.reply(reply_to, :ok)
+
+    {:noreply, state}
   end
 
-  def handle_info({:update_processes, _c}, state), do: {:noreply, state}
-
-  def handle_info(:members_updated, state) do
-    members = GenServer.call(state.members_pid, {:read, @crdt})
+  def handle_info({:members_updated, reply_to}, state) do
+    members = DeltaCrdt.CausalCrdt.read(state.members_pid, 30_000)
 
     member_pids =
       MapSet.new(members, fn {_key, {members_pid, _processes_pid}} -> members_pid end)
@@ -247,6 +238,8 @@ defmodule Horde.Registry do
       Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
     end
 
+    GenServer.reply(reply_to, :ok)
+
     {:noreply, %{state | members: members}}
   end
 
@@ -265,7 +258,7 @@ defmodule Horde.Registry do
   def handle_call({:register, name, pid}, _from, state) do
     GenServer.cast(
       state.processes_pid,
-      {:operation, {@crdt, :add, [name, {pid}]}}
+      {:operation, {:add, [name, {pid}]}}
     )
 
     :ets.insert(state.ets_table, {name, {pid}})
@@ -276,7 +269,7 @@ defmodule Horde.Registry do
   def handle_call({:unregister, name}, _from, state) do
     GenServer.cast(
       state.processes_pid,
-      {:operation, {@crdt, :remove, [name]}}
+      {:operation, {:remove, [name]}}
     )
 
     :ets.delete(state.ets_table, name)

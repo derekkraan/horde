@@ -1,5 +1,5 @@
 defmodule RegistryTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   doctest Horde.Registry
 
   describe ".join_hordes/2" do
@@ -7,7 +7,7 @@ defmodule RegistryTest do
       {:ok, horde_1} = Horde.Registry.start_link(name: :horde_1_a)
       {:ok, horde_2} = Horde.Registry.start_link(name: :horde_2_a)
       Horde.Cluster.join_hordes(horde_1, horde_2)
-      Process.sleep(10)
+      Process.sleep(50)
       {:ok, members} = Horde.Cluster.members(horde_2)
       assert 2 = Enum.count(members)
     end
@@ -61,7 +61,7 @@ defmodule RegistryTest do
       pid2 = spawn(fn -> Process.sleep(30) end)
       Horde.Registry.register(horde, :MacLeod, pid1)
       Horde.Registry.register(horde_2, :MacLeod, pid2)
-      Process.sleep(100)
+      Process.sleep(200)
       processes = Horde.Registry.processes(horde)
       processes_2 = Horde.Registry.processes(horde_2)
       assert 1 = Map.size(processes)
@@ -95,7 +95,7 @@ defmodule RegistryTest do
     test "can unregister processes", %{horde: horde, horde_2: horde_2} do
       pid1 = spawn(fn -> Process.sleep(300) end)
       Horde.Registry.register(horde, :one_day_fly, pid1)
-      Process.sleep(100)
+      Process.sleep(200)
       assert %{one_day_fly: {_id}} = Horde.Registry.processes(horde)
       assert %{one_day_fly: {_id}} = Horde.Registry.processes(horde_2)
       Horde.Registry.unregister(horde, :one_day_fly)
@@ -116,6 +116,7 @@ defmodule RegistryTest do
       {:ok, members} = Horde.Cluster.members(horde_2)
       assert 3 = Enum.count(members)
       :ok = Horde.Registry.stop(horde_2)
+      Process.sleep(20)
       {:ok, members} = Horde.Cluster.members(horde_1)
       assert 2 = Enum.count(members)
     end
