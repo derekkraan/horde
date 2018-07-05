@@ -29,8 +29,7 @@ defmodule SupervisorTest do
            end
          ]},
       type: :worker,
-      shutdown: 10,
-      restart: :transient
+      shutdown: 10
     }
 
     [
@@ -126,7 +125,7 @@ defmodule SupervisorTest do
       %{workers: workers} = Horde.Supervisor.count_children(context.horde_2)
       assert workers < max
 
-      Process.sleep(4000)
+      Process.sleep(5000)
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
     end
@@ -152,7 +151,7 @@ defmodule SupervisorTest do
 
       Horde.Supervisor.stop(context.horde_1)
 
-      Process.sleep(4000)
+      Process.sleep(5000)
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
     end
