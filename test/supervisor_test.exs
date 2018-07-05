@@ -152,6 +152,14 @@ defmodule SupervisorTest do
 
       Horde.Supervisor.stop(context.horde_1)
 
+      do_print = fn fun ->
+        Horde.Supervisor.count_children(context.horde_2) |> IO.inspect()
+        Process.sleep(100)
+        fun.(fun)
+      end
+
+      spawn(fn -> do_print.(do_print) end)
+
       Process.sleep(10000)
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
