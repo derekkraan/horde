@@ -195,7 +195,6 @@ defmodule Horde.Registry do
         state
       ) do
     Kernel.send(state.members_pid, {:add_neighbour, other_members_pid})
-    Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
     GenServer.reply(reply_to, true)
     {:noreply, state}
   end
@@ -234,8 +233,6 @@ defmodule Horde.Registry do
 
       Kernel.send(state.members_pid, {:add_neighbours, member_pids})
       Kernel.send(state.processes_pid, {:add_neighbours, processes_pids})
-      Kernel.send(state.members_pid, :ship_interval_or_state_to_all)
-      Kernel.send(state.processes_pid, :ship_interval_or_state_to_all)
     end
 
     GenServer.reply(reply_to, :ok)

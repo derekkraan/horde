@@ -2,11 +2,6 @@ defmodule Horde.SupervisorImpl do
   require Logger
   use GenServer
   # 60s
-  @long_time 60_000
-
-  @crdt DeltaCrdt.AWLWWMap
-
-  @force_update_processes 100
 
   defmodule State do
     @moduledoc false
@@ -198,7 +193,6 @@ defmodule Horde.SupervisorImpl do
         state
       ) do
     send(members_name(state.name), {:add_neighbour, other_members_pid})
-    send(members_name(state.name), :ship_interval_or_state_to_all)
     GenServer.reply(reply_to, true)
     {:noreply, state}
   end
@@ -378,7 +372,6 @@ defmodule Horde.SupervisorImpl do
     # if there are any new pids in `member_pids`
     if MapSet.difference(new_members, old_members) |> Enum.any?() do
       send(members_name(state.name), {:add_neighbours, new_members})
-      send(members_name(state.name), :ship_interval_or_state_to_all)
     end
 
     new_state
@@ -407,7 +400,6 @@ defmodule Horde.SupervisorImpl do
 
     if MapSet.difference(new_processes, old_processes) |> Enum.any?() do
       send(processes_name(state.name), {:add_neighbours, new_processes})
-      send(processes_name(state.name), :ship_interval_or_state_to_all)
     end
 
     new_state

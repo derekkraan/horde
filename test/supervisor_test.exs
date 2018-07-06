@@ -129,8 +129,6 @@ defmodule SupervisorTest do
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
     end
-
-    # test "netsplit"
   end
 
   describe ".stop/3" do
