@@ -1,5 +1,5 @@
 defmodule RegistryTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   doctest Horde.Registry
 
   describe ".join_hordes/2" do
@@ -18,7 +18,7 @@ defmodule RegistryTest do
       {:ok, horde_3} = Horde.Registry.start_link(name: :horde_3_b)
       Horde.Cluster.join_hordes(horde_1, horde_2)
       Horde.Cluster.join_hordes(horde_2, horde_3)
-      Process.sleep(20)
+      Process.sleep(100)
       {:ok, members} = Horde.Cluster.members(horde_2)
       assert 3 = Enum.count(members)
     end
@@ -61,7 +61,7 @@ defmodule RegistryTest do
       pid2 = spawn(fn -> Process.sleep(30) end)
       Horde.Registry.register(horde, :MacLeod, pid1)
       Horde.Registry.register(horde_2, :MacLeod, pid2)
-      Process.sleep(200)
+      Process.sleep(400)
       processes = Horde.Registry.processes(horde)
       processes_2 = Horde.Registry.processes(horde_2)
       assert 1 = Map.size(processes)

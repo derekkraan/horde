@@ -465,11 +465,12 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp update_state_with_child(child, state) do
-    GenServer.call(
-      processes_name(state.name),
-      {:operation, {:add, [child.id, {state.node_id, child}]}},
-      :infinity
-    )
+    :ok =
+      GenServer.call(
+        processes_name(state.name),
+        {:operation, {:add, [child.id, {state.node_id, child}]}},
+        :infinity
+      )
 
     %{state | processes: Map.put(state.processes, child.id, {state.node_id, child})}
   end
