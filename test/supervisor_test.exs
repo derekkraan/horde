@@ -115,7 +115,7 @@ defmodule SupervisorTest do
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1)
 
-      Process.sleep(2000)
+      Process.sleep(1000)
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
 
@@ -125,7 +125,7 @@ defmodule SupervisorTest do
       %{workers: workers} = Horde.Supervisor.count_children(context.horde_2)
       assert workers < max
 
-      Process.sleep(10000)
+      Process.sleep(1000)
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
     end

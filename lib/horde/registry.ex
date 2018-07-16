@@ -194,7 +194,7 @@ defmodule Horde.Registry do
         {:request_to_join_hordes, {_other_node_id, other_members_pid, reply_to}},
         state
       ) do
-    Kernel.send(state.members_pid, {:add_neighbour, other_members_pid})
+    Kernel.send(state.members_pid, {:add_neighbours, [other_members_pid]})
     GenServer.reply(reply_to, true)
     {:noreply, state}
   end

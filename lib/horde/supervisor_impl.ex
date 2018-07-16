@@ -192,7 +192,8 @@ defmodule Horde.SupervisorImpl do
         {:request_to_join_hordes, {_other_node_id, other_members_pid, reply_to}},
         state
       ) do
-    send(members_name(state.name), {:add_neighbour, other_members_pid})
+    send(members_name(state.name), {:add_neighbours, [other_members_pid]})
+
     GenServer.reply(reply_to, true)
     {:noreply, state}
   end
@@ -282,6 +283,7 @@ defmodule Horde.SupervisorImpl do
 
     new_state =
       %{state | processes: processes}
+      |> handle_topology_changes()
       |> stop_not_owned_processes(state)
       |> claim_unclaimed_processes()
 
@@ -423,37 +425,46 @@ defmodule Horde.SupervisorImpl do
   defp handle_topology_changes(state) do
     this_node_id = state.node_id
 
-    Enum.flat_map(dead_members(state), fn dead_node ->
-      processes_for_node(state, dead_node)
-      |> Enum.map(fn {_id, {_node, child}} -> child end)
-      |> Enum.filter(fn child ->
-        case state.distribution_strategy.choose_node(child.id, state.members) do
-          {^this_node_id, _node_info} -> true
-          _ -> false
-        end
+    {_responses, new_state} =
+      Enum.flat_map(dead_members(state), fn dead_node ->
+        processes_for_node(state, dead_node)
+        |> (fn processes ->
+              Logger.debug(
+                "found #{Enum.count(processes)} out of #{Enum.count(state.processes)} processes belonging to #{
+                  inspect(dead_node)
+                }"
+              )
+
+              processes
+            end).()
+        |> Enum.map(fn {_id, {_node, child}} -> child end)
+        |> Enum.filter(fn child ->
+          case state.distribution_strategy.choose_node(child.id, state.members) do
+            {^this_node_id, _node_info} -> true
+            _ -> false
+          end
+        end)
       end)
-    end)
-    |> Enum.reduce(state, fn child, state ->
-      {_ret, state} = add_child(child, state)
-      state
-    end)
+      |> add_children(state)
+
+    new_state
   end
 
   defp claim_unclaimed_processes(%{node_id: this_node_id} = state) do
-    Enum.flat_map(state.processes, fn
-      {id, {nil, child_spec}} ->
-        case state.distribution_strategy.choose_node(id, state.members) do
-          {^this_node_id, _node_info} -> [child_spec]
-          _ -> []
-        end
+    {_responses, new_state} =
+      Enum.flat_map(state.processes, fn
+        {id, {nil, child_spec}} ->
+          case state.distribution_strategy.choose_node(id, state.members) do
+            {^this_node_id, _node_info} -> [child_spec]
+            _ -> []
+          end
 
-      _ ->
-        []
-    end)
-    |> Enum.reduce(state, fn child_spec, state ->
-      {_ret, state} = add_child(child_spec, state)
-      state
-    end)
+        _ ->
+          []
+      end)
+      |> add_children(state)
+
+    new_state
   end
 
   defp monitor_supervisors(members, state) do
@@ -476,31 +487,51 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp add_child(child, state) do
-    wrapped_child =
-      {Horde.ProcessSupervisor,
-       {child, graceful_shutdown_manager_name(state.name), state.node_id}}
+    {[response], new_state} = add_children([child], state)
+    {response, new_state}
+  end
 
-    case DynamicSupervisor.start_child(processes_supervisor_name(state.name), wrapped_child) do
-      {:ok, process_supervisor_pid} ->
-        case Supervisor.start_child(process_supervisor_pid, child) do
-          {:ok, child_pid} ->
-            {{:ok, child_pid}, update_state_with_child(child, state)}
+  defp add_children(children, state) do
+    wrapped_children =
+      Enum.map(children, fn child ->
+        {child,
+         {Horde.ProcessSupervisor,
+          {child, graceful_shutdown_manager_name(state.name), state.node_id}}}
+      end)
 
-          {:ok, child_pid, term} ->
-            {{:ok, child_pid, term}, update_state_with_child(child, state)}
+    Enum.map(wrapped_children, fn {child, wrapped_child} ->
+      case DynamicSupervisor.start_child(processes_supervisor_name(state.name), wrapped_child) do
+        {:ok, process_supervisor_pid} ->
+          case Supervisor.start_child(process_supervisor_pid, child) do
+            {:ok, child_pid} ->
+              {{:ok, child_pid}, child}
 
-          {:error, error} ->
-            DynamicSupervisor.terminate_child(
-              processes_supervisor_name(state.name),
-              process_supervisor_pid
-            )
+            {:ok, child_pid, term} ->
+              {{:ok, child_pid, term}, child}
 
-            {{:error, error}, state}
-        end
+            {:error, error} ->
+              DynamicSupervisor.terminate_child(
+                processes_supervisor_name(state.name),
+                process_supervisor_pid
+              )
 
-      {:error, error} ->
-        {{:error, error}, state}
-    end
+              {:error, error}
+          end
+
+        {:error, error} ->
+          {:error, error}
+      end
+    end)
+    |> Enum.reduce({[], state}, fn
+      {:error, error}, {responses, state} ->
+        {[{:error, error} | responses], state}
+
+      {{:ok, child_pid, term} = resp, child}, {responses, state} ->
+        {[resp | responses], update_state_with_child(child, state)}
+
+      {{:ok, child_pid} = resp, child}, {responses, state} ->
+        {[resp | responses], update_state_with_child(child, state)}
+    end)
   end
 
   defp generate_node_id(bits \\ 128) do

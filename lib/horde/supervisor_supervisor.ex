@@ -11,7 +11,7 @@ defmodule Horde.SupervisorSupervisor do
        crdt: DeltaCrdt.AWLWWMap,
        notify: {root_name, :members_updated},
        name: members_crdt_name(root_name),
-       ship_inteval: 5,
+       ship_interval: 5,
        ship_debounce: 1,
        shutdown: 30_000},
       {DeltaCrdt.CausalCrdt,
