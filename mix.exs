@@ -22,13 +22,13 @@ defmodule Horde.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:delta_crdt, ">= 0.1.8"},
+      {:delta_crdt, "== 0.1.9"},
       {:xxhash, "~> 0.1", github: "derekkraan/elixir-xxhash"},
       {:credo, "~> 0.9", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 0.5", only: :dev, runtime: false},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
       {:stream_data, "~> 0.4", only: :test},
-      {:benchee, "> 0.0.1", only: :dev}
+      {:benchee, "> 0.0.1", only: :dev, runtime: false}
     ]
   end
 

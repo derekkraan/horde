@@ -158,6 +158,7 @@ defmodule Horde.Registry do
       DeltaCrdt.CausalCrdt.start_link(
         DeltaCrdt.AWLWWMap,
         notify: {self(), :members_updated},
+        sync_interval: 5,
         ship_interval: 5,
         ship_debounce: 1
       )
@@ -165,6 +166,9 @@ defmodule Horde.Registry do
     {:ok, processes_pid} =
       DeltaCrdt.CausalCrdt.start_link(
         DeltaCrdt.AWLWWMap,
+        sync_interval: 5,
+        ship_interval: 50,
+        ship_debounce: 100,
         notify: {self(), :processes_updated}
       )
 
