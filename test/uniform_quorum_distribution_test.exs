@@ -4,10 +4,11 @@ defmodule UniformQuorumDistributionTest do
 
   property "chooses one of the members" do
     member =
-      ExUnitProperties.gen all node_id <- integer(),
+      ExUnitProperties.gen all node_id <- integer(1..100_000),
                                status <- StreamData.member_of([:alive, :dead, :shutting_down]),
-                               tuple <- tuple({term(), term(), term()}) do
-        {node_id, {status, tuple}}
+                               name <- binary(),
+                               pid <- atom(:alias) do
+        {node_id, {status, pid, name}}
       end
 
     check all members <-
@@ -18,8 +19,8 @@ defmodule UniformQuorumDistributionTest do
       partition_b =
         members
         |> Enum.map(fn
-          {node_id, {:alive, tup}} -> {node_id, {:dead, tup}}
-          {node_id, {:dead, tup}} -> {node_id, {:alive, tup}}
+          {node_id, {:alive, name, pid}} -> {node_id, {:dead, name, pid}}
+          {node_id, {:dead, name, pid}} -> {node_id, {:alive, name, pid}}
           node_spec -> node_spec
         end)
 
@@ -27,7 +28,7 @@ defmodule UniformQuorumDistributionTest do
       chosen_b = Horde.UniformQuorumDistribution.choose_node(identifier, partition_b)
 
       Enum.all?(members, fn
-        {_, {:shutting_down, _}} -> true
+        {_, {:shutting_down, _, _}} -> true
         _ -> false
       end)
       |> if do

@@ -7,7 +7,7 @@ defmodule Horde.UniformDistribution do
     members =
       members
       |> Enum.filter(fn
-        {_, {:alive, _}} -> true
+        {_, {:alive, _, _}} -> true
         _ -> false
       end)
       |> Enum.sort_by(fn {node_id, _} -> node_id end)

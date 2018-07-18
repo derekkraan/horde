@@ -1,4 +1,6 @@
 defmodule Horde.Cluster do
+  require Logger
+
   @moduledoc """
   Public functions to join and leave hordes.
 
@@ -11,27 +13,18 @@ defmodule Horde.Cluster do
   :ok = Horde.Cluster.join_hordes(sup1, sup2)
   :ok = Horde.Cluster.join_hordes(sup2, sup3)
   ```
-
-  Calling `Horde.Cluster.leave_hordes/1` will instruct a node to remove itself from the cluster.
-  ```elixir
-  :ok = Horde.Cluster.leave_hordes(sup1)
-  ```
   """
 
   @doc """
-  Join two hordes into one big horde. Calling this once will inform every node in each horde of every node in the other horde.
+  Join two hordes into one big horde. Calling this once will inform every node in each horde of every node in the other horde. Leave the hordes by calling `Horde.Supervisor.stop/1` or `Horde.Registry.stop/1`
   """
-  @spec join_hordes(horde :: pid(), other_horde :: pid()) :: :ok
-  def join_hordes(horde, other_horde) do
-    GenServer.cast(horde, {:join_hordes, other_horde})
-  end
-
-  @doc """
-  Remove an instance of horde from the greater hordes.
-  """
-  @spec leave_hordes(horde :: pid()) :: :ok
-  def leave_hordes(horde) do
-    GenServer.cast(horde, :leave_hordes)
+  @spec join_hordes(horde :: pid(), other_horde :: pid()) :: boolean()
+  def join_hordes(horde, other_horde, timeout \\ 5000) do
+    GenServer.call(horde, {:join_hordes, other_horde}, timeout)
+  catch
+    :exit, {:timeout, details} ->
+      Logger.debug(fn -> "Joining a horde failed. Details: #{inspect(details)}" end)
+      false
   end
 
   @doc """

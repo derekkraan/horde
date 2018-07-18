@@ -22,7 +22,7 @@ defmodule Horde.UniformQuorumDistribution do
       members ->
         alive_count =
           Enum.count(members, fn
-            {_, {:alive, _}} -> true
+            {_, {:alive, _, _}} -> true
             _ -> false
           end)
 
@@ -34,7 +34,7 @@ defmodule Horde.UniformQuorumDistribution do
     nodes =
       members
       |> Enum.reject(fn
-        {_, {:shutting_down, _}} -> true
+        {_, {:shutting_down, _, _}} -> true
         _ -> false
       end)
       |> Enum.sort_by(fn {node_id, _} -> node_id end)
