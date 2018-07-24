@@ -11,5 +11,5 @@
   "exprof": {:hex, :exprof, "0.2.3", "8d4d657d73fc0c9ef1e30b2f9207b26ccbd2aec2baf1ca43f0b6d244c841c9f8", [:mix], [{:exprintf, "~> 0.2", [hex: :exprintf, repo: "hexpm", optional: false]}], "hexpm"},
   "poison": {:hex, :poison, "3.1.0", "d9eb636610e096f86f25d9a46f35a9facac35609a7591b3be3326e99a0484665", [:mix], [], "hexpm"},
   "stream_data": {:hex, :stream_data, "0.4.2", "fa86b78c88ec4eaa482c0891350fcc23f19a79059a687760ddcf8680aac2799b", [:mix], [], "hexpm"},
-  "xxhash": {:git, "https://github.com/derekkraan/elixir-xxhash.git", "1a0a3fb2d3f7a6289fbbc1c803034c3e8ebac887", []},
+  "xxhash": {:git, "https://github.com/derekkraan/elixir-xxhash.git", "99d4033bf318400038a909fac28586d1b62bd34c", []},
 }
