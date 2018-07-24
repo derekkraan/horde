@@ -215,7 +215,7 @@ defmodule Horde.SupervisorImpl do
 
   defp mark_alive(state) do
     case Map.get(state.members, state.node_id) do
-      {:dead, _, _} ->
+      nil ->
         member_data = {:alive, self(), state.name}
 
         GenServer.call(
@@ -241,7 +241,7 @@ defmodule Horde.SupervisorImpl do
   defp mark_dead(state, node_id) do
     GenServer.call(
       members_name(state.name),
-      {:operation, {:add, [node_id, {:dead, nil, nil}]}},
+      {:operation, {:remove, [node_id]}},
       :infinity
     )
 
@@ -407,14 +407,6 @@ defmodule Horde.SupervisorImpl do
     new_state
   end
 
-  defp dead_members(%{members: members}) do
-    Enum.filter(members, fn
-      {_, {:dead, _, _}} -> true
-      _ -> false
-    end)
-    |> Enum.map(fn {node_id, _} -> node_id end)
-  end
-
   defp processes_for_node(state, node_id) do
     Enum.filter(state.processes, fn
       {_id, {^node_id, _child_spec}} -> true
@@ -426,28 +418,34 @@ defmodule Horde.SupervisorImpl do
     this_node_id = state.node_id
 
     {_responses, new_state} =
-      Enum.flat_map(dead_members(state), fn dead_node ->
-        processes_for_node(state, dead_node)
-        |> (fn processes ->
-              Logger.debug(
-                "found #{Enum.count(processes)} out of #{Enum.count(state.processes)} processes belonging to #{
-                  inspect(dead_node)
-                }"
-              )
-
-              processes
-            end).()
-        |> Enum.map(fn {_id, {_node, child}} -> child end)
-        |> Enum.filter(fn child ->
-          case state.distribution_strategy.choose_node(child.id, state.members) do
-            {^this_node_id, _node_info} -> true
-            _ -> false
-          end
-        end)
+      processes_on_dead_nodes(state)
+      |> Enum.map(fn {_id, {_node, child}} -> child end)
+      |> Enum.filter(fn child ->
+        case state.distribution_strategy.choose_node(child.id, state.members) do
+          {^this_node_id, _node_info} -> true
+          _ -> false
+        end
       end)
       |> add_children(state)
 
     new_state
+  end
+
+  def processes_on_dead_nodes(%{processes: processes, members: members}) do
+    member_ids = Map.keys(members) |> MapSet.new()
+
+    procs =
+      Enum.filter(processes, fn {_id, {node_id, _child_spec}} ->
+        !MapSet.member?(member_ids, node_id)
+      end)
+
+    if !Enum.empty?(procs) do
+      Logger.debug(fn ->
+        "Found #{Enum.count(procs)} processes on dead nodes"
+      end)
+    end
+
+    procs
   end
 
   defp claim_unclaimed_processes(%{node_id: this_node_id} = state) do
