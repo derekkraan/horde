@@ -5,8 +5,11 @@ defmodule Horde.SupervisorImpl do
 
   defmodule State do
     @moduledoc false
-    defstruct node_id: nil,
+    defstruct pid: nil,
+              node_id: nil,
               name: nil,
+              members_pid: nil,
+              processes_pid: nil,
               members: %{},
               processes: %{},
               processes_updated_counter: 0,
@@ -33,35 +36,46 @@ defmodule Horde.SupervisorImpl do
 
     Process.flag(:trap_exit, true)
 
-    node_id = generate_node_id()
+    state =
+      %State{
+        pid: self(),
+        node_id: generate_node_id(),
+        name: name,
+        members_pid: Process.whereis(members_name(name)),
+        processes_pid: Process.whereis(processes_name(name))
+      }
+      |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
+
+    state = %{state | members: %{state.node_id => node_info(state)}}
 
     # add self to members CRDT
     GenServer.call(
       members_name(name),
-      {:operation, {:add, [node_id, {:alive, self(), name}]}},
+      {:operation, {:add, [state.node_id, node_info(state)]}},
       :infinity
     )
-
-    state =
-      %State{
-        node_id: node_id,
-        name: name,
-        members: %{node_id => {:alive, self(), name}}
-      }
-      |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
 
     {:ok, state}
   end
 
+  defp node_info(state) do
+    {node_status(state), Map.take(state, [:pid, :name, :members_pid, :processes_pid])}
+  end
+
+  defp node_status(%{shutting_down: false}), do: :alive
+  defp node_status(%{shutting_down: true}), do: :shutting_down
+
   @doc false
   def handle_call(:horde_shutting_down, _f, state) do
+    state = %{state | shutting_down: true}
+
     GenServer.call(
       members_name(state.name),
-      {:operation, {:add, [state.node_id, {:shutting_down, self(), state.name}]}},
+      {:operation, {:add, [state.node_id, node_info(state)]}},
       :infinity
     )
 
-    {:reply, :ok, %{state | shutting_down: true}}
+    {:reply, :ok, state}
   end
 
   def handle_call(:members, _from, state) do
@@ -110,10 +124,7 @@ defmodule Horde.SupervisorImpl do
   def handle_call(:which_children, _from, state) do
     which_children =
       Enum.flat_map(state.members, fn
-        {_node_id, {_status, nil, nil}} ->
-          []
-
-        {_, {_, pid, name}} ->
+        {_, {_, %{pid: pid, name: name}}} ->
           [{processes_supervisor_name(name), node(pid)}]
       end)
       |> Enum.flat_map(fn supervisor_pid ->
@@ -140,10 +151,7 @@ defmodule Horde.SupervisorImpl do
   def handle_call(:count_children, _from, state) do
     count =
       Enum.flat_map(state.members, fn
-        {_node_id, {_status, nil, nil}} ->
-          []
-
-        {_, {_, pid, name}} ->
+        {_, {_, %{pid: pid, name: name}}} ->
           [{processes_supervisor_name(name), node(pid)}]
       end)
       |> Enum.flat_map(fn supervisor_pid ->
@@ -181,7 +189,7 @@ defmodule Horde.SupervisorImpl do
   def handle_call({:join_hordes, other_horde}, from, state) do
     GenServer.cast(
       other_horde,
-      {:request_to_join_hordes, {state.node_id, {members_name(state.name), Node.self()}, from}}
+      {:request_to_join_hordes, {state.node_id, Process.whereis(members_name(state.name)), from}}
     )
 
     {:noreply, state}
@@ -200,7 +208,7 @@ defmodule Horde.SupervisorImpl do
 
   defp proxy_to_node(node_id, message, reply_to, state) do
     case Map.get(state.members, node_id) do
-      {:alive, other_node_pid, _other_node_name} ->
+      {:alive, %{pid: other_node_pid}} ->
         send(other_node_pid, {:proxy_operation, message, reply_to})
         {:noreply, state}
 
@@ -216,20 +224,18 @@ defmodule Horde.SupervisorImpl do
   defp mark_alive(state) do
     case Map.get(state.members, state.node_id) do
       nil ->
-        member_data = {:alive, self(), state.name}
-
         GenServer.call(
-          members_name(state.name),
+          state.members_pid,
           {:operation,
            {:add,
             [
               state.node_id,
-              member_data
+              node_info(state)
             ]}},
           :infinity
         )
 
-        new_members = Map.put(state.members, state.node_id, {:alive, self(), state.name})
+        new_members = Map.put(state.members, state.node_id, node_info(state))
 
         %{state | members: new_members}
 
@@ -262,7 +268,7 @@ defmodule Horde.SupervisorImpl do
   @doc false
   def handle_info({:DOWN, _ref, _type, pid, _reason}, state) do
     Enum.find(state.members, fn
-      {_node_id, {_status, ^pid, _name}} -> true
+      {_node_id, {_status, %{pid: ^pid}}} -> true
       _ -> false
     end)
     |> case do
@@ -353,8 +359,8 @@ defmodule Horde.SupervisorImpl do
   defp handle_updated_members_pids(new_state, state) do
     new_members =
       MapSet.new(new_state.members, fn
-        {_key, {:alive, pid, name}} ->
-          {members_name(name), node(pid)}
+        {_key, {:alive, %{members_pid: members_pid}}} ->
+          members_pid
 
         _ ->
           nil
@@ -363,17 +369,17 @@ defmodule Horde.SupervisorImpl do
 
     old_members =
       MapSet.new(state.members, fn
-        {_key, {:alive, pid, name}} ->
-          {members_name(name), node(pid)}
+        {_key, {:alive, %{members_pid: members_pid}}} ->
+          members_pid
 
         _ ->
           nil
       end)
       |> MapSet.delete(nil)
 
-    # if there are any new pids in `member_pids`
-    if MapSet.difference(new_members, old_members) |> Enum.any?() do
-      send(members_name(state.name), {:add_neighbours, new_members})
+    # if there are new pids in `member_pids`
+    if !Enum.empty?(MapSet.difference(new_members, old_members)) do
+      send(state.members_pid, {:add_neighbours, new_members})
     end
 
     new_state
@@ -382,8 +388,8 @@ defmodule Horde.SupervisorImpl do
   defp handle_updated_process_pids(new_state, state) do
     new_processes =
       MapSet.new(new_state.members, fn
-        {_key, {:alive, pid, name}} ->
-          {processes_name(name), node(pid)}
+        {_key, {:alive, %{processes_pid: processes_pid}}} ->
+          processes_pid
 
         _ ->
           nil
@@ -392,16 +398,16 @@ defmodule Horde.SupervisorImpl do
 
     old_processes =
       MapSet.new(state.members, fn
-        {_key, {:alive, pid, name}} ->
-          {processes_name(name), node(pid)}
+        {_key, {:alive, %{processes_pid: processes_pid}}} ->
+          processes_pid
 
         _ ->
           nil
       end)
       |> MapSet.delete(nil)
 
-    if MapSet.difference(new_processes, old_processes) |> Enum.any?() do
-      send(processes_name(state.name), {:add_neighbours, new_processes})
+    if !Enum.empty?(MapSet.difference(new_processes, old_processes)) do
+      send(state.processes_pid, {:add_neighbours, new_processes})
     end
 
     new_state
@@ -466,7 +472,7 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp monitor_supervisors(members, state) do
-    Enum.each(members, fn {node_id, {_state, pid, _name}} ->
+    Enum.each(members, fn {node_id, {_state, %{pid: pid}}} ->
       if(!Map.get(state.members, node_id)) do
         Process.monitor(pid)
       end
