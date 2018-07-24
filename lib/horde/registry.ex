@@ -282,12 +282,7 @@ defmodule Horde.Registry do
     {:reply, {:ok, state.members}, state}
   end
 
-  defp generate_node_id(bits \\ 128) do
-    <<num::bits>> =
-      Enum.reduce(0..Integer.floor_div(bits, 8), <<>>, fn _x, bin ->
-        <<Enum.random(0..255)>> <> bin
-      end)
-
-    num
+  defp generate_node_id(bytes \\ 16) do
+    :base64.encode(:crypto.strong_rand_bytes(bytes))
   end
 end

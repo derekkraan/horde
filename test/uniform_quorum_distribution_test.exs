@@ -8,7 +8,7 @@ defmodule UniformQuorumDistributionTest do
                                status <- StreamData.member_of([:alive, :dead, :shutting_down]),
                                name <- binary(),
                                pid <- atom(:alias) do
-        {node_id, {status, pid, name}}
+        {node_id, {status, %{pid: pid, name: name}}}
       end
 
     check all members <-
@@ -19,16 +19,21 @@ defmodule UniformQuorumDistributionTest do
       partition_b =
         members
         |> Enum.map(fn
-          {node_id, {:alive, name, pid}} -> {node_id, {:dead, name, pid}}
-          {node_id, {:dead, name, pid}} -> {node_id, {:alive, name, pid}}
-          node_spec -> node_spec
+          {node_id, {:alive, %{name: name, pid: pid}}} ->
+            {node_id, {:dead, %{name: name, pid: pid}}}
+
+          {node_id, {:dead, %{name: name, pid: pid}}} ->
+            {node_id, {:alive, %{name: name, pid: pid}}}
+
+          node_spec ->
+            node_spec
         end)
 
       chosen_a = Horde.UniformQuorumDistribution.choose_node(identifier, partition_a)
       chosen_b = Horde.UniformQuorumDistribution.choose_node(identifier, partition_b)
 
       Enum.all?(members, fn
-        {_, {:shutting_down, _, _}} -> true
+        {_, {:shutting_down, _}} -> true
         _ -> false
       end)
       |> if do
