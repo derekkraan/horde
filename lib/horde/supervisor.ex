@@ -76,6 +76,7 @@ defmodule Horde.Supervisor do
   @doc """
   Works like `DynamicSupervisor.terminate_child/2`
   """
+  @spec terminate_child(Supervisor.supervisor(), pid()) :: :ok | {:error, :not_found}
   def terminate_child(supervisor, child_id), do: call(supervisor, {:terminate_child, child_id})
 
   @doc """

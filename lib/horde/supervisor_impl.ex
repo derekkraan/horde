@@ -104,6 +104,9 @@ defmodule Horde.SupervisorImpl do
 
       {other_node, _child_spec} ->
         proxy_to_node(other_node, msg, from, state)
+
+      nil ->
+        {:reply, {:error, :not_found}, state}
     end
   end
 
