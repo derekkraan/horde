@@ -106,7 +106,13 @@ defmodule Horde.SupervisorImpl do
         proxy_to_node(other_node, msg, from, state)
 
       nil ->
-        {:reply, {:error, :not_found}, state}
+        case state.distribution_strategy.choose_node(child_id, state.members) do
+          {^this_node_id, _} ->
+            {:reply, {:error, :not_found}, state}
+
+          {other_node_id, _} ->
+            proxy_to_node(other_node_id, msg, from, state)
+        end
     end
   end
 

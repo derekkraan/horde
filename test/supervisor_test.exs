@@ -101,6 +101,17 @@ defmodule SupervisorTest do
     end
   end
 
+  describe ".terminate_child/2" do
+    test "terminates the child", context do
+      Horde.Supervisor.start_child(
+        context.horde_1,
+        Map.put(context.task_def, :id, "kill_me")
+      )
+
+      :ok = Horde.Supervisor.terminate_child(context.horde_1, "kill_me")
+    end
+  end
+
   describe "failover" do
     test "failed horde's processes are taken over by other hordes", context do
       max = 200
