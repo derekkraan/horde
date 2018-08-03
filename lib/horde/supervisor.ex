@@ -33,7 +33,8 @@ defmodule Horde.Supervisor do
 
     %{
       id: options[:id],
-      start: {__MODULE__, :start_link, [Keyword.drop(options, [:id])]}
+      start: {__MODULE__, :start_link, [Keyword.drop(options, [:id])]},
+      type: :supervisor
     }
   end
 
