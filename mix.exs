@@ -23,7 +23,7 @@ defmodule Horde.MixProject do
   defp deps do
     [
       {:delta_crdt, "== 0.1.10"},
-      {:xxhash, "~> 0.1", github: "derekkraan/elixir-xxhash"},
+      {:xxhash, "~> 0.1"},
       {:credo, "~> 0.9", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 0.5", only: :dev, runtime: false},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
