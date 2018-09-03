@@ -19,8 +19,6 @@ defmodule Horde.SupervisorImpl do
   end
 
   def start_link(opts) do
-    name = Keyword.get(opts, :name, nil)
-
     GenServer.start_link(__MODULE__, opts, Keyword.take(opts, [:name]))
   end
 
@@ -539,10 +537,10 @@ defmodule Horde.SupervisorImpl do
       {:error, error}, {responses, state} ->
         {[{:error, error} | responses], state}
 
-      {{:ok, child_pid, term} = resp, child}, {responses, state} ->
+      {{:ok, _child_pid, _term} = resp, child}, {responses, state} ->
         {[resp | responses], update_state_with_child(child, state)}
 
-      {{:ok, child_pid} = resp, child}, {responses, state} ->
+      {{:ok, _child_pid} = resp, child}, {responses, state} ->
         {[resp | responses], update_state_with_child(child, state)}
     end)
   end
