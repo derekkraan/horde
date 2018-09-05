@@ -152,6 +152,8 @@ defmodule Horde.Registry do
   ### GenServer callbacks
 
   def init(opts) do
+    Process.flag(:trap_exit, true)
+
     node_id = generate_node_id()
 
     {:ok, members_pid} =
@@ -242,6 +244,10 @@ defmodule Horde.Registry do
     GenServer.reply(reply_to, :ok)
 
     {:noreply, %{state | members: members}}
+  end
+
+  def handle_info({:EXIT, _pid, reason}, state) do
+    {:stop, reason, state}
   end
 
   def handle_call({:join_hordes, other_horde}, from, state) do
