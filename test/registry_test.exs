@@ -54,13 +54,12 @@ defmodule RegistryTest do
     end
 
     test "cannot register 2 processes under same name with different hordes" do
-      horde = :horde_1_d
+      horde = :horde_1_e
       {:ok, _horde_1} = Horde.Registry.start_link(name: horde)
-      {:ok, horde: horde}
 
       horde_2 = :horde_2_e
       {:ok, _} = Horde.Registry.start_link(name: horde_2)
-      Horde.Cluster.join_hordes(horde, :horde_2_e)
+      Horde.Cluster.join_hordes(horde, horde_2)
       pid1 = spawn(fn -> Process.sleep(30) end)
       pid2 = spawn(fn -> Process.sleep(30) end)
       Horde.Registry.register(horde, :MacLeod, pid1)
