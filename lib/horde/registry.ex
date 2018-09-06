@@ -108,7 +108,8 @@ defmodule Horde.Registry do
   defp process_alive?(pid) when node(pid) == node(self()), do: Process.alive?(pid)
 
   defp process_alive?(pid) do
-    :rpc.call(node(pid), Process, :alive?, [pid])
+    n = node(pid)
+    (Node.list() |> Enum.member?(n)) && :rpc.call(n, Process, :alive?, [pid])
   end
 
   defp get_ets_table(tab) when is_atom(tab), do: tab
