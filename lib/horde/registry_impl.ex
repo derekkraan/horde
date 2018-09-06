@@ -47,6 +47,8 @@ defmodule Horde.RegistryImpl do
   ### GenServer callbacks
 
   def init(opts) do
+    Process.flag(:trap_exit, true)
+
     node_id = generate_node_id()
 
     name = Keyword.get(opts, :name)
