@@ -12,6 +12,8 @@ Horde attempts to replicate the public API of both `Supervisor` and `Registry` a
 
 In addition to this README and the [full documentation on hexdocs.pm](https://hexdocs.pm/horde), there is also an [introductory blog post](https://medium.com/@derek.kraan2/introducing-horde-a-distributed-supervisor-in-elixir-4be3259cc142) and a [getting started guide](https://medium.com/@derek.kraan2/getting-started-with-hordes-distributed-supervisor-registry-f3017208e1ce).
 
+Also, Daniel Azuma gave [a great talk](https://www.youtube.com/watch?v=nLApFANtkHs) at ElixirConf US 2018 where he demonstrated a use case for Horde's Supervisor and Registry.
+
 [![Hex pm](http://img.shields.io/hexpm/v/horde.svg?style=flat)](https://hex.pm/packages/horde)
 
 [![CircleCI badge](https://circleci.com/gh/derekkraan/horde.png?circle-token=:circle-token)](https://circleci.com/gh/derekkraan/horde)
