@@ -10,7 +10,7 @@ You can use Horde to build fault-tolerant distributed systems that need either a
 
 Horde attempts to replicate the public API of both `Supervisor` and `Registry` as much as possible. In some cases it will be a drop-in replacement. Some calls will also closely mirror functionality of their standard library counterparts but in some other cases this is not possible, given the distributed nature of Horde.
 
-In addition to this README and the [full documentation on hexdocs.pm](https://hexdocs.pm/horde), there is also an [introductory blog post](https://medium.com/@derek.kraan2/introducing-horde-a-distributed-supervisor-in-elixir-4be3259cc142) and a [getting started guide](https://medium.com/@derek.kraan2/getting-started-with-hordes-distributed-supervisor-registry-f3017208e1ce).
+In addition to this README and the [full documentation on hexdocs.pm](https://hexdocs.pm/horde), there is also an [introductory blog post](https://medium.com/@derek.kraan2/introducing-horde-a-distributed-supervisor-in-elixir-4be3259cc142) and a [getting started guide](https://medium.com/@derek.kraan2/getting-started-with-hordes-distributed-supervisor-registry-f3017208e1ce). You can also find me in the Elixir slack channel #horde.
 
 Also, Daniel Azuma gave [a great talk](https://www.youtube.com/watch?v=nLApFANtkHs) at ElixirConf US 2018 where he demonstrated a use case for Horde's Supervisor and Registry.
 
