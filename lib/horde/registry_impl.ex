@@ -103,7 +103,6 @@ defmodule Horde.RegistryImpl do
 
   def handle_info({:members_updated, reply_to}, state) do
     members = DeltaCrdt.CausalCrdt.read(state.members_pid, 30_000)
-    members_pid = state.members_pid
 
     member_pids =
       MapSet.new(members, fn {_key, {members_pid, _processes_pid}} ->

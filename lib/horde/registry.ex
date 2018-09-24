@@ -51,7 +51,7 @@ defmodule Horde.Registry do
     Supervisor.start_link(Horde.RegistrySupervisor, options, name: :"#{root_name}.Supervisor")
   end
 
-  @spec stop(GenServer.server(), reason :: term(), timeout()) :: :ok
+  @spec stop(Supervisor.supervisor(), reason :: term(), timeout()) :: :ok
   def stop(supervisor, reason \\ :normal, timeout \\ 5000) do
     Supervisor.stop(supervisor, reason, timeout)
   end
