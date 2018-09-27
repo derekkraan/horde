@@ -16,7 +16,7 @@ defmodule Horde.ProcessCanary do
     {:ok, {child_spec, graceful_shutdown_manager}}
   end
 
-  def terminate(reason, {child_spec, graceful_shutdown_manager}) do
+  def terminate(_reason, {child_spec, graceful_shutdown_manager}) do
     GenServer.cast(graceful_shutdown_manager, {:shut_down, child_spec})
   end
 end
