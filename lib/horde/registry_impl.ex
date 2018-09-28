@@ -1,9 +1,6 @@
 defmodule Horde.RegistryImpl do
   @moduledoc false
 
-  @update_processes_debounce 50
-  @force_update_processes 1000
-
   defmodule State do
     @moduledoc false
     defstruct node_id: nil,
@@ -15,8 +12,6 @@ defmodule Horde.RegistryImpl do
               processes_updated_at: 0,
               ets_table: nil
   end
-
-  @crdt DeltaCrdt.AWLWWMap
 
   @spec child_spec(options :: list()) :: Supervisor.child_spec()
   def child_spec(options \\ []) do
@@ -37,7 +32,7 @@ defmodule Horde.RegistryImpl do
     GenServer.start_link(__MODULE__, options, name: name)
   end
 
-  def terminate(reason, state) do
+  def terminate(_reason, state) do
     GenServer.cast(
       state.members_pid,
       {:operation, {:remove, [state.node_id]}}

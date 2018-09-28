@@ -14,7 +14,7 @@ defmodule Horde.SignalShutdown do
     {:ok, signal_to}
   end
 
-  def terminate(reason, signal_to) do
+  def terminate(_reason, signal_to) do
     Enum.each(signal_to, fn destination ->
       :ok = GenServer.call(destination, :horde_shutting_down)
     end)
