@@ -196,7 +196,8 @@ defmodule Horde.SupervisorImpl do
   def handle_call({:join_hordes, other_horde}, from, state) do
     GenServer.cast(
       other_horde,
-      {:request_to_join_hordes, {state.node_id, Process.whereis(members_name(state.name)), from}}
+      {:request_to_join_hordes,
+       {:supervisor, state.node_id, Process.whereis(members_name(state.name)), from}}
     )
 
     {:noreply, state}
@@ -204,7 +205,7 @@ defmodule Horde.SupervisorImpl do
 
   @doc false
   def handle_cast(
-        {:request_to_join_hordes, {_other_node_id, other_members_pid, reply_to}},
+        {:request_to_join_hordes, {:supervisor, _other_node_id, other_members_pid, reply_to}},
         state
       ) do
     send(members_name(state.name), {:add_neighbours, [other_members_pid]})

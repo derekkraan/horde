@@ -77,7 +77,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_cast(
-        {:request_to_join_hordes, {_other_node_id, other_members_pid, reply_to}},
+        {:request_to_join_hordes, {:registry, _other_node_id, other_members_pid, reply_to}},
         state
       ) do
     send(state.members_pid, {:add_neighbours, [other_members_pid]})
@@ -133,7 +133,7 @@ defmodule Horde.RegistryImpl do
   def handle_call({:join_hordes, other_horde}, from, state) do
     GenServer.cast(
       other_horde,
-      {:request_to_join_hordes, {state.node_id, state.members_pid, from}}
+      {:request_to_join_hordes, {:registry, state.node_id, state.members_pid, from}}
     )
 
     {:noreply, state}
