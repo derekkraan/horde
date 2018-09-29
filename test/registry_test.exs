@@ -4,8 +4,8 @@ defmodule RegistryTest do
 
   describe ".join_hordes/2" do
     test "two hordes can join each other" do
-      {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_a)
-      {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_a)
+      {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_a, keys: :unique)
+      {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_a, keys: :unique)
       Horde.Cluster.join_hordes(:horde_1_a, :horde_2_a)
       Process.sleep(50)
       {:ok, members} = Horde.Cluster.members(:horde_2_a)
@@ -13,9 +13,9 @@ defmodule RegistryTest do
     end
 
     test "three hordes can join in one giant horde" do
-      {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_b)
-      {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_b)
-      {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_b)
+      {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_b, keys: :unique)
+      {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_b, keys: :unique)
+      {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_b, keys: :unique)
       Horde.Cluster.join_hordes(:horde_1_b, :horde_2_b)
       Horde.Cluster.join_hordes(:horde_2_b, :horde_3_b)
       Process.sleep(100)
@@ -27,7 +27,7 @@ defmodule RegistryTest do
       last_horde =
         1..25
         |> Enum.reduce(nil, fn x, last_horde ->
-          {:ok, _horde} = Horde.Registry.start_link(name: :"horde_#{x}_c")
+          {:ok, _horde} = Horde.Registry.start_link(name: :"horde_#{x}_c", keys: :unique)
           if last_horde, do: Horde.Cluster.join_hordes(:"horde_#{x}_c", last_horde)
           :"horde_#{x}_c"
         end)
@@ -41,7 +41,7 @@ defmodule RegistryTest do
   describe ".register/3" do
     test "cannot register 2 processes under same name with same horde" do
       horde = :horde_1_d
-      {:ok, _horde_1} = Horde.Registry.start_link(name: horde)
+      {:ok, _horde_1} = Horde.Registry.start_link(name: horde, keys: :unique)
       {:ok, horde: horde}
 
       pid1 = spawn(fn -> Process.sleep(50) end)
@@ -55,10 +55,10 @@ defmodule RegistryTest do
 
     test "cannot register 2 processes under same name with different hordes" do
       horde = :horde_1_e
-      {:ok, _horde_1} = Horde.Registry.start_link(name: horde)
+      {:ok, _horde_1} = Horde.Registry.start_link(name: horde, keys: :unique)
 
       horde_2 = :horde_2_e
-      {:ok, _} = Horde.Registry.start_link(name: horde_2)
+      {:ok, _} = Horde.Registry.start_link(name: horde_2, keys: :unique)
       Horde.Cluster.join_hordes(horde, horde_2)
       pid1 = spawn(fn -> Process.sleep(30) end)
       pid2 = spawn(fn -> Process.sleep(30) end)
@@ -75,7 +75,7 @@ defmodule RegistryTest do
   describe "register via callbacks" do
     test "register a name the 'via' way" do
       horde = Horde.Registry.ClusterA
-      {:ok, _horde} = Horde.Registry.start_link(name: horde)
+      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
 
       name = {:via, Horde.Registry, {horde, "precious"}}
       {:ok, apid} = Agent.start_link(fn -> 0 end, name: name)
@@ -89,8 +89,8 @@ defmodule RegistryTest do
     test "can unregister processes" do
       horde = :horde_1_f
       horde2 = :horde_2_f
-      {:ok, _horde_1} = Horde.Registry.start_link(name: horde)
-      {:ok, _horde_2} = Horde.Registry.start_link(name: horde2)
+      {:ok, _horde_1} = Horde.Registry.start_link(name: horde, keys: :unique)
+      {:ok, _horde_2} = Horde.Registry.start_link(name: horde2, keys: :unique)
       Horde.Cluster.join_hordes(horde, horde2)
 
       pid1 = spawn(fn -> Process.sleep(300) end)
@@ -107,9 +107,9 @@ defmodule RegistryTest do
 
   describe ".leave_horde/2" do
     test "can leave horde" do
-      {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_g)
-      {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_g)
-      {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_g)
+      {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_g, keys: :unique)
+      {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_g, keys: :unique)
+      {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_g, keys: :unique)
       Horde.Cluster.join_hordes(:horde_1_g, :horde_2_g)
       Horde.Cluster.join_hordes(:horde_2_g, :horde_3_g)
       Process.sleep(200)
@@ -125,7 +125,7 @@ defmodule RegistryTest do
   describe "lookup" do
     test "existing process with lookup/2" do
       horde = Horde.Registry.ClusterB
-      {:ok, _horde} = Horde.Registry.start_link(name: horde)
+      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
       carmen = spawn(fn -> Process.sleep(300) end)
       Horde.Registry.register(horde, :carmen, carmen)
       Process.sleep(100)
@@ -135,7 +135,7 @@ defmodule RegistryTest do
 
     test "existing processes with via tuple" do
       horde = Horde.Registry.ClusterC
-      {:ok, _horde} = Horde.Registry.start_link(name: horde)
+      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
       carmen = spawn(fn -> Process.sleep(300) end)
       Horde.Registry.register(horde, :carmen, carmen)
       Process.sleep(100)
@@ -147,7 +147,7 @@ defmodule RegistryTest do
   describe "sending messages" do
     test "sending message to non-existing process" do
       horde = Horde.Registry.ClusterD
-      {:ok, _horde} = Horde.Registry.start_link(name: horde)
+      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
       carmen = spawn(fn -> Process.sleep(300) end)
       Horde.Registry.register(horde, :carmen, carmen)
       Process.sleep(20)
@@ -159,7 +159,7 @@ defmodule RegistryTest do
 
     test "sending message to non-existing horde" do
       horde = Horde.Registry.ClusterE
-      {:ok, _horde} = Horde.Registry.start_link(name: horde)
+      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
       carmen = spawn(fn -> Process.sleep(300) end)
       Horde.Registry.register(horde, :carmen, carmen)
       Process.sleep(20)
@@ -170,7 +170,7 @@ defmodule RegistryTest do
 
     test "sending message to existing process" do
       horde = Horde.Registry.ClusterF
-      {:ok, _horde} = Horde.Registry.start_link(name: horde)
+      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
       carmen = spawn(fn -> Process.sleep(300) end)
       Horde.Registry.register(horde, :carmen, carmen)
       Process.sleep(20)
