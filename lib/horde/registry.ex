@@ -95,7 +95,7 @@ defmodule Horde.Registry do
   defp get_ets_table(tab), do: GenServer.call(tab, :get_ets_table)
 
   @doc """
-  Get the process regsitry of the horde
+  Get the process registry of the horde
   """
   def processes(horde) do
     :ets.match(get_ets_table(horde), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
