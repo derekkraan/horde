@@ -17,17 +17,16 @@ defmodule Horde.Registry do
   Example:
   ```elixir
   supervise([
-    Horde.Registry
-  ])
-  ```
-
-  Example:
-  ```elixir
-  supervise([
-    {Horde.Registry, [name: MyApp.GlobalRegistry]}
+    {Horde.Registry, [name: MyApp.GlobalRegistry, keys: :unique]}
   ])
   ```
   """
+
+  @keys [:unique]
+
+  @type keys :: :unique
+  @type registry :: atom
+
   @spec child_spec(options :: list()) :: Supervisor.child_spec()
   def child_spec(options \\ []) do
     options = Keyword.put_new(options, :id, __MODULE__)
@@ -39,11 +38,27 @@ defmodule Horde.Registry do
     }
   end
 
+  @doc """
+  Starts the Registry.
+
+  The following options are mandatory:
+  * `:keys` - must be `:unique`. `:duplicate` is not (yet) supported
+  * `:name` - the name of the registry
+  """
+  @spec start_link(keys: keys(), name: registry()) :: {:ok, pid()} | {:error, term()}
   def start_link(options) do
     root_name = Keyword.get(options, :name)
+    keys = Keyword.get(options, :keys)
 
     if is_nil(root_name) do
       raise "must specify :name in options, got: #{inspect(options)}"
+    end
+
+    unless keys in @keys do
+      raise ArgumentError,
+            "expected :keys to be given and to be :unique. :duplicate is not (yet) supported, got: #{
+              inspect(keys)
+            }"
     end
 
     options = Keyword.put(options, :root_name, root_name)
