@@ -12,10 +12,12 @@ defmodule Horde.UniformDistribution do
       end)
       |> Enum.sort_by(fn {node_id, _} -> node_id end)
 
-    index = XXHash.xxh32("#{identifier}") |> rem(Enum.count(members))
+    index = XXHash.xxh32(term_to_string_identifier(identifier)) |> rem(Enum.count(members))
 
     Enum.at(members, index)
   end
 
   def has_quorum?(_members), do: true
+
+  defp term_to_string_identifier(term), do: term |> :erlang.term_to_binary() |> Base.encode16()
 end

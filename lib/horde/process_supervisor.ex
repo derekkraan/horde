@@ -19,7 +19,9 @@ defmodule Horde.ProcessSupervisor do
     )
   end
 
-  def name(node_id, child_id), do: :"#{__MODULE__}.#{Base.encode16(node_id)}.#{child_id}"
+  def name(node_id, child_id) do
+    :"#{__MODULE__}.#{Base.encode16(node_id)}.#{term_to_string_identifier(child_id)}"
+  end
 
   def init({child_spec, graceful_shutdown_manager}) do
     children = [
@@ -28,4 +30,6 @@ defmodule Horde.ProcessSupervisor do
 
     Supervisor.init(children, strategy: :one_for_one)
   end
+
+  defp term_to_string_identifier(term), do: term |> :erlang.term_to_binary() |> Base.encode16()
 end
