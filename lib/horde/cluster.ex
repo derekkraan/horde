@@ -18,7 +18,7 @@ defmodule Horde.Cluster do
   @doc """
   Join two hordes into one big horde. Calling this once will inform every node in each horde of every node in the other horde. Leave the hordes by calling `Horde.Supervisor.stop/1` or `Horde.Registry.stop/1`
   """
-  @spec join_hordes(horde :: pid(), other_horde :: pid()) :: boolean()
+  @spec join_hordes(horde :: GenServer.server(), other_horde :: GenServer.server()) :: boolean()
   def join_hordes(horde, other_horde, timeout \\ 5000) do
     GenServer.call(horde, {:join_hordes, other_horde}, timeout)
   catch
@@ -30,7 +30,7 @@ defmodule Horde.Cluster do
   @doc """
   Get the members (nodes) of the horde
   """
-  @spec members(horde :: pid()) :: map()
+  @spec members(horde :: GenServer.server()) :: map()
   def members(horde) do
     GenServer.call(horde, :members)
   end
