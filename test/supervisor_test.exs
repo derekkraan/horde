@@ -48,6 +48,14 @@ defmodule SupervisorTest do
       assert_receive {:process_started, ^pid}
     end
 
+    test "starts a process with id that doesn't implement String.Chars", context do
+      task_def = %{context.task_def | id: {:proc2, "string"}}
+
+      assert {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, task_def)
+
+      assert_receive {:process_started, ^pid}
+    end
+
     test "failed process is restarted", context do
       Horde.Supervisor.start_child(context.horde_1, context.task_def)
       assert_receive {:process_started, pid}
