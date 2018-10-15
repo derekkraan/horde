@@ -23,3 +23,5 @@ erl_crash.dump
 horde-*.tar
 
 .elixir_ls
+
+*.beam
