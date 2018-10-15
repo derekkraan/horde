@@ -32,6 +32,8 @@ defmodule Horde.SupervisorImpl do
   def init(options) do
     name = Keyword.get(options, :name)
 
+    Logger.info("Starting #{inspect(__MODULE__)} with name #{inspect(name)}")
+
     Process.flag(:trap_exit, true)
 
     state =

@@ -1,6 +1,8 @@
 defmodule Horde.RegistryImpl do
   @moduledoc false
 
+  require Logger
+
   defmodule State do
     @moduledoc false
     defstruct node_id: nil,
@@ -47,6 +49,9 @@ defmodule Horde.RegistryImpl do
     node_id = generate_node_id()
 
     name = Keyword.get(opts, :name)
+
+    Logger.info("Starting #{inspect(__MODULE__)} with name #{inspect(name)}")
+
     members_pid = Process.whereis(members_crdt_name(name))
     processes_pid = Process.whereis(processes_crdt_name(name))
 
