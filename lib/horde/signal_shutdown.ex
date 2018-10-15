@@ -1,4 +1,6 @@
 defmodule Horde.SignalShutdown do
+  @moduledoc false
+
   use GenServer
   require Logger
 

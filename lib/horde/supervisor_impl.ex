@@ -1,4 +1,6 @@
 defmodule Horde.SupervisorImpl do
+  @moduledoc false
+
   require Logger
   use GenServer
   # 60s
