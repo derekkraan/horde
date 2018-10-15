@@ -4,7 +4,7 @@ defmodule Horde.MixProject do
   def project do
     [
       app: :horde,
-      version: "0.2.2",
+      version: "0.2.3",
       elixir: "~> 1.6",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -22,7 +22,7 @@ defmodule Horde.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:delta_crdt, "== 0.1.10"},
+      {:delta_crdt, "== 0.1.11"},
       {:xxhash, "~> 0.1"},
       {:credo, "~> 0.9", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 0.5", only: :dev, runtime: false},
