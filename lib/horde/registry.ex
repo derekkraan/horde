@@ -87,16 +87,6 @@ defmodule Horde.Registry do
     end
   end
 
-  defp process_alive?(pid) when node(pid) == node(self()), do: Process.alive?(pid)
-
-  defp process_alive?(pid) do
-    n = node(pid)
-    Node.list() |> Enum.member?(n) && :rpc.call(n, Process, :alive?, [pid])
-  end
-
-  defp get_ets_table(tab) when is_atom(tab), do: tab
-  defp get_ets_table(tab), do: GenServer.call(tab, :get_ets_table)
-
   @doc """
   Get the process registry of the horde
   """
@@ -132,4 +122,14 @@ defmodule Horde.Registry do
       pid -> Kernel.send(pid, msg)
     end
   end
+
+  defp process_alive?(pid) when node(pid) == node(self()), do: Process.alive?(pid)
+
+  defp process_alive?(pid) do
+    n = node(pid)
+    Node.list() |> Enum.member?(n) && :rpc.call(n, Process, :alive?, [pid])
+  end
+
+  defp get_ets_table(tab) when is_atom(tab), do: tab
+  defp get_ets_table(tab), do: GenServer.call(tab, :get_ets_table)
 end
