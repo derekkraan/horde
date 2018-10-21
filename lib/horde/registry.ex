@@ -97,6 +97,7 @@ defmodule Horde.Registry do
   @doc """
   Get the process registry of the horde
   """
+  @deprecated "Use keys/2 instead"
   def processes(horde) do
     :ets.match(get_ets_table(horde), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
   end
