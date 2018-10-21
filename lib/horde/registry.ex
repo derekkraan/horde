@@ -42,6 +42,11 @@ defmodule Horde.Registry do
   def start_link(options) do
     root_name = Keyword.get(options, :name)
 
+    case Keyword.get(options, :keys) do
+      :unique -> nil
+      other -> raise ArgumentError, "Only `keys: :unique` is supported."
+    end
+
     if is_nil(root_name) do
       raise "must specify :name in options, got: #{inspect(options)}"
     end
