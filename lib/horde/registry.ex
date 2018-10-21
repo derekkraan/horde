@@ -72,7 +72,10 @@ defmodule Horde.Registry do
     GenServer.call(horde, {:unregister, name})
   end
 
+  @doc false
   def whereis(search), do: lookup(search)
+
+  @doc false
   def lookup({:via, _, {horde, name}}), do: lookup(horde, name)
 
   def lookup(horde, name) do
