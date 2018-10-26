@@ -9,7 +9,9 @@ defmodule Horde.RegistryImpl do
               name: nil,
               members_pid: nil,
               members: %{},
-              processes_pid: nil,
+              registry_pid: nil,
+              pids_pid: nil,
+              keys_pid: nil,
               processes_updated_counter: 0,
               processes_updated_at: 0,
               ets_table: nil
@@ -53,7 +55,9 @@ defmodule Horde.RegistryImpl do
     Logger.info("Starting #{inspect(__MODULE__)} with name #{inspect(name)}")
 
     members_pid = Process.whereis(members_crdt_name(name))
-    processes_pid = Process.whereis(processes_crdt_name(name))
+    registry_pid = Process.whereis(registry_crdt_name(name))
+    pids_pid = Process.whereis(pids_crdt_name(name))
+    keys_pid = Process.whereis(keys_crdt_name(name))
 
     unless is_atom(name) do
       raise ArgumentError, "expected :name to be given and to be an atom, got: #{inspect(name)}"
@@ -63,7 +67,7 @@ defmodule Horde.RegistryImpl do
 
     GenServer.cast(
       members_crdt_name(name),
-      {:operation, {:add, [node_id, {members_pid, processes_pid}]}}
+      {:operation, {:add, [node_id, {members_pid, registry_pid, pids_pid, keys_pid}]}}
     )
 
     {:ok,
@@ -72,7 +76,9 @@ defmodule Horde.RegistryImpl do
        name: name,
        ets_table: name,
        members_pid: members_pid,
-       processes_pid: processes_pid
+       registry_pid: registry_pid,
+       pids_pid: pids_pid,
+       keys_pid: keys_pid
      }}
   end
 
@@ -85,8 +91,8 @@ defmodule Horde.RegistryImpl do
     {:noreply, state}
   end
 
-  def handle_info({:processes_updated, reply_to}, state) do
-    processes = DeltaCrdt.CausalCrdt.read(state.processes_pid, 30_000)
+  def handle_info({:pids_updated, reply_to}, state) do
+    processes = DeltaCrdt.CausalCrdt.read(state.pids_pid, 30_000)
 
     :ets.insert(state.ets_table, Map.to_list(processes))
 
@@ -105,24 +111,35 @@ defmodule Horde.RegistryImpl do
     members = DeltaCrdt.CausalCrdt.read(state.members_pid, 30_000)
 
     member_pids =
-      MapSet.new(members, fn {_key, {members_pid, _processes_pid}} ->
+      MapSet.new(members, fn {_key, {members_pid, _registry_pid, _pids_pid, _keys_pid}} ->
         members_pid
       end)
       |> MapSet.delete(nil)
 
     state_member_pids =
-      MapSet.new(state.members, fn {_key, {members_pid, _processes_pid}} ->
+      MapSet.new(state.members, fn {_key, {members_pid, _registry_pid, _pids_pid, _keys_pid}} ->
         members_pid
       end)
       |> MapSet.delete(nil)
 
     # if there are any new pids in `member_pids`
     if MapSet.difference(member_pids, state_member_pids) |> Enum.any?() do
-      processes_pids =
-        MapSet.new(members, fn {_node_id, {_mpid, pid}} -> pid end) |> MapSet.delete(nil)
+      registry_pids =
+        MapSet.new(members, fn {_node_id, {_mpid, reg_pid, _pids_pid, _keys_pid}} -> reg_pid end)
+        |> MapSet.delete(nil)
+
+      pids_pids =
+        MapSet.new(members, fn {_node_id, {_mpid, _reg_pid, pids_pid, _keys_pid}} -> pids_pid end)
+        |> MapSet.delete(nil)
+
+      keys_pids =
+        MapSet.new(members, fn {_node_id, {_mpid, _reg_pid, _pids_pid, keys_pid}} -> keys_pid end)
+        |> MapSet.delete(nil)
 
       send(state.members_pid, {:add_neighbours, member_pids})
-      send(state.processes_pid, {:add_neighbours, processes_pids})
+      send(state.registry_pid, {:add_neighbours, registry_pids})
+      send(state.pids_pid, {:add_neighbours, pids_pids})
+      send(state.keys_pid, {:add_neighbours, keys_pids})
     end
 
     GenServer.reply(reply_to, :ok)
@@ -144,7 +161,7 @@ defmodule Horde.RegistryImpl do
 
   def handle_call({:register, name, pid}, _from, state) do
     GenServer.cast(
-      state.processes_pid,
+      state.pids_pid,
       {:operation, {:add, [name, {pid}]}}
     )
 
@@ -155,7 +172,7 @@ defmodule Horde.RegistryImpl do
 
   def handle_call({:unregister, name}, _from, state) do
     GenServer.cast(
-      state.processes_pid,
+      state.pids_pid,
       {:operation, {:remove, [name]}}
     )
 
@@ -173,5 +190,7 @@ defmodule Horde.RegistryImpl do
   end
 
   defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
-  defp processes_crdt_name(name), do: :"#{name}.ProcessesCrdt"
+  defp registry_crdt_name(name), do: :"#{name}.RegistryCrdt"
+  defp pids_crdt_name(name), do: :"#{name}.PidsCrdt"
+  defp keys_crdt_name(name), do: :"#{name}.KeysCrdt"
 end
