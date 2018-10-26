@@ -84,7 +84,7 @@ defmodule Horde.Registry do
   def lookup({:via, _, {horde, name}}), do: lookup(horde, name)
 
   def lookup(horde, name) do
-    with [{^name, {pid}}] <- :ets.lookup(get_ets_table(horde), name),
+    with [{^name, {pid}}] <- :ets.lookup(get_keys_ets_table(horde), name),
          true <- process_alive?(pid) do
       pid
     else
@@ -97,7 +97,7 @@ defmodule Horde.Registry do
   """
   @deprecated "Use keys/2 instead"
   def processes(horde) do
-    :ets.match(get_ets_table(horde), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
+    :ets.match(get_keys_ets_table(horde), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
   end
 
   ### Via callbacks
@@ -135,6 +135,5 @@ defmodule Horde.Registry do
     Node.list() |> Enum.member?(n) && :rpc.call(n, Process, :alive?, [pid])
   end
 
-  defp get_ets_table(tab) when is_atom(tab), do: tab
-  defp get_ets_table(tab), do: GenServer.call(tab, :get_ets_table)
+  defp get_keys_ets_table(tab), do: GenServer.call(tab, :get_keys_ets_table)
 end

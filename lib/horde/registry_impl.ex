@@ -6,15 +6,16 @@ defmodule Horde.RegistryImpl do
   defmodule State do
     @moduledoc false
     defstruct node_id: nil,
-              name: nil,
-              members_pid: nil,
               members: %{},
+              members_pid: nil,
               registry_pid: nil,
               pids_pid: nil,
               keys_pid: nil,
               processes_updated_counter: 0,
               processes_updated_at: 0,
-              ets_table: nil
+              registry_ets_table: nil,
+              pids_ets_table: nil,
+              keys_ets_table: nil
   end
 
   @spec child_spec(options :: list()) :: Supervisor.child_spec()
@@ -51,6 +52,8 @@ defmodule Horde.RegistryImpl do
     node_id = generate_node_id()
 
     name = Keyword.get(opts, :name)
+    pids_name = :"pids_#{name}"
+    keys_name = :"keys_#{name}"
 
     Logger.info("Starting #{inspect(__MODULE__)} with name #{inspect(name)}")
 
@@ -64,6 +67,8 @@ defmodule Horde.RegistryImpl do
     end
 
     :ets.new(name, [:named_table, {:read_concurrency, true}])
+    :ets.new(pids_name, [:named_table, {:read_concurrency, true}])
+    :ets.new(keys_name, [:named_table, {:read_concurrency, true}])
 
     GenServer.cast(
       members_crdt_name(name),
@@ -73,12 +78,13 @@ defmodule Horde.RegistryImpl do
     {:ok,
      %State{
        node_id: node_id,
-       name: name,
-       ets_table: name,
        members_pid: members_pid,
        registry_pid: registry_pid,
        pids_pid: pids_pid,
-       keys_pid: keys_pid
+       keys_pid: keys_pid,
+       registry_ets_table: name,
+       pids_ets_table: pids_name,
+       keys_ets_table: keys_name
      }}
   end
 
@@ -94,13 +100,13 @@ defmodule Horde.RegistryImpl do
   def handle_info({:pids_updated, reply_to}, state) do
     processes = DeltaCrdt.CausalCrdt.read(state.pids_pid, 30_000)
 
-    :ets.insert(state.ets_table, Map.to_list(processes))
+    :ets.insert(state.keys_ets_table, Map.to_list(processes))
 
-    all_keys = :ets.match(state.ets_table, {:"$1", :_}) |> MapSet.new(fn [x] -> x end)
+    all_keys = :ets.match(state.keys_ets_table, {:"$1", :_}) |> MapSet.new(fn [x] -> x end)
     new_keys = Map.keys(processes) |> MapSet.new()
     to_delete_keys = MapSet.difference(all_keys, new_keys)
 
-    to_delete_keys |> Enum.each(fn key -> :ets.delete(state.ets_table, key) end)
+    to_delete_keys |> Enum.each(fn key -> :ets.delete(state.keys_ets_table, key) end)
 
     GenServer.reply(reply_to, :ok)
 
@@ -156,8 +162,8 @@ defmodule Horde.RegistryImpl do
     {:noreply, state}
   end
 
-  def handle_call(:get_ets_table, _from, %{ets_table: ets_table} = state),
-    do: {:reply, ets_table, state}
+  def handle_call(:get_keys_ets_table, _from, %{keys_ets_table: t} = state),
+    do: {:reply, t, state}
 
   def handle_call({:register, name, pid}, _from, state) do
     GenServer.cast(
@@ -165,7 +171,7 @@ defmodule Horde.RegistryImpl do
       {:operation, {:add, [name, {pid}]}}
     )
 
-    :ets.insert(state.ets_table, {name, {pid}})
+    :ets.insert(state.keys_ets_table, {name, {pid}})
 
     {:reply, {:ok, pid}, state}
   end
@@ -176,7 +182,7 @@ defmodule Horde.RegistryImpl do
       {:operation, {:remove, [name]}}
     )
 
-    :ets.delete(state.ets_table, name)
+    :ets.delete(state.keys_ets_table, name)
 
     {:reply, :ok, state}
   end
