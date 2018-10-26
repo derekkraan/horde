@@ -92,6 +92,24 @@ defmodule Horde.Registry do
     end
   end
 
+  @spec meta(registry :: Registry.registry(), key :: Registry.meta_key()) ::
+          {:ok, Registry.meta_value()} | :error
+  def meta(registry, key) do
+    case :ets.lookup(get_registry_ets_table(registry), key) do
+      [{^key, value}] -> {:ok, value}
+      _ -> :error
+    end
+  end
+
+  @spec put_meta(
+          registry :: Registry.registry(),
+          key :: Registry.meta_key(),
+          value :: Registry.meta_value()
+        ) :: :ok
+  def put_meta(registry, key, value) do
+    GenServer.call(registry, {:put_meta, key, value})
+  end
+
   @doc """
   Get the process registry of the horde
   """
@@ -136,4 +154,5 @@ defmodule Horde.Registry do
   end
 
   defp get_keys_ets_table(tab), do: GenServer.call(tab, :get_keys_ets_table)
+  defp get_registry_ets_table(tab), do: GenServer.call(tab, :get_registry_ets_table)
 end

@@ -178,4 +178,24 @@ defmodule RegistryTest do
       assert "Where are you?" = Horde.Registry.send({horde, :carmen}, "Where are you?")
     end
   end
+
+  describe ".put_meta/3" do
+    test "can put and get metadata" do
+      registry = Horde.Registry.ClusterG
+      {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
+      :ok = Horde.Registry.put_meta(registry, :custom_key, "custom_value")
+
+      assert {:ok, "custom_value"} = Horde.Registry.meta(registry, :custom_key)
+    end
+  end
+
+  describe ".meta/2" do
+    test "returns :error when no entry present" do
+      registry = Horde.Registry.ClusterH
+      {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
+      :ok = Horde.Registry.put_meta(registry, :custom_key, "custom_value")
+
+      assert :error = Horde.Registry.meta(registry, :non_existant)
+    end
+  end
 end
