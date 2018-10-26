@@ -93,9 +93,9 @@ defmodule RegistryTest do
       {:ok, _horde_2} = Horde.Registry.start_link(name: horde2, keys: :unique)
       Horde.Cluster.join_hordes(horde, horde2)
 
-      pid1 = spawn(fn -> Process.sleep(300) end)
+      pid1 = spawn(fn -> Process.sleep(400) end)
       Horde.Registry.register(horde, :one_day_fly, pid1)
-      Process.sleep(200)
+      Process.sleep(300)
       assert %{one_day_fly: {_id}} = Horde.Registry.processes(horde)
       assert %{one_day_fly: {_id}} = Horde.Registry.processes(horde2)
       Horde.Registry.unregister(horde, :one_day_fly)
