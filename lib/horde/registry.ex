@@ -39,6 +39,7 @@ defmodule Horde.Registry do
     }
   end
 
+  @doc "Starts the registry as a supervised process"
   def start_link(options) do
     root_name = Keyword.get(options, :name)
 
@@ -63,7 +64,7 @@ defmodule Horde.Registry do
 
   ### Public API
 
-  @doc "register a process under the given name"
+  @doc "Register a process under the given name"
   @spec register(horde :: GenServer.server(), name :: atom(), pid :: pid()) :: {:ok, pid()}
   def register(horde, name, pid \\ self())
 
@@ -94,6 +95,7 @@ defmodule Horde.Registry do
 
   @spec meta(registry :: Registry.registry(), key :: Registry.meta_key()) ::
           {:ok, Registry.meta_value()} | :error
+  @doc "Reads registry metadata given on `start_link/3`"
   def meta(registry, key) do
     case :ets.lookup(get_registry_ets_table(registry), key) do
       [{^key, value}] -> {:ok, value}
