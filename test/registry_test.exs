@@ -179,7 +179,16 @@ defmodule RegistryTest do
     end
   end
 
-  describe ".put_meta/3" do
+  describe ".meta/2 and .put_meta/3" do
+    test "can set meta in start_link/3" do
+      registry = Horde.Registry.ClusterH
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(name: registry, keys: :unique, meta: [meta_key: :meta_value])
+
+      assert {:ok, :meta_value} = Horde.Registry.meta(registry, :meta_key)
+    end
+
     test "can put and get metadata" do
       registry = Horde.Registry.ClusterG
       {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
@@ -187,11 +196,9 @@ defmodule RegistryTest do
 
       assert {:ok, "custom_value"} = Horde.Registry.meta(registry, :custom_key)
     end
-  end
 
-  describe ".meta/2" do
-    test "returns :error when no entry present" do
-      registry = Horde.Registry.ClusterH
+    test "meta/2 returns :error when no entry present" do
+      registry = Horde.Registry.ClusterI
       {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
       :ok = Horde.Registry.put_meta(registry, :custom_key, "custom_value")
 

@@ -75,17 +75,26 @@ defmodule Horde.RegistryImpl do
       {:operation, {:add, [node_id, {members_pid, registry_pid, pids_pid, keys_pid}]}}
     )
 
-    {:ok,
-     %State{
-       node_id: node_id,
-       members_pid: members_pid,
-       registry_pid: registry_pid,
-       pids_pid: pids_pid,
-       keys_pid: keys_pid,
-       registry_ets_table: name,
-       pids_ets_table: pids_name,
-       keys_ets_table: keys_name
-     }}
+    state = %State{
+      node_id: node_id,
+      members_pid: members_pid,
+      registry_pid: registry_pid,
+      pids_pid: pids_pid,
+      keys_pid: keys_pid,
+      registry_ets_table: name,
+      pids_ets_table: pids_name,
+      keys_ets_table: keys_name
+    }
+
+    case Keyword.get(opts, :meta) do
+      nil ->
+        nil
+
+      meta ->
+        Enum.each(meta, fn {key, value} -> put_meta(state, key, value) end)
+    end
+
+    {:ok, state}
   end
 
   def handle_cast(
@@ -199,18 +208,22 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_call({:put_meta, key, value}, _from, state) do
-    GenServer.cast(
-      state.registry_pid,
-      {:operation, {:add, [key, value]}}
-    )
-
-    :ets.insert(state.registry_ets_table, {key, value})
+    put_meta(state, key, value)
 
     {:reply, :ok, state}
   end
 
   def handle_call(:members, _from, state) do
     {:reply, {:ok, state.members}, state}
+  end
+
+  defp put_meta(state, key, value) do
+    GenServer.cast(
+      state.registry_pid,
+      {:operation, {:add, [key, value]}}
+    )
+
+    :ets.insert(state.registry_ets_table, {key, value})
   end
 
   defp sync_ets_table(ets_table, registry) do
