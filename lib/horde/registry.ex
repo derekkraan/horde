@@ -45,7 +45,7 @@ defmodule Horde.Registry do
 
     case Keyword.get(options, :keys) do
       :unique -> nil
-      other -> raise ArgumentError, "Only `keys: :unique` is supported."
+      _other -> raise ArgumentError, "Only `keys: :unique` is supported."
     end
 
     if is_nil(root_name) do
