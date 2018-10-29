@@ -67,7 +67,7 @@ defmodule Horde.Registry do
   @doc "Register a process under the given name"
   @spec register(horde :: GenServer.server(), name :: Registry.key(), value :: Registry.value()) ::
           {:ok, pid()} | {:error, :already_registered, pid()}
-  def register(horde, name, value) do
+  def register(horde, name, _value) do
     GenServer.call(horde, {:register, name, self()})
   end
 
