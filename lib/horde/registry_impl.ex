@@ -9,7 +9,6 @@ defmodule Horde.RegistryImpl do
               members: %{},
               members_pid: nil,
               registry_pid: nil,
-              pids_pid: nil,
               keys_pid: nil,
               processes_updated_counter: 0,
               processes_updated_at: 0,
@@ -59,7 +58,6 @@ defmodule Horde.RegistryImpl do
 
     members_pid = Process.whereis(members_crdt_name(name))
     registry_pid = Process.whereis(registry_crdt_name(name))
-    pids_pid = Process.whereis(pids_crdt_name(name))
     keys_pid = Process.whereis(keys_crdt_name(name))
 
     unless is_atom(name) do
@@ -72,14 +70,13 @@ defmodule Horde.RegistryImpl do
 
     GenServer.cast(
       members_crdt_name(name),
-      {:operation, {:add, [node_id, {members_pid, registry_pid, pids_pid, keys_pid}]}}
+      {:operation, {:add, [node_id, {members_pid, registry_pid, keys_pid}]}}
     )
 
     state = %State{
       node_id: node_id,
       members_pid: members_pid,
       registry_pid: registry_pid,
-      pids_pid: pids_pid,
       keys_pid: keys_pid,
       registry_ets_table: name,
       pids_ets_table: pids_name,
@@ -113,15 +110,9 @@ defmodule Horde.RegistryImpl do
     {:noreply, state}
   end
 
-  def handle_info({:pids_updated, reply_to}, state) do
-    pids = DeltaCrdt.CausalCrdt.read(state.pids_pid, 30_000)
-    sync_ets_table(state.pids_ets_table, pids)
-    GenServer.reply(reply_to, :ok)
-    {:noreply, state}
-  end
-
   def handle_info({:keys_updated, reply_to}, state) do
     keys = DeltaCrdt.CausalCrdt.read(state.keys_pid, 30_000)
+    sync_ets_table(state.pids_ets_table, invert_keys(keys))
     sync_ets_table(state.keys_ets_table, keys)
     GenServer.reply(reply_to, :ok)
     {:noreply, state}
@@ -131,13 +122,13 @@ defmodule Horde.RegistryImpl do
     members = DeltaCrdt.CausalCrdt.read(state.members_pid, 30_000)
 
     member_pids =
-      MapSet.new(members, fn {_key, {members_pid, _registry_pid, _pids_pid, _keys_pid}} ->
+      MapSet.new(members, fn {_key, {members_pid, _registry_pid, _keys_pid}} ->
         members_pid
       end)
       |> MapSet.delete(nil)
 
     state_member_pids =
-      MapSet.new(state.members, fn {_key, {members_pid, _registry_pid, _pids_pid, _keys_pid}} ->
+      MapSet.new(state.members, fn {_key, {members_pid, _registry_pid, _keys_pid}} ->
         members_pid
       end)
       |> MapSet.delete(nil)
@@ -145,20 +136,15 @@ defmodule Horde.RegistryImpl do
     # if there are any new pids in `member_pids`
     if MapSet.difference(member_pids, state_member_pids) |> Enum.any?() do
       registry_pids =
-        MapSet.new(members, fn {_node_id, {_mpid, reg_pid, _pids_pid, _keys_pid}} -> reg_pid end)
-        |> MapSet.delete(nil)
-
-      pids_pids =
-        MapSet.new(members, fn {_node_id, {_mpid, _reg_pid, pids_pid, _keys_pid}} -> pids_pid end)
+        MapSet.new(members, fn {_node_id, {_mpid, reg_pid, _keys_pid}} -> reg_pid end)
         |> MapSet.delete(nil)
 
       keys_pids =
-        MapSet.new(members, fn {_node_id, {_mpid, _reg_pid, _pids_pid, keys_pid}} -> keys_pid end)
+        MapSet.new(members, fn {_node_id, {_mpid, _reg_pid, keys_pid}} -> keys_pid end)
         |> MapSet.delete(nil)
 
       send(state.members_pid, {:add_neighbours, member_pids})
       send(state.registry_pid, {:add_neighbours, registry_pids})
-      send(state.pids_pid, {:add_neighbours, pids_pids})
       send(state.keys_pid, {:add_neighbours, keys_pids})
     end
 
@@ -188,21 +174,30 @@ defmodule Horde.RegistryImpl do
   def handle_call({:register, name, pid}, _from, state) do
     GenServer.cast(
       state.keys_pid,
-      {:operation, {:add, [name, {pid}]}}
+      {:operation, {:add, [name, pid]}}
     )
 
-    :ets.insert(state.keys_ets_table, {name, {pid}})
+    case :ets.lookup(state.pids_ets_table, pid) do
+      [] ->
+        :ets.insert(state.pids_ets_table, {pid, [name]})
+
+      [{_pid, names}] ->
+        :ets.insert(state.pids_ets_table, {pid, [name | names]})
+    end
+
+    :ets.insert(state.keys_ets_table, {name, pid})
 
     {:reply, {:ok, pid}, state}
   end
 
-  def handle_call({:unregister, name}, _from, state) do
+  def handle_call({:unregister, name, pid}, _from, state) do
     GenServer.cast(
       state.keys_pid,
       {:operation, {:remove, [name]}}
     )
 
-    :ets.delete(state.keys_ets_table, name)
+    :ets.delete_object(state.pids_ets_table, {pid, name})
+    :ets.delete_object(state.keys_ets_table, {name, pid})
 
     {:reply, :ok, state}
   end
@@ -226,6 +221,12 @@ defmodule Horde.RegistryImpl do
     :ets.insert(state.registry_ets_table, {key, value})
   end
 
+  defp invert_keys(keys) do
+    Enum.reduce(keys, %{}, fn {key, pid}, pids ->
+      Map.update(pids, pid, [key], fn existing_keys -> [key | existing_keys] end)
+    end)
+  end
+
   defp sync_ets_table(ets_table, registry) do
     :ets.insert(ets_table, Map.to_list(registry))
 
@@ -242,6 +243,5 @@ defmodule Horde.RegistryImpl do
 
   defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
   defp registry_crdt_name(name), do: :"#{name}.RegistryCrdt"
-  defp pids_crdt_name(name), do: :"#{name}.PidsCrdt"
   defp keys_crdt_name(name), do: :"#{name}.KeysCrdt"
 end

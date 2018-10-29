@@ -65,27 +65,27 @@ defmodule Horde.Registry do
   ### Public API
 
   @doc "Register a process under the given name"
-  @spec register(horde :: GenServer.server(), name :: atom(), pid :: pid()) :: {:ok, pid()}
-  def register(horde, name, pid \\ self())
-
-  def register(horde, name, pid) do
-    GenServer.call(horde, {:register, name, pid})
+  @spec register(horde :: GenServer.server(), name :: Registry.key(), value :: Registry.value()) ::
+          {:ok, pid()} | {:error, :already_registered, pid()}
+  def register(horde, name, value) do
+    GenServer.call(horde, {:register, name, self()})
   end
 
   @doc "unregister the process under the given name"
   @spec unregister(horde :: GenServer.server(), name :: GenServer.name()) :: :ok
   def unregister(horde, name) do
-    GenServer.call(horde, {:unregister, name})
+    GenServer.call(horde, {:unregister, name, self()})
   end
 
   @doc false
   def whereis(search), do: lookup(search)
 
   @doc false
-  def lookup({:via, _, {horde, name}}), do: lookup(horde, name)
+  def lookup({:via, _, {registry, name}}), do: lookup(registry, name)
 
-  def lookup(horde, name) do
-    with [{^name, {pid}}] <- :ets.lookup(get_keys_ets_table(horde), name),
+  @doc "Finds the `{pid, value}` for the given `key` in `registry`"
+  def lookup(registry, key) do
+    with [{^key, pid}] <- :ets.lookup(get_keys_ets_table(registry), key),
          true <- process_alive?(pid) do
       pid
     else
@@ -111,6 +111,25 @@ defmodule Horde.Registry do
   def put_meta(registry, key, value) do
     GenServer.call(registry, {:put_meta, key, value})
   end
+
+  # def count(registry)
+
+  # def count_match(registry, key, pattern, guards \\ [])
+
+  # def dispatch(registry, key, mfa_or_fun, opts \\ [])
+
+  def keys(registry, pid) do
+    case :ets.lookup(get_pids_ets_table(registry), pid) do
+      [] -> []
+      [{_pid, matches}] -> matches
+    end
+  end
+
+  # def match(registry, key, pattern, guards \\ [])
+
+  # def unregister_match(registry, key, pattern, guards \\ [])
+
+  # def update_value(registry, key, callback)
 
   @doc """
   Get the process registry of the horde
@@ -155,6 +174,7 @@ defmodule Horde.Registry do
     Node.list() |> Enum.member?(n) && :rpc.call(n, Process, :alive?, [pid])
   end
 
-  defp get_keys_ets_table(tab), do: GenServer.call(tab, :get_keys_ets_table)
   defp get_registry_ets_table(tab), do: GenServer.call(tab, :get_registry_ets_table)
+  defp get_pids_ets_table(tab), do: GenServer.call(tab, :get_pids_ets_table)
+  defp get_keys_ets_table(tab), do: GenServer.call(tab, :get_keys_ets_table)
 end

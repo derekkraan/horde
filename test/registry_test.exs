@@ -2,6 +2,14 @@ defmodule RegistryTest do
   use ExUnit.Case, async: false
   doctest Horde.Registry
 
+  describe ".start_link/1" do
+    test "only keys: :unique is allowed" do
+      assert_raise ArgumentError, fn ->
+        Horde.Registry.start_link(name: :horde_not_unique, keys: :duplicate)
+      end
+    end
+  end
+
   describe ".join_hordes/2" do
     test "two hordes can join each other" do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_a, keys: :unique)
@@ -44,10 +52,8 @@ defmodule RegistryTest do
       {:ok, _horde_1} = Horde.Registry.start_link(name: horde, keys: :unique)
       {:ok, horde: horde}
 
-      pid1 = spawn(fn -> Process.sleep(50) end)
-      pid2 = spawn(fn -> Process.sleep(50) end)
-      Horde.Registry.register(horde, :highlander, pid1)
-      Horde.Registry.register(horde, :highlander, pid2)
+      Horde.Registry.register(horde, :highlander, "val")
+      Horde.Registry.register(horde, :highlander, "val")
       Process.sleep(20)
       processes = Horde.Registry.processes(horde)
       assert [:highlander] = Map.keys(processes)
@@ -60,15 +66,36 @@ defmodule RegistryTest do
       horde_2 = :horde_2_e
       {:ok, _} = Horde.Registry.start_link(name: horde_2, keys: :unique)
       Horde.Cluster.join_hordes(horde, horde_2)
-      pid1 = spawn(fn -> Process.sleep(30) end)
-      pid2 = spawn(fn -> Process.sleep(30) end)
-      Horde.Registry.register(horde, :MacLeod, pid1)
-      Horde.Registry.register(horde_2, :MacLeod, pid2)
-      Process.sleep(400)
+      Horde.Registry.register(horde, :MacLeod, "val1")
+      Horde.Registry.register(horde_2, :MacLeod, "val2")
+      Process.sleep(200)
       processes = Horde.Registry.processes(horde)
       processes_2 = Horde.Registry.processes(horde_2)
       assert 1 = Map.size(processes)
       assert processes == processes_2
+    end
+  end
+
+  describe ".keys/2" do
+    test "empty list if not registered" do
+      registry = Horde.Registry.Cluster0
+      {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
+      assert [] = Horde.Registry.keys(registry, self())
+    end
+
+    test "registered keys are returned" do
+      registry = Horde.Registry.Cluster1
+      {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
+      registry2 = Horde.Registry.Cluster2
+      {:ok, _horde} = Horde.Registry.start_link(name: registry2, keys: :unique)
+      Horde.Cluster.join_hordes(registry, registry2)
+
+      Horde.Registry.register(registry, "foo", :value)
+      Horde.Registry.register(registry2, "bar", :value)
+
+      Process.sleep(200)
+
+      assert ["foo", "bar"] = Horde.Registry.keys(registry, self())
     end
   end
 
@@ -93,14 +120,14 @@ defmodule RegistryTest do
       {:ok, _horde_2} = Horde.Registry.start_link(name: horde2, keys: :unique)
       Horde.Cluster.join_hordes(horde, horde2)
 
-      pid1 = spawn(fn -> Process.sleep(400) end)
-      Horde.Registry.register(horde, :one_day_fly, pid1)
-      Process.sleep(300)
-      assert %{one_day_fly: {_id}} = Horde.Registry.processes(horde)
-      assert %{one_day_fly: {_id}} = Horde.Registry.processes(horde2)
+      Horde.Registry.register(horde, :one_day_fly, "value")
+      assert %{one_day_fly: _id} = Horde.Registry.processes(horde)
+      Process.sleep(200)
+      assert %{one_day_fly: _id} = Horde.Registry.processes(horde2)
+
       Horde.Registry.unregister(horde, :one_day_fly)
-      Process.sleep(500)
       assert %{} == Horde.Registry.processes(horde)
+      Process.sleep(200)
       assert %{} == Horde.Registry.processes(horde2)
     end
   end
@@ -126,21 +153,20 @@ defmodule RegistryTest do
     test "existing process with lookup/2" do
       horde = Horde.Registry.ClusterB
       {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
-      carmen = spawn(fn -> Process.sleep(300) end)
-      Horde.Registry.register(horde, :carmen, carmen)
-      Process.sleep(100)
 
-      assert carmen == Horde.Registry.lookup(horde, :carmen)
+      Horde.Registry.register(horde, :carmen, "foo")
+
+      assert self() == Horde.Registry.lookup(horde, :carmen)
     end
 
     test "existing processes with via tuple" do
       horde = Horde.Registry.ClusterC
       {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
-      carmen = spawn(fn -> Process.sleep(300) end)
-      Horde.Registry.register(horde, :carmen, carmen)
-      Process.sleep(100)
+
+      Horde.Registry.register(horde, :carmen, "bar")
+
       name = {:via, Horde.Registry, {horde, :carmen}}
-      assert carmen == Horde.Registry.lookup(name)
+      assert self() == Horde.Registry.lookup(name)
     end
   end
 
@@ -148,9 +174,7 @@ defmodule RegistryTest do
     test "sending message to non-existing process" do
       horde = Horde.Registry.ClusterD
       {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
-      carmen = spawn(fn -> Process.sleep(300) end)
-      Horde.Registry.register(horde, :carmen, carmen)
-      Process.sleep(20)
+      Horde.Registry.register(horde, :carmen, "carmen")
 
       assert_raise ArgumentError, fn ->
         Horde.Registry.send({horde, :santiago}, "Where are you?")
@@ -160,8 +184,13 @@ defmodule RegistryTest do
     test "sending message to non-existing horde" do
       horde = Horde.Registry.ClusterE
       {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
-      carmen = spawn(fn -> Process.sleep(300) end)
-      Horde.Registry.register(horde, :carmen, carmen)
+
+      carmen =
+        spawn(fn ->
+          Horde.Registry.register(horde, :carmen, "carmen")
+          Process.sleep(300)
+        end)
+
       Process.sleep(20)
 
       assert {:normal, {GenServer, :call, _}} =
@@ -171,8 +200,13 @@ defmodule RegistryTest do
     test "sending message to existing process" do
       horde = Horde.Registry.ClusterF
       {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
-      carmen = spawn(fn -> Process.sleep(300) end)
-      Horde.Registry.register(horde, :carmen, carmen)
+
+      carmen =
+        spawn(fn ->
+          Horde.Registry.register(horde, :carmen, "carmen")
+          Process.sleep(300)
+        end)
+
       Process.sleep(20)
 
       assert "Where are you?" = Horde.Registry.send({horde, :carmen}, "Where are you?")

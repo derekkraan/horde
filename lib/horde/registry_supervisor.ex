@@ -28,13 +28,6 @@ defmodule Horde.RegistrySupervisor do
        ship_debounce: 100},
       {DeltaCrdt.CausalCrdt,
        crdt: DeltaCrdt.AWLWWMap,
-       notify: {root_name, :pids_updated},
-       name: pids_crdt_name(root_name),
-       sync_interval: 5,
-       ship_interval: 50,
-       ship_debounce: 100},
-      {DeltaCrdt.CausalCrdt,
-       crdt: DeltaCrdt.AWLWWMap,
        notify: {root_name, :keys_updated},
        name: keys_crdt_name(root_name),
        sync_interval: 5,
@@ -58,6 +51,5 @@ defmodule Horde.RegistrySupervisor do
 
   defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
   defp registry_crdt_name(name), do: :"#{name}.RegistryCrdt"
-  defp pids_crdt_name(name), do: :"#{name}.PidsCrdt"
   defp keys_crdt_name(name), do: :"#{name}.KeysCrdt"
 end
