@@ -30,20 +30,6 @@ defmodule RegistryTest do
       {:ok, members} = Horde.Cluster.members(:horde_2_b)
       assert 3 = Enum.count(members)
     end
-
-    test "25 hordes can join in one gargantuan horde" do
-      last_horde =
-        1..25
-        |> Enum.reduce(nil, fn x, last_horde ->
-          {:ok, _horde} = Horde.Registry.start_link(name: :"horde_#{x}_c", keys: :unique)
-          if last_horde, do: Horde.Cluster.join_hordes(:"horde_#{x}_c", last_horde)
-          :"horde_#{x}_c"
-        end)
-
-      Process.sleep(3000)
-      {:ok, members} = Horde.Cluster.members(last_horde)
-      assert 25 = Enum.count(members)
-    end
   end
 
   describe ".register/3" do
@@ -54,7 +40,6 @@ defmodule RegistryTest do
 
       Horde.Registry.register(horde, :highlander, "val")
       Horde.Registry.register(horde, :highlander, "val")
-      Process.sleep(20)
       processes = Horde.Registry.processes(horde)
       assert [:highlander] = Map.keys(processes)
     end
