@@ -118,6 +118,8 @@ defmodule Horde.Registry do
 
   # def dispatch(registry, key, mfa_or_fun, opts \\ [])
 
+  @spec keys(registry :: Registry.registry(), pid()) :: [Registry.key()]
+  @doc "Returns registered keys for `pid`"
   def keys(registry, pid) do
     case :ets.lookup(get_pids_ets_table(registry), pid) do
       [] -> []
