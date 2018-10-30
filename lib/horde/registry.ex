@@ -67,8 +67,8 @@ defmodule Horde.Registry do
   @doc "Register a process under the given name"
   @spec register(horde :: GenServer.server(), name :: Registry.key(), value :: Registry.value()) ::
           {:ok, pid()} | {:error, :already_registered, pid()}
-  def register(horde, name, _value) do
-    GenServer.call(horde, {:register, name, self()})
+  def register(horde, name, value) do
+    GenServer.call(horde, {:register, name, value, self()})
   end
 
   @doc "unregister the process under the given name"
@@ -85,7 +85,7 @@ defmodule Horde.Registry do
 
   @doc "Finds the `{pid, value}` for the given `key` in `registry`"
   def lookup(registry, key) do
-    with [{^key, pid}] <- :ets.lookup(get_keys_ets_table(registry), key),
+    with [{^key, {pid, _value}}] <- :ets.lookup(get_keys_ets_table(registry), key),
          true <- process_alive?(pid) do
       pid
     else
@@ -118,7 +118,12 @@ defmodule Horde.Registry do
     :ets.info(get_keys_ets_table(registry), :size)
   end
 
-  # def count_match(registry, key, pattern, guards \\ [])
+  def count_match(registry, key, pattern, guards \\ [])
+      when is_atom(registry) and is_list(guards) do
+    guards = [{:"=:=", {:element, 1, :"$_"}, {:const, key}} | guards]
+    spec = [{{:_, {:_, pattern}}, guards, [true]}]
+    :ets.select_count(get_keys_ets_table(registry), spec)
+  end
 
   # def dispatch(registry, key, mfa_or_fun, opts \\ [])
 
@@ -149,8 +154,10 @@ defmodule Horde.Registry do
 
   @doc false
   # @spec register_name({pid, term}, pid) :: :yes | :no
-  def register_name({horde, name}, pid) do
-    case GenServer.call(horde, {:register, name, pid}) do
+  def register_name({registry, key}, pid), do: register_name({registry, key, nil}, pid)
+
+  def register_name({registry, key, name}, pid) do
+    case GenServer.call(registry, {:register, key, nil, pid}) do
       {:ok, _pid} -> :yes
       _ -> :no
     end

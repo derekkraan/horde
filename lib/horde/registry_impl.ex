@@ -171,10 +171,10 @@ defmodule Horde.RegistryImpl do
   def handle_call(:get_keys_ets_table, _from, %{keys_ets_table: t} = state),
     do: {:reply, t, state}
 
-  def handle_call({:register, name, pid}, _from, state) do
+  def handle_call({:register, name, value, pid}, _from, state) do
     GenServer.cast(
       state.keys_pid,
-      {:operation, {:add, [name, pid]}}
+      {:operation, {:add, [name, {pid, value}]}}
     )
 
     case :ets.lookup(state.pids_ets_table, pid) do
@@ -185,19 +185,21 @@ defmodule Horde.RegistryImpl do
         :ets.insert(state.pids_ets_table, {pid, [name | names]})
     end
 
-    :ets.insert(state.keys_ets_table, {name, pid})
+    :ets.insert(state.keys_ets_table, {name, {pid, value}})
 
-    {:reply, {:ok, pid}, state}
+    {:reply, {:ok, self()}, state}
   end
 
-  def handle_call({:unregister, name, pid}, _from, state) do
+  # def register_key(
+
+  def handle_call({:unregister, key, pid}, _from, state) do
     GenServer.cast(
       state.keys_pid,
-      {:operation, {:remove, [name]}}
+      {:operation, {:remove, [key]}}
     )
 
-    :ets.delete_object(state.pids_ets_table, {pid, name})
-    :ets.delete_object(state.keys_ets_table, {name, pid})
+    :ets.delete_object(state.pids_ets_table, {pid, key})
+    :ets.match_delete(state.keys_ets_table, {key, {pid, :_}})
 
     {:reply, :ok, state}
   end
@@ -222,7 +224,7 @@ defmodule Horde.RegistryImpl do
   end
 
   defp invert_keys(keys) do
-    Enum.reduce(keys, %{}, fn {key, pid}, pids ->
+    Enum.reduce(keys, %{}, fn {key, {pid, value}}, pids ->
       Map.update(pids, pid, [key], fn existing_keys -> [key | existing_keys] end)
     end)
   end

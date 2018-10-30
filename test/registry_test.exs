@@ -126,6 +126,29 @@ defmodule RegistryTest do
     end
   end
 
+  describe ".count_match/4" do
+    test "returns correct number" do
+      {:ok, _} = Horde.Registry.start_link(name: :count_match_horde, keys: :unique)
+
+      Horde.Registry.register(:count_match_horde, "foo", "foo")
+      Horde.Registry.register(:count_match_horde, "bar", bar: 33)
+
+      assert 1 = Horde.Registry.count_match(:count_match_horde, "foo", :_)
+      assert 0 = Horde.Registry.count_match(:count_match_horde, "bar", bar: 34)
+      assert 1 = Horde.Registry.count_match(:count_match_horde, "bar", bar: 33)
+
+      assert 0 =
+               Horde.Registry.count_match(:count_match_horde, "bar", [bar: :"$1"], [
+                 {:>, :"$1", 34}
+               ])
+
+      assert 1 =
+               Horde.Registry.count_match(:count_match_horde, "bar", [bar: :"$1"], [
+                 {:>, :"$1", 32}
+               ])
+    end
+  end
+
   describe ".leave_horde/2" do
     test "can leave horde" do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_g, keys: :unique)
