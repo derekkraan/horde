@@ -117,6 +117,15 @@ defmodule RegistryTest do
     end
   end
 
+  describe ".count/1" do
+    test "returns correct number" do
+      {:ok, _} = Horde.Registry.start_link(name: :count_horde, keys: :unique)
+      Horde.Registry.register(:count_horde, "foo", "foo")
+      Horde.Registry.register(:count_horde, "bar", "bar")
+      assert 2 = Horde.Registry.count(:count_horde)
+    end
+  end
+
   describe ".leave_horde/2" do
     test "can leave horde" do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_g, keys: :unique)

@@ -112,7 +112,11 @@ defmodule Horde.Registry do
     GenServer.call(registry, {:put_meta, key, value})
   end
 
-  # def count(registry)
+  @spec count(registry :: Registry.registry()) :: non_neg_integer()
+  @doc "Returns the number of keys in a registry. It runs in constant time."
+  def count(registry) do
+    :ets.info(get_keys_ets_table(registry), :size)
+  end
 
   # def count_match(registry, key, pattern, guards \\ [])
 
