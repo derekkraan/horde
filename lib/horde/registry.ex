@@ -141,9 +141,21 @@ defmodule Horde.Registry do
     :ets.select(get_keys_ets_table(registry), spec)
   end
 
-  # def dispatch(registry, key, mfa_or_fun, opts \\ [])
+  # def dispatch(registry, key, mfa_or_fun, opts \\ []) do
+  # end
 
-  # def unregister_match(registry, key, pattern, guards \\ [])
+  def unregister_match(registry, key, pattern, guards \\ []) when is_list(guards) do
+    self = self()
+    underscore_guard = {:"=:=", {:element, 1, :"$_"}, {:const, key}}
+    delete_spec = [{{:_, {self, pattern}}, [underscore_guard | guards], [:"$_"]}]
+
+    :ets.select(get_keys_ets_table(registry), delete_spec)
+    |> Enum.each(fn {key, {pid, _val}} ->
+      GenServer.call(registry, {:unregister, key, pid})
+    end)
+
+    :ok
+  end
 
   def update_value(registry, key, callback) do
     case :ets.lookup(get_keys_ets_table(registry), key) do

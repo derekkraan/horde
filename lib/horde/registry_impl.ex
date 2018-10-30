@@ -207,7 +207,11 @@ defmodule Horde.RegistryImpl do
       {:operation, {:remove, [key]}}
     )
 
-    :ets.delete_object(state.pids_ets_table, {pid, key})
+    case :ets.lookup(state.pids_ets_table, pid) do
+      [] -> []
+      [{pid, keys}] -> :ets.insert(state.pids_ets_table, {pid, List.delete(keys, key)})
+    end
+
     :ets.match_delete(state.keys_ets_table, {key, {pid, :_}})
 
     {:reply, :ok, state}

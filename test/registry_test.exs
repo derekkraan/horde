@@ -117,6 +117,57 @@ defmodule RegistryTest do
     end
   end
 
+  describe ".unregister_match/4" do
+    test "unregisters matching processes" do
+      Horde.Registry.start_link(name: :unregister_match_horde, keys: :unique)
+      Horde.Registry.register(:unregister_match_horde, "to_unregister", "match_unregister")
+      Horde.Registry.register(:unregister_match_horde, "another_key", value: 12)
+
+      :ok =
+        Horde.Registry.unregister_match(
+          :unregister_match_horde,
+          "another_key",
+          [value: :"$1"],
+          [{:>, :"$1", 12}]
+        )
+
+      assert ["another_key", "to_unregister"] =
+               Horde.Registry.keys(:unregister_match_horde, self())
+
+      :ok =
+        Horde.Registry.unregister_match(
+          :unregister_match_horde,
+          "another_key",
+          [value: :"$1"],
+          [{:>, :"$1", 11}]
+        )
+
+      assert ["to_unregister"] = Horde.Registry.keys(:unregister_match_horde, self())
+
+      :ok =
+        Horde.Registry.unregister_match(
+          :unregister_match_horde,
+          "to_unregister",
+          "doesn't match"
+        )
+
+      assert [{self(), "match_unregister"}] ==
+               Horde.Registry.lookup(:unregister_match_horde, "to_unregister")
+
+      assert ["to_unregister"] = Horde.Registry.keys(:unregister_match_horde, self())
+
+      :ok =
+        Horde.Registry.unregister_match(
+          :unregister_match_horde,
+          "to_unregister",
+          "match_unregister"
+        )
+
+      assert :undefined = Horde.Registry.lookup(:unregister_match_horde, "to_unregister")
+      assert [] = Horde.Registry.keys(:unregister_match_horde, self())
+    end
+  end
+
   describe ".count/1" do
     test "returns correct number" do
       {:ok, _} = Horde.Registry.start_link(name: :count_horde, keys: :unique)
