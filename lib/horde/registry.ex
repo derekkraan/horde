@@ -85,9 +85,9 @@ defmodule Horde.Registry do
 
   @doc "Finds the `{pid, value}` for the given `key` in `registry`"
   def lookup(registry, key) do
-    with [{^key, {pid, _value}}] <- :ets.lookup(get_keys_ets_table(registry), key),
+    with [{^key, {pid, value}}] <- :ets.lookup(get_keys_ets_table(registry), key),
          true <- process_alive?(pid) do
-      pid
+      [{pid, value}]
     else
       _ -> :undefined
     end
@@ -125,8 +125,6 @@ defmodule Horde.Registry do
     :ets.select_count(get_keys_ets_table(registry), spec)
   end
 
-  # def dispatch(registry, key, mfa_or_fun, opts \\ [])
-
   @spec keys(registry :: Registry.registry(), pid()) :: [Registry.key()]
   @doc "Returns registered keys for `pid`"
   def keys(registry, pid) do
@@ -143,9 +141,21 @@ defmodule Horde.Registry do
     :ets.select(get_keys_ets_table(registry), spec)
   end
 
+  # def dispatch(registry, key, mfa_or_fun, opts \\ [])
+
   # def unregister_match(registry, key, pattern, guards \\ [])
 
-  # def update_value(registry, key, callback)
+  def update_value(registry, key, callback) do
+    case :ets.lookup(get_keys_ets_table(registry), key) do
+      [] ->
+        :error
+
+      [{key, {pid, value}}] = out ->
+        new_value = callback.(value)
+        :ok = GenServer.call(registry, {:update_value, key, pid, new_value})
+        {new_value, value}
+    end
+  end
 
   @doc """
   Get the process registry of the horde
@@ -171,7 +181,10 @@ defmodule Horde.Registry do
   @doc false
   # @spec whereis_name({pid, term}) :: pid | :undefined
   def whereis_name({horde, name}) do
-    lookup(horde, name)
+    case lookup(horde, name) do
+      :undefined -> :undefined
+      [{pid, _val}] -> pid
+    end
   end
 
   @doc false
@@ -181,7 +194,7 @@ defmodule Horde.Registry do
   def send({horde, name}, msg) do
     case lookup(horde, name) do
       :undefined -> :erlang.error(:badarg, [{horde, name}, msg])
-      pid -> Kernel.send(pid, msg)
+      [{pid, _value}] -> Kernel.send(pid, msg)
     end
   end
 

@@ -1,5 +1,5 @@
 defmodule RegistryTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   doctest Horde.Registry
 
   describe ".start_link/1" do
@@ -93,7 +93,7 @@ defmodule RegistryTest do
       {:ok, apid} = Agent.start_link(fn -> 0 end, name: name)
       Process.sleep(10)
       assert 0 = Agent.get(name, & &1)
-      assert apid == Horde.Registry.lookup(horde, "precious")
+      assert [{apid, nil}] == Horde.Registry.lookup(horde, "precious")
     end
   end
 
@@ -173,6 +173,19 @@ defmodule RegistryTest do
     end
   end
 
+  describe ".update_value/3" do
+    test "updates value" do
+      {:ok, _} = Horde.Registry.start_link(name: :update_value_horde, keys: :unique)
+      Horde.Registry.register(:update_value_horde, "foo", "foo")
+
+      assert {"bar", "foo"} =
+               Horde.Registry.update_value(:update_value_horde, "foo", fn "foo" -> "bar" end)
+
+      self = self()
+      assert [{^self, "bar"}] = Horde.Registry.lookup(:update_value_horde, "foo")
+    end
+  end
+
   describe ".leave_horde/2" do
     test "can leave horde" do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_g, keys: :unique)
@@ -197,7 +210,7 @@ defmodule RegistryTest do
 
       Horde.Registry.register(horde, :carmen, "foo")
 
-      assert self() == Horde.Registry.lookup(horde, :carmen)
+      assert [{self(), "foo"}] == Horde.Registry.lookup(horde, :carmen)
     end
 
     test "existing processes with via tuple" do
@@ -207,7 +220,7 @@ defmodule RegistryTest do
       Horde.Registry.register(horde, :carmen, "bar")
 
       name = {:via, Horde.Registry, {horde, :carmen}}
-      assert self() == Horde.Registry.lookup(name)
+      assert [{self(), "bar"}] == Horde.Registry.lookup(name)
     end
   end
 

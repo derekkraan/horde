@@ -171,26 +171,35 @@ defmodule Horde.RegistryImpl do
   def handle_call(:get_keys_ets_table, _from, %{keys_ets_table: t} = state),
     do: {:reply, t, state}
 
-  def handle_call({:register, name, value, pid}, _from, state) do
+  def handle_call({:register, key, value, pid}, _from, state) do
     GenServer.cast(
       state.keys_pid,
-      {:operation, {:add, [name, {pid, value}]}}
+      {:operation, {:add, [key, {pid, value}]}}
     )
 
     case :ets.lookup(state.pids_ets_table, pid) do
       [] ->
-        :ets.insert(state.pids_ets_table, {pid, [name]})
+        :ets.insert(state.pids_ets_table, {pid, [key]})
 
-      [{_pid, names}] ->
-        :ets.insert(state.pids_ets_table, {pid, [name | names]})
+      [{_pid, keys}] ->
+        :ets.insert(state.pids_ets_table, {pid, [key | keys]})
     end
 
-    :ets.insert(state.keys_ets_table, {name, {pid, value}})
+    :ets.insert(state.keys_ets_table, {key, {pid, value}})
 
     {:reply, {:ok, self()}, state}
   end
 
-  # def register_key(
+  def handle_call({:update_value, key, pid, value}, _from, state) do
+    GenServer.cast(
+      state.keys_pid,
+      {:operation, {:add, [key, {pid, value}]}}
+    )
+
+    :ets.insert(state.keys_ets_table, {key, {pid, value}})
+
+    {:reply, :ok, state}
+  end
 
   def handle_call({:unregister, key, pid}, _from, state) do
     GenServer.cast(
