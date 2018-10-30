@@ -141,8 +141,19 @@ defmodule Horde.Registry do
     :ets.select(get_keys_ets_table(registry), spec)
   end
 
-  # def dispatch(registry, key, mfa_or_fun, opts \\ []) do
-  # end
+  def dispatch(registry, key, mfa_or_fun, opts \\ []) do
+    case :ets.lookup(get_keys_ets_table(registry), key) do
+      [] ->
+        :ok
+
+      [{key, pid_value}] ->
+        do_dispatch(mfa_or_fun, [pid_value])
+        :ok
+    end
+  end
+
+  defp do_dispatch({m, f, a}, entries), do: apply(m, f, [entries | a])
+  defp do_dispatch(fun, entries), do: fun.(entries)
 
   def unregister_match(registry, key, pattern, guards \\ []) when is_list(guards) do
     self = self()

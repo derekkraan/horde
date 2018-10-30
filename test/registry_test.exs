@@ -168,6 +168,29 @@ defmodule RegistryTest do
     end
   end
 
+  describe ".dispatch/4" do
+    test "dispatches to correct processes" do
+      Horde.Registry.start_link(name: :dispatch_registry, keys: :unique)
+      Horde.Registry.register(:dispatch_registry, "d1", "value1")
+      Horde.Registry.register(:dispatch_registry, "d2", "value2")
+
+      assert :ok =
+               Horde.Registry.dispatch(:dispatch_registry, "d1", fn [{pid, value}] ->
+                 send(pid, {:value, value})
+               end)
+
+      assert_received({:value, "value1"})
+
+      defmodule TestSender do
+        def send([{pid, value}]), do: Kernel.send(pid, {:value, value})
+      end
+
+      assert :ok = Horde.Registry.dispatch(:dispatch_registry, "d2", {TestSender, :send, []})
+
+      assert_received({:value, "value2"})
+    end
+  end
+
   describe ".count/1" do
     test "returns correct number" do
       {:ok, _} = Horde.Registry.start_link(name: :count_horde, keys: :unique)
