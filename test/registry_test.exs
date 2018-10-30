@@ -149,6 +149,30 @@ defmodule RegistryTest do
     end
   end
 
+  describe ".match/4" do
+    test "returns correct pids / values" do
+      {:ok, _} = Horde.Registry.start_link(name: :match_horde, keys: :unique)
+
+      Horde.Registry.register(:match_horde, "foo", "foo")
+      Horde.Registry.register(:match_horde, "bar", bar: 33)
+
+      self = self()
+      assert [{^self, "foo"}] = Horde.Registry.match(:match_horde, "foo", :_)
+      assert [] = Horde.Registry.match(:match_horde, "bar", bar: 34)
+      assert [{^self, bar: 33}] = Horde.Registry.match(:match_horde, "bar", bar: 33)
+
+      assert [] =
+               Horde.Registry.match(:match_horde, "bar", [bar: :"$1"], [
+                 {:>, :"$1", 34}
+               ])
+
+      assert [{^self, bar: 33}] =
+               Horde.Registry.match(:match_horde, "bar", [bar: :"$1"], [
+                 {:>, :"$1", 32}
+               ])
+    end
+  end
+
   describe ".leave_horde/2" do
     test "can leave horde" do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_g, keys: :unique)

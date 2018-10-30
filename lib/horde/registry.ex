@@ -136,7 +136,12 @@ defmodule Horde.Registry do
     end
   end
 
-  # def match(registry, key, pattern, guards \\ [])
+  def match(registry, key, pattern, guards \\ [])
+      when is_atom(registry) and is_list(guards) do
+    guards = [{:"=:=", {:element, 1, :"$_"}, {:const, key}} | guards]
+    spec = [{{:_, {:_, pattern}}, guards, [{:element, 2, :"$_"}]}]
+    :ets.select(get_keys_ets_table(registry), spec)
+  end
 
   # def unregister_match(registry, key, pattern, guards \\ [])
 
