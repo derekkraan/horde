@@ -112,7 +112,7 @@ defmodule Horde.RegistryImpl do
 
   def handle_cast(
         {:request_to_join_hordes,
-         {:registry, _other_node_id, other_members_pid, dirty_partition, reply_to}},
+         {:registry, _other_node_id, other_members_pid, _dirty_partition, reply_to}},
         state
       ) do
     send(state.members_pid, {:add_neighbours, [other_members_pid]})
@@ -293,7 +293,7 @@ defmodule Horde.RegistryImpl do
   end
 
   defp invert_keys(keys) do
-    Enum.reduce(keys, %{}, fn {key, {pid, value}}, pids ->
+    Enum.reduce(keys, %{}, fn {key, {pid, _value}}, pids ->
       Map.update(pids, pid, [key], fn existing_keys -> [key | existing_keys] end)
     end)
   end
