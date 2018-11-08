@@ -50,11 +50,7 @@ defmodule Horde.SupervisorImpl do
     state = %{state | members: %{state.node_id => node_info(state)}}
 
     # add self to members CRDT
-    GenServer.call(
-      members_name(name),
-      {:operation, {:add, [state.node_id, node_info(state)]}},
-      :infinity
-    )
+    DeltaCrdt.mutate(members_name(name), :add, [state.node_id, node_info(state)], :infinity)
 
     {:ok, state}
   end
@@ -70,11 +66,7 @@ defmodule Horde.SupervisorImpl do
   def handle_call(:horde_shutting_down, _f, state) do
     state = %{state | shutting_down: true}
 
-    GenServer.call(
-      members_name(state.name),
-      {:operation, {:add, [state.node_id, node_info(state)]}},
-      :infinity
-    )
+    DeltaCrdt.mutate(members_name(state.name), :add, [state.node_id, node_info(state)], :infinity)
 
     {:reply, :ok, state}
   end
@@ -94,12 +86,7 @@ defmodule Horde.SupervisorImpl do
 
         new_state = %{state | processes: Map.delete(state.processes, child_id)}
 
-        :ok =
-          GenServer.call(
-            processes_name(state.name),
-            {:operation, {:remove, [child_id]}},
-            :infinity
-          )
+        :ok = DeltaCrdt.mutate(processes_name(state.name), :remove, [child_id], :infinity)
 
         {:reply, reply, new_state}
 
@@ -235,16 +222,7 @@ defmodule Horde.SupervisorImpl do
   defp mark_alive(state) do
     case Map.get(state.members, state.node_id) do
       nil ->
-        GenServer.call(
-          state.members_pid,
-          {:operation,
-           {:add,
-            [
-              state.node_id,
-              node_info(state)
-            ]}},
-          :infinity
-        )
+        DeltaCrdt.mutate(state.members_pid, :add, [state.node_id, node_info(state)], :infinity)
 
         new_members = Map.put(state.members, state.node_id, node_info(state))
 
@@ -256,11 +234,7 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp mark_dead(state, node_id) do
-    GenServer.call(
-      members_name(state.name),
-      {:operation, {:remove, [node_id]}},
-      :infinity
-    )
+    DeltaCrdt.mutate(members_name(state.name), :remove, [node_id], :infinity)
 
     state
   end
@@ -296,7 +270,7 @@ defmodule Horde.SupervisorImpl do
 
   @doc false
   def handle_info({:processes_updated, reply_to}, state) do
-    processes = DeltaCrdt.CausalCrdt.read(processes_name(state.name), 30_000)
+    processes = DeltaCrdt.read(processes_name(state.name), 30_000)
 
     new_state =
       %{state | processes: processes}
@@ -317,7 +291,7 @@ defmodule Horde.SupervisorImpl do
 
   @doc false
   def handle_info({:members_updated, reply_to}, state) do
-    members = DeltaCrdt.CausalCrdt.read(members_name(state.name), 30_000)
+    members = DeltaCrdt.read(members_name(state.name), 30_000)
 
     monitor_supervisors(members, state)
 
@@ -492,9 +466,10 @@ defmodule Horde.SupervisorImpl do
 
   defp update_state_with_child(child, state) do
     :ok =
-      GenServer.call(
+      DeltaCrdt.mutate(
         processes_name(state.name),
-        {:operation, {:add, [child.id, {state.node_id, child}]}},
+        :add,
+        [child.id, {state.node_id, child}],
         :infinity
       )
 
