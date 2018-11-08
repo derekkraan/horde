@@ -21,12 +21,19 @@ defmodule Horde.RegistrySupervisor do
        ship_debounce: 1},
       {DeltaCrdt.CausalCrdt,
        crdt: DeltaCrdt.AWLWWMap,
-       notify: {root_name, :processes_updated},
-       name: processes_crdt_name(root_name),
+       notify: {root_name, :registry_updated},
+       name: registry_crdt_name(root_name),
        sync_interval: 5,
        ship_interval: 50,
        ship_debounce: 100},
-      {Horde.RegistryImpl, name: root_name}
+      {DeltaCrdt.CausalCrdt,
+       crdt: DeltaCrdt.AWLWWMap,
+       notify: {root_name, :keys_updated},
+       name: keys_crdt_name(root_name),
+       sync_interval: 5,
+       ship_interval: 50,
+       ship_debounce: 100},
+      {Horde.RegistryImpl, name: root_name, meta: Keyword.get(options, :meta)}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)
@@ -43,5 +50,6 @@ defmodule Horde.RegistrySupervisor do
   end
 
   defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
-  defp processes_crdt_name(name), do: :"#{name}.ProcessesCrdt"
+  defp registry_crdt_name(name), do: :"#{name}.RegistryCrdt"
+  defp keys_crdt_name(name), do: :"#{name}.KeysCrdt"
 end

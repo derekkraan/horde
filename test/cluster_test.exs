@@ -3,8 +3,8 @@ defmodule ClusterTest do
 
   describe ".join_hordes/2" do
     test "returns true when registries joined" do
-      {:ok, _reg1} = Horde.Registry.start_link(name: :reg1)
-      {:ok, _reg2} = Horde.Registry.start_link(name: :reg2)
+      {:ok, _reg1} = Horde.Registry.start_link(name: :reg1, keys: :unique)
+      {:ok, _reg2} = Horde.Registry.start_link(name: :reg2, keys: :unique)
       assert true = Horde.Cluster.join_hordes(:reg1, :reg2)
     end
 
@@ -15,7 +15,7 @@ defmodule ClusterTest do
     end
 
     test "returns false when other registry doesn't exist" do
-      {:ok, _reg3} = Horde.Registry.start_link(name: :reg3)
+      {:ok, _reg3} = Horde.Registry.start_link(name: :reg3, keys: :unique)
       assert false == Horde.Cluster.join_hordes(:reg3, :doesnt_exist, 100)
     end
 
