@@ -38,10 +38,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def terminate(_reason, state) do
-    GenServer.cast(
-      state.members_pid,
-      {:operation, {:remove, [state.node_id]}}
-    )
+    DeltaCrdt.mutate_async(state.members_pid, :remove, [state.node_id])
   end
 
   ### GenServer callbacks
@@ -69,20 +66,19 @@ defmodule Horde.RegistryImpl do
     :ets.new(pids_name, [:named_table, {:read_concurrency, true}])
     :ets.new(keys_name, [:named_table, {:read_concurrency, true}])
 
-    GenServer.cast(
+    DeltaCrdt.mutate_async(
       members_crdt_name(name),
-      {:operation,
-       {:add,
-        [
-          node_id,
-          %{
-            own_pid: self(),
-            members_pid: members_pid,
-            registry_pid: registry_pid,
-            keys_pid: keys_pid,
-            dirty_partition: false
-          }
-        ]}}
+      :add,
+      [
+        node_id,
+        %{
+          own_pid: self(),
+          members_pid: members_pid,
+          registry_pid: registry_pid,
+          keys_pid: keys_pid,
+          dirty_partition: false
+        }
+      ]
     )
 
     state = %State{
@@ -116,7 +112,7 @@ defmodule Horde.RegistryImpl do
 
   def handle_cast(
         {:request_to_join_hordes,
-         {:registry, _other_node_id, other_members_pid, dirty_partition, reply_to}},
+         {:registry, _other_node_id, other_members_pid, _dirty_partition, reply_to}},
         state
       ) do
     send(state.members_pid, {:add_neighbours, [other_members_pid]})
@@ -125,14 +121,14 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_info({:registry_updated, reply_to}, state) do
-    registry = DeltaCrdt.CausalCrdt.read(state.registry_pid, 30_000)
+    registry = DeltaCrdt.read(state.registry_pid, 30_000)
     sync_ets_table(state.registry_ets_table, registry)
     GenServer.reply(reply_to, :ok)
     {:noreply, state}
   end
 
   def handle_info({:keys_updated, reply_to}, state) do
-    keys = DeltaCrdt.CausalCrdt.read(state.keys_pid, 30_000)
+    keys = DeltaCrdt.read(state.keys_pid, 30_000)
     sync_ets_table(state.pids_ets_table, invert_keys(keys))
     sync_ets_table(state.keys_ets_table, keys)
     GenServer.reply(reply_to, :ok)
@@ -140,7 +136,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_info({:members_updated, reply_to}, state) do
-    members = DeltaCrdt.CausalCrdt.read(state.members_pid, 30_000)
+    members = DeltaCrdt.read(state.members_pid, 30_000)
 
     dirty_partition =
       state.dirty_partition ||
@@ -187,7 +183,7 @@ defmodule Horde.RegistryImpl do
     case :ets.take(state.pids_ets_table, pid) do
       [{_pid, keys}] ->
         Enum.each(keys, fn key ->
-          GenServer.cast(state.keys_pid, {:operation, {:remove, [key]}})
+          DeltaCrdt.mutate_async(state.keys_pid, :remove, [key])
           :ets.match_delete(state.keys_ets_table, {key, {pid, :_}})
         end)
 
@@ -234,10 +230,7 @@ defmodule Horde.RegistryImpl do
   def handle_call({:register, key, value, pid}, _from, state) do
     Process.link(pid)
 
-    GenServer.cast(
-      state.keys_pid,
-      {:operation, {:add, [key, {pid, value}]}}
-    )
+    DeltaCrdt.mutate_async(state.keys_pid, :add, [key, {pid, value}])
 
     case :ets.lookup(state.pids_ets_table, pid) do
       [] ->
@@ -253,10 +246,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_call({:update_value, key, pid, value}, _from, state) do
-    GenServer.cast(
-      state.keys_pid,
-      {:operation, {:add, [key, {pid, value}]}}
-    )
+    DeltaCrdt.mutate_async(state.keys_pid, :add, [key, {pid, value}])
 
     :ets.insert(state.keys_ets_table, {key, {pid, value}})
 
@@ -264,10 +254,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_call({:unregister, key, pid}, _from, state) do
-    GenServer.cast(
-      state.keys_pid,
-      {:operation, {:remove, [key]}}
-    )
+    DeltaCrdt.mutate_async(state.keys_pid, :remove, [key])
 
     case :ets.lookup(state.pids_ets_table, pid) do
       [] -> []
@@ -300,16 +287,13 @@ defmodule Horde.RegistryImpl do
   end
 
   defp put_meta(state, key, value) do
-    GenServer.cast(
-      state.registry_pid,
-      {:operation, {:add, [key, value]}}
-    )
+    DeltaCrdt.mutate_async(state.registry_pid, :add, [key, value])
 
     :ets.insert(state.registry_ets_table, {key, value})
   end
 
   defp invert_keys(keys) do
-    Enum.reduce(keys, %{}, fn {key, {pid, value}}, pids ->
+    Enum.reduce(keys, %{}, fn {key, {pid, _value}}, pids ->
       Map.update(pids, pid, [key], fn existing_keys -> [key | existing_keys] end)
     end)
   end

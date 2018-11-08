@@ -7,7 +7,7 @@ defmodule Horde.SupervisorSupervisor do
     root_name = get_root_name(options)
 
     children = [
-      {DeltaCrdt.CausalCrdt,
+      {DeltaCrdt,
        crdt: DeltaCrdt.AWLWWMap,
        notify: {root_name, :members_updated},
        name: members_crdt_name(root_name),
@@ -15,7 +15,7 @@ defmodule Horde.SupervisorSupervisor do
        ship_interval: 5,
        ship_debounce: 1,
        shutdown: 30_000},
-      {DeltaCrdt.CausalCrdt,
+      {DeltaCrdt,
        crdt: DeltaCrdt.AWLWWMap,
        notify: {root_name, :processes_updated},
        name: processes_crdt_name(root_name),
