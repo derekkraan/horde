@@ -141,12 +141,12 @@ defmodule Horde.Registry do
     :ets.select(get_keys_ets_table(registry), spec)
   end
 
-  def dispatch(registry, key, mfa_or_fun, opts \\ []) do
+  def dispatch(registry, key, mfa_or_fun, _opts \\ []) do
     case :ets.lookup(get_keys_ets_table(registry), key) do
       [] ->
         :ok
 
-      [{key, pid_value}] ->
+      [{_key, pid_value}] ->
         do_dispatch(mfa_or_fun, [pid_value])
         :ok
     end
@@ -173,7 +173,7 @@ defmodule Horde.Registry do
       [] ->
         :error
 
-      [{key, {pid, value}}] = out ->
+      [{key, {pid, value}}] ->
         new_value = callback.(value)
         :ok = GenServer.call(registry, {:update_value, key, pid, new_value})
         {new_value, value}
@@ -194,10 +194,10 @@ defmodule Horde.Registry do
   # @spec register_name({pid, term}, pid) :: :yes | :no
   def register_name({registry, key}, pid), do: register_name({registry, key, nil}, pid)
 
-  def register_name({registry, key, name}, pid) do
-    case GenServer.call(registry, {:register, key, nil, pid}) do
+  def register_name({registry, key, value}, pid) do
+    case GenServer.call(registry, {:register, key, value, pid}) do
       {:ok, _pid} -> :yes
-      _ -> :no
+      {:error, _} -> :no
     end
   end
 

@@ -20,7 +20,7 @@ defmodule RegistryTest do
       assert 2 = Enum.count(members)
     end
 
-    test "three hordes can join in one giant horde" do
+    test "three nodes can make a single registry" do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_b, keys: :unique)
       {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_b, keys: :unique)
       {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_b, keys: :unique)
