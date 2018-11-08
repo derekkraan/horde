@@ -65,16 +65,19 @@ defmodule Horde.Registry do
   ### Public API
 
   @doc "Register a process under the given name"
-  @spec register(horde :: GenServer.server(), name :: Registry.key(), value :: Registry.value()) ::
-          {:ok, pid()} | {:error, :already_registered, pid()}
-  def register(horde, name, value) do
-    GenServer.call(horde, {:register, name, value, self()})
+  @spec register(
+          registry :: GenServer.server(),
+          name :: Registry.key(),
+          value :: Registry.value()
+        ) :: {:ok, pid()} | {:error, :already_registered, pid()}
+  def register(registry, name, value) do
+    GenServer.call(registry, {:register, name, value, self()})
   end
 
   @doc "unregister the process under the given name"
-  @spec unregister(horde :: GenServer.server(), name :: GenServer.name()) :: :ok
-  def unregister(horde, name) do
-    GenServer.call(horde, {:unregister, name, self()})
+  @spec unregister(registry :: GenServer.server(), name :: GenServer.name()) :: :ok
+  def unregister(registry, name) do
+    GenServer.call(registry, {:unregister, name, self()})
   end
 
   @doc false
@@ -184,8 +187,8 @@ defmodule Horde.Registry do
   Get the process registry of the horde
   """
   @deprecated "Use keys/2 instead"
-  def processes(horde) do
-    :ets.match(get_keys_ets_table(horde), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
+  def processes(registry) do
+    :ets.match(get_keys_ets_table(registry), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
   end
 
   ### Via callbacks
@@ -203,20 +206,20 @@ defmodule Horde.Registry do
 
   @doc false
   # @spec whereis_name({pid, term}) :: pid | :undefined
-  def whereis_name({horde, name}) do
-    case lookup(horde, name) do
+  def whereis_name({registry, name}) do
+    case lookup(registry, name) do
       :undefined -> :undefined
       [{pid, _val}] -> pid
     end
   end
 
   @doc false
-  def unregister_name({horde, name}), do: unregister(horde, name)
+  def unregister_name({registry, name}), do: unregister(registry, name)
 
   @doc false
-  def send({horde, name}, msg) do
-    case lookup(horde, name) do
-      :undefined -> :erlang.error(:badarg, [{horde, name}, msg])
+  def send({registry, name}, msg) do
+    case lookup(registry, name) do
+      :undefined -> :erlang.error(:badarg, [{registry, name}, msg])
       [{pid, _value}] -> Kernel.send(pid, msg)
     end
   end
