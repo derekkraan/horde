@@ -155,7 +155,7 @@ defmodule Horde.RegistryImpl do
       end)
       |> MapSet.delete(nil)
 
-    monitor_members(members, state)
+    monitor_new_members(members, state)
 
     state_member_pids =
       MapSet.new(state.members, fn {_node_id, %{members_pid: members_pid}} ->
@@ -289,7 +289,7 @@ defmodule Horde.RegistryImpl do
     {:reply, {:ok, state.members}, state}
   end
 
-  defp monitor_members(members, state) do
+  defp monitor_new_members(members, state) do
     new_member_pids = MapSet.new(members, fn {_node_id, %{own_pid: own_pid}} -> own_pid end)
 
     existing_member_pids =
