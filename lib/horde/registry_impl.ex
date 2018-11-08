@@ -14,7 +14,8 @@ defmodule Horde.RegistryImpl do
               processes_updated_at: 0,
               registry_ets_table: nil,
               pids_ets_table: nil,
-              keys_ets_table: nil
+              keys_ets_table: nil,
+              dirty_partition: false
   end
 
   @spec child_spec(options :: list()) :: Supervisor.child_spec()
@@ -70,7 +71,7 @@ defmodule Horde.RegistryImpl do
 
     GenServer.cast(
       members_crdt_name(name),
-      {:operation, {:add, [node_id, {members_pid, registry_pid, keys_pid}]}}
+      {:operation, {:add, [node_id, {self(), members_pid, registry_pid, keys_pid}]}}
     )
 
     state = %State{
@@ -95,7 +96,16 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_cast(
-        {:request_to_join_hordes, {:registry, _other_node_id, other_members_pid, reply_to}},
+        {:request_to_join_hordes, {:registry, _, _, reply_to, true}},
+        %{dirty_partition: true} = state
+      ) do
+    GenServer.reply(reply_to, {:error, :network_partition_recovery_not_supported})
+    {:noreply, state}
+  end
+
+  def handle_cast(
+        {:request_to_join_hordes,
+         {:registry, _other_node_id, other_members_pid, reply_to, dirty_partition}},
         state
       ) do
     send(state.members_pid, {:add_neighbours, [other_members_pid]})
@@ -122,13 +132,15 @@ defmodule Horde.RegistryImpl do
     members = DeltaCrdt.CausalCrdt.read(state.members_pid, 30_000)
 
     member_pids =
-      MapSet.new(members, fn {_key, {members_pid, _registry_pid, _keys_pid}} ->
+      MapSet.new(members, fn {_key, {_own_pid, members_pid, _registry_pid, _keys_pid}} ->
         members_pid
       end)
       |> MapSet.delete(nil)
 
+    monitor_members(members, state)
+
     state_member_pids =
-      MapSet.new(state.members, fn {_key, {members_pid, _registry_pid, _keys_pid}} ->
+      MapSet.new(state.members, fn {_key, {_own_pid, members_pid, _registry_pid, _keys_pid}} ->
         members_pid
       end)
       |> MapSet.delete(nil)
@@ -136,11 +148,11 @@ defmodule Horde.RegistryImpl do
     # if there are any new pids in `member_pids`
     if MapSet.difference(member_pids, state_member_pids) |> Enum.any?() do
       registry_pids =
-        MapSet.new(members, fn {_node_id, {_mpid, reg_pid, _keys_pid}} -> reg_pid end)
+        MapSet.new(members, fn {_node_id, {_opid, _mpid, reg_pid, _keys_pid}} -> reg_pid end)
         |> MapSet.delete(nil)
 
       keys_pids =
-        MapSet.new(members, fn {_node_id, {_mpid, _reg_pid, keys_pid}} -> keys_pid end)
+        MapSet.new(members, fn {_node_id, {_opid, _mpid, _reg_pid, keys_pid}} -> keys_pid end)
         |> MapSet.delete(nil)
 
       send(state.members_pid, {:add_neighbours, member_pids})
@@ -168,10 +180,25 @@ defmodule Horde.RegistryImpl do
     {:noreply, state}
   end
 
+  def handle_info({:DOWN, _ref, _type, pid, _reason}, state) do
+    Enum.find(state.members, fn
+      {_node_id, {^pid, _mpid, _rpid, _kpid}} -> true
+      _ -> false
+    end)
+    |> case do
+      nil ->
+        {:noreply, state}
+
+      _ ->
+        {:noreply, %{state | dirty_partition: true}}
+    end
+  end
+
   def handle_call({:join_hordes, other_horde}, from, state) do
     GenServer.cast(
       other_horde,
-      {:request_to_join_hordes, {:registry, state.node_id, state.members_pid, from}}
+      {:request_to_join_hordes,
+       {:registry, state.node_id, state.members_pid, from, state.dirty_partition}}
     )
 
     {:noreply, state}
@@ -242,6 +269,17 @@ defmodule Horde.RegistryImpl do
 
   def handle_call(:members, _from, state) do
     {:reply, {:ok, state.members}, state}
+  end
+
+  defp monitor_members(members, state) do
+    new_member_pids =
+      MapSet.new(members, fn {_key, {own_pid, _mpid, _rpid, _kpid}} -> own_pid end)
+
+    existing_member_pids =
+      MapSet.new(state.members, fn {_key, {own_pid, _mpid, _rpid, _kpid}} -> own_pid end)
+
+    MapSet.difference(new_member_pids, existing_member_pids)
+    |> Enum.each(&Process.monitor/1)
   end
 
   defp put_meta(state, key, value) do

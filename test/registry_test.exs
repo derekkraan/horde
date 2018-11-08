@@ -388,5 +388,49 @@ defmodule RegistryTest do
 
       assert [] = Horde.Registry.keys(registry, pid)
     end
+
+    test "registry notices when a neighbour has disappeared" do
+      r = Horde.Registry.ClusterK1
+      {:ok, _} = Horde.Registry.start_link(name: r, keys: :unique)
+
+      r2 = Horde.Registry.ClusterK2
+      {:ok, _} = Horde.Registry.start_link(name: r2, keys: :unique)
+
+      r3 = Horde.Registry.ClusterK3
+      {:ok, _} = Horde.Registry.start_link(name: r3, keys: :unique)
+
+      r4 = Horde.Registry.ClusterK4
+      {:ok, _} = Horde.Registry.start_link(name: r4, keys: :unique)
+
+      assert %{dirty_partition: false} = :sys.get_state(GenServer.whereis(r))
+
+      Horde.Cluster.join_hordes(r, r2)
+      Horde.Cluster.join_hordes(r3, r4)
+      Process.exit(GenServer.whereis(r2), :kill)
+      Process.exit(GenServer.whereis(r4), :kill)
+
+      Process.sleep(100)
+      assert %{dirty_partition: true} = :sys.get_state(GenServer.whereis(r))
+      assert %{dirty_partition: true} = :sys.get_state(GenServer.whereis(r3))
+
+      assert {:error, :network_partition_recovery_not_supported} =
+               Horde.Cluster.join_hordes(r, r3)
+    end
+
+    test "registry not marked as dirty_partition when registry shut down normally" do
+      r = Horde.Registry.ClusterK1
+      {:ok, _} = Horde.Registry.start_link(name: r, keys: :unique)
+
+      r2 = Horde.Registry.ClusterK2
+      {:ok, _} = Horde.Registry.start_link(name: r2, keys: :unique)
+
+      assert %{dirty_partition: false} = :sys.get_state(GenServer.whereis(r))
+
+      Horde.Cluster.join_hordes(r, r2)
+      Horde.Registry.stop(r2)
+
+      Process.sleep(100)
+      assert %{dirty_partition: false} = :sys.get_state(GenServer.whereis(r))
+    end
   end
 end
