@@ -153,6 +153,21 @@ defmodule Horde.RegistryImpl do
     {:noreply, %{state | members: members}}
   end
 
+  def handle_info({:EXIT, pid, _reason}, state) do
+    case :ets.take(state.pids_ets_table, pid) do
+      [{_pid, keys}] ->
+        Enum.each(keys, fn key ->
+          GenServer.cast(state.keys_pid, {:operation, {:remove, [key]}})
+          :ets.match_delete(state.keys_ets_table, {key, {pid, :_}})
+        end)
+
+      _ ->
+        nil
+    end
+
+    {:noreply, state}
+  end
+
   def handle_call({:join_hordes, other_horde}, from, state) do
     GenServer.cast(
       other_horde,
@@ -172,6 +187,8 @@ defmodule Horde.RegistryImpl do
     do: {:reply, t, state}
 
   def handle_call({:register, key, value, pid}, _from, state) do
+    Process.link(pid)
+
     GenServer.cast(
       state.keys_pid,
       {:operation, {:add, [key, {pid, value}]}}

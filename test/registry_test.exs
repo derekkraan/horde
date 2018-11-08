@@ -367,4 +367,26 @@ defmodule RegistryTest do
       assert :error = Horde.Registry.meta(registry, :non_existant)
     end
   end
+
+  describe "failure scenarios" do
+    test "a process exits and is cleaned up" do
+      registry = Horde.Registry.ClusterJ
+      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+
+      %{pid: pid} =
+        Task.async(fn ->
+          Horde.Registry.register(registry, "key", nil)
+          Process.sleep(100)
+        end)
+
+      Process.sleep(60)
+      assert [{^pid, nil}] = Horde.Registry.lookup(registry, "key")
+      assert 1 = Horde.Registry.count_match(registry, "key", :_)
+
+      Process.sleep(100)
+      assert 0 = Horde.Registry.count_match(registry, "key", :_)
+
+      assert [] = Horde.Registry.keys(registry, pid)
+    end
+  end
 end
