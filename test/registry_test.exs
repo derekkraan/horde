@@ -20,7 +20,7 @@ defmodule RegistryTest do
       assert 2 = Enum.count(members)
     end
 
-    test "three hordes can join in one giant horde" do
+    test "three nodes can make a single registry" do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_b, keys: :unique)
       {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_b, keys: :unique)
       {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_b, keys: :unique)
@@ -365,6 +365,94 @@ defmodule RegistryTest do
       :ok = Horde.Registry.put_meta(registry, :custom_key, "custom_value")
 
       assert :error = Horde.Registry.meta(registry, :non_existant)
+    end
+
+    test "meta is propagated" do
+      r1 = Horde.Registry.PropagateMeta1
+      r2 = Horde.Registry.PropagateMeta2
+      {:ok, _horde} = Horde.Registry.start_link(name: r1, keys: :unique)
+      {:ok, _horde} = Horde.Registry.start_link(name: r2, keys: :unique)
+      Horde.Cluster.join_hordes(r1, r2)
+      Horde.Registry.put_meta(r1, :a_key, "a_value")
+      Process.sleep(200)
+      assert {:ok, "a_value"} = Horde.Registry.meta(r2, :a_key)
+    end
+  end
+
+  describe "failure scenarios" do
+    test "a process exits and is cleaned up" do
+      registry = Horde.Registry.ClusterJ
+      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+
+      %{pid: pid} =
+        Task.async(fn ->
+          Horde.Registry.register(registry, "key", nil)
+          Process.sleep(100)
+        end)
+
+      Process.sleep(60)
+      assert [{^pid, nil}] = Horde.Registry.lookup(registry, "key")
+      assert 1 = Horde.Registry.count_match(registry, "key", :_)
+
+      Process.sleep(100)
+      assert 0 = Horde.Registry.count_match(registry, "key", :_)
+
+      assert [] = Horde.Registry.keys(registry, pid)
+    end
+
+    test "registry notices when a neighbour has disappeared" do
+      r = Horde.Registry.ClusterK1
+      {:ok, _} = Horde.Registry.start_link(name: r, keys: :unique)
+
+      r2 = Horde.Registry.ClusterK2
+      {:ok, _} = Horde.Registry.start_link(name: r2, keys: :unique)
+
+      r3 = Horde.Registry.ClusterK3
+      {:ok, _} = Horde.Registry.start_link(name: r3, keys: :unique)
+
+      r4 = Horde.Registry.ClusterK4
+      {:ok, _} = Horde.Registry.start_link(name: r4, keys: :unique)
+
+      assert %{dirty_partition: false} = :sys.get_state(GenServer.whereis(r))
+
+      Horde.Cluster.join_hordes(r, r2)
+      Horde.Cluster.join_hordes(r3, r4)
+      Process.exit(GenServer.whereis(r2), :kill)
+      Process.exit(GenServer.whereis(r4), :kill)
+
+      Process.sleep(100)
+
+      assert %{dirty_partition: true} = :sys.get_state(GenServer.whereis(r))
+      assert %{dirty_partition: true} = :sys.get_state(GenServer.whereis(r3))
+
+      assert {:error, :network_partition_recovery_not_supported} =
+               Horde.Cluster.join_hordes(r, r3)
+
+      # now try: join a new registry (clean) to r1 (dirty), should succeed
+      r5 = Horde.Registry.ClusterK5
+      {:ok, _} = Horde.Registry.start_link(name: r5, keys: :unique)
+      assert :ok = Horde.Cluster.join_hordes(r, r5)
+
+      Process.sleep(100)
+
+      # now try: join r5 (now dirty) to r3 (dirty), should fail
+      assert {:error, _} = Horde.Cluster.join_hordes(r5, r3)
+    end
+
+    test "registry not marked as dirty_partition when registry shut down normally" do
+      r = Horde.Registry.ClusterK1
+      {:ok, _} = Horde.Registry.start_link(name: r, keys: :unique)
+
+      r2 = Horde.Registry.ClusterK2
+      {:ok, _} = Horde.Registry.start_link(name: r2, keys: :unique)
+
+      assert %{dirty_partition: false} = :sys.get_state(GenServer.whereis(r))
+
+      Horde.Cluster.join_hordes(r, r2)
+      Horde.Registry.stop(r2)
+
+      Process.sleep(100)
+      assert %{dirty_partition: false} = :sys.get_state(GenServer.whereis(r))
     end
   end
 end
