@@ -120,7 +120,7 @@ defmodule Horde.RegistryImpl do
         state
       ) do
     send(state.members_pid, {:add_neighbours, [other_members_pid]})
-    GenServer.reply(reply_to, true)
+    GenServer.reply(reply_to, :ok)
     {:noreply, state}
   end
 

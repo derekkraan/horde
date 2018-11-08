@@ -431,7 +431,7 @@ defmodule RegistryTest do
       # now try: join a new registry (clean) to r1 (dirty), should succeed
       r5 = Horde.Registry.ClusterK5
       {:ok, _} = Horde.Registry.start_link(name: r5, keys: :unique)
-      assert true = Horde.Cluster.join_hordes(r, r5)
+      assert :ok = Horde.Cluster.join_hordes(r, r5)
 
       Process.sleep(100)
 

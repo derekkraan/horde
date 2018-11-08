@@ -213,7 +213,7 @@ defmodule Horde.SupervisorImpl do
       ) do
     send(members_name(state.name), {:add_neighbours, [other_members_pid]})
 
-    GenServer.reply(reply_to, true)
+    GenServer.reply(reply_to, :ok)
     {:noreply, state}
   end
 
