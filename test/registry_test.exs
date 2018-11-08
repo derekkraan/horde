@@ -366,6 +366,17 @@ defmodule RegistryTest do
 
       assert :error = Horde.Registry.meta(registry, :non_existant)
     end
+
+    test "meta is propagated" do
+      r1 = Horde.Registry.PropagateMeta1
+      r2 = Horde.Registry.PropagateMeta2
+      {:ok, _horde} = Horde.Registry.start_link(name: r1, keys: :unique)
+      {:ok, _horde} = Horde.Registry.start_link(name: r2, keys: :unique)
+      Horde.Cluster.join_hordes(r1, r2)
+      Horde.Registry.put_meta(r1, :a_key, "a_value")
+      Process.sleep(200)
+      assert {:ok, "a_value"} = Horde.Registry.meta(r2, :a_key)
+    end
   end
 
   describe "failure scenarios" do
@@ -410,11 +421,22 @@ defmodule RegistryTest do
       Process.exit(GenServer.whereis(r4), :kill)
 
       Process.sleep(100)
+
       assert %{dirty_partition: true} = :sys.get_state(GenServer.whereis(r))
       assert %{dirty_partition: true} = :sys.get_state(GenServer.whereis(r3))
 
       assert {:error, :network_partition_recovery_not_supported} =
                Horde.Cluster.join_hordes(r, r3)
+
+      # now try: join a new registry (clean) to r1 (dirty), should succeed
+      r5 = Horde.Registry.ClusterK5
+      {:ok, _} = Horde.Registry.start_link(name: r5, keys: :unique)
+      assert true = Horde.Cluster.join_hordes(r, r5)
+
+      Process.sleep(100)
+
+      # now try: join r5 (now dirty) to r3 (dirty), should fail
+      assert {:error, _} = Horde.Cluster.join_hordes(r5, r3)
     end
 
     test "registry not marked as dirty_partition when registry shut down normally" do
