@@ -8,7 +8,9 @@ defmodule Horde.MixProject do
       elixir: "~> 1.6",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      package: package()
+      package: package(),
+      name: "Horde",
+      source_url: "https://github.com/derekkraan/horde"
     ]
   end
 
