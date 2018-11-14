@@ -1,22 +1,22 @@
 # Horde
 
-Horde is an eventually-consistent distributed supervisor (`Horde.Supervisor`) and registry (`Horde.Registry`). Horde is built on top of an add-wins last-write-wins [δ-CRDT](https://github.com/derekkraan/delta_crdt_ex). Horde tracks all child specs in the CRDT along with the nodes on which they are running. Since CRDTs are guaranteed to eventually converge, we can guarantee that Horde will also converge to a single representation of the shared state.
+[![Hex pm](http://img.shields.io/hexpm/v/horde.svg?style=flat)](https://hex.pm/packages/horde) [![CircleCI badge](https://circleci.com/gh/derekkraan/horde.png?circle-token=:circle-token)](https://circleci.com/gh/derekkraan/horde)
 
-Cluster membership in Horde is fully dynamic. Nodes can be added and removed at any time and Horde will keep working like you expect it to.
+Horde is comprised of `Horde.Supervisor`, a distributed supervisor, and `Horde.Registry`, a distributed registry. Horde is built on top of [DeltaCrdt](https://github.com/derekkraan/delta_crdt_ex).
 
-You can use Horde to build fault-tolerant distributed systems that need either a global registry or a global supervisor, or both.
+Read the [full documentation](https://hexdocs.pm/horde) on hexdocs.pm.
 
-`Horde.Supervisor` makes use of a hash ring to limit any possible race conditions to times when cluster membership is changing.
+There is also an [introductory blog post](https://medium.com/@derek.kraan2/introducing-horde-a-distributed-supervisor-in-elixir-4be3259cc142) and a [getting started guide](https://medium.com/@derek.kraan2/getting-started-with-hordes-distributed-supervisor-registry-f3017208e1ce). You can also find me in the Elixir slack channel #horde.
 
-Horde attempts to replicate the public API of both `Supervisor` and `Registry` as much as possible. In some cases it will be a drop-in replacement. Some calls will also closely mirror functionality of their standard library counterparts but in some other cases this is not possible, given the distributed nature of Horde.
+Daniel Azuma gave [a great talk](https://www.youtube.com/watch?v=nLApFANtkHs) at ElixirConf US 2018 where he demonstrated Horde's Supervisor and Registry.
 
-In addition to this README and the [full documentation on hexdocs.pm](https://hexdocs.pm/horde), there is also an [introductory blog post](https://medium.com/@derek.kraan2/introducing-horde-a-distributed-supervisor-in-elixir-4be3259cc142) and a [getting started guide](https://medium.com/@derek.kraan2/getting-started-with-hordes-distributed-supervisor-registry-f3017208e1ce). You can also find me in the Elixir slack channel #horde.
+Since Horde is built on CRDTs, it is eventually (as opposed to immediately) consistent, although it does sync its state with its neighbours rather aggressively. Cluster membership in Horde is fully dynamic; nodes can be added and removed at any time and Horde will continue to operate as expected. `Horde.Supervisor` also uses a hash ring to limit any possible race conditions to times when cluster membership is changing. 
 
-Also, Daniel Azuma gave [a great talk](https://www.youtube.com/watch?v=nLApFANtkHs) at ElixirConf US 2018 where he demonstrated a use case for Horde's Supervisor and Registry.
+`Horde.Registry` is API-compatible with Elixir's own Registry, although it does not yet support the `keys: :duplicate` option. For many use cases, it will be a drop-in replacement. `Horde.Supevisor` follows the API and behaviour of `DynamicSupervisor` as closely as possible. There will always be some difference between Horde and its standard library equivalents, if not in their APIs, then in their functionality. This is a necessary consequence of Horde's distributed nature.
 
-[![Hex pm](http://img.shields.io/hexpm/v/horde.svg?style=flat)](https://hex.pm/packages/horde)
+## 1.0 release
 
-[![CircleCI badge](https://circleci.com/gh/derekkraan/horde.png?circle-token=:circle-token)](https://circleci.com/gh/derekkraan/horde)
+Help us get to 1.0, please fill out our [very short survey](https://docs.google.com/forms/d/e/1FAIpQLSd0fGMuELJIKAiaR1XlvHKjpSo024cojktXjp4ASM7MSXTYfg/viewform?usp=sf_link) and report any issues you encounter when using Horde.
 
 ## Fault tolerance
 
