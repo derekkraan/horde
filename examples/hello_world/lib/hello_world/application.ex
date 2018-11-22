@@ -6,7 +6,7 @@ defmodule HelloWorld.Application do
   def start(_type, _args) do
     # List all child processes to be supervised
     children = [
-      {Horde.Registry, [name: HelloWorld.HelloRegistry]},
+      {Horde.Registry, [name: HelloWorld.HelloRegistry, keys: :unique]},
       {Horde.Supervisor,
        [
          name: HelloWorld.HelloSupervisor,

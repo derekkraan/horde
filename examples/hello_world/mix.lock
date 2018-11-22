@@ -1,5 +1,5 @@
 %{
-  "delta_crdt": {:hex, :delta_crdt, "0.1.2", "b16227f7f873e21195d573cd1288e84c779e67c5d63ab314773bb096205453b4", [:mix], [], "hexpm"},
+  "delta_crdt": {:hex, :delta_crdt, "0.3.0", "c84803723edd6d0c9597a3e17ba0843bc6bef2e4997b5cd6d5865ba3e76acddd", [:mix], [], "hexpm"},
   "horde": {:git, "https://github.com/derekkraan/horde.git", "8822a432f4c3528f904bd62ddbb1bcc242658c93", [branch: "fix_start_children"]},
   "xxhash": {:hex, :xxhash, "0.2.0", "4f5ca6159df3732eae22fd942494375d17fe09a66d7711c2e106fc64dfce2356", [:mix], [], "hexpm"},
 }
