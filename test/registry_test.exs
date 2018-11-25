@@ -258,6 +258,20 @@ defmodule RegistryTest do
       self = self()
       assert [{^self, "bar"}] = Horde.Registry.lookup(:update_value_horde, "foo")
     end
+
+    test "can only update own values" do
+      {:ok, _} = Horde.Registry.start_link(name: :update_value_horde2, keys: :unique)
+
+      Task.start_link(fn ->
+        Horde.Registry.register(:update_value_horde2, "foo", "bar")
+        Process.sleep(200)
+      end)
+
+      Process.sleep(20)
+
+      assert :error =
+               Horde.Registry.update_value(:update_value_horde2, "foo", fn _old -> "baz" end)
+    end
   end
 
   describe ".leave_horde/2" do
