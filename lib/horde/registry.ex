@@ -177,13 +177,13 @@ defmodule Horde.Registry do
 
   def update_value(registry, key, callback) do
     case :ets.lookup(get_keys_ets_table(registry), key) do
-      [] ->
-        :error
-
-      [{key, {pid, value}}] ->
+      [{key, {pid, value}}] when pid == self() ->
         new_value = callback.(value)
         :ok = GenServer.call(registry, {:update_value, key, pid, new_value})
         {new_value, value}
+
+      _ ->
+        :error
     end
   end
 
