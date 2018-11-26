@@ -30,4 +30,8 @@ defmodule HelloWorld.Application do
     opts = [strategy: :one_for_one, name: HelloWorld.Supervisor]
     Supervisor.start_link(children, opts)
   end
+
+  def how_many?() do
+    Horde.Registry.meta(HelloWorld.HelloRegistry, "count")
+  end
 end
