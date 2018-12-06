@@ -228,7 +228,7 @@ defmodule Horde.Registry do
     end
   end
 
-  defp process_alive?(pid) when node(pid) == node(self()), do: Process.alive?(pid)
+  defp process_alive?(pid) when node(pid) == node(), do: Process.alive?(pid)
 
   defp process_alive?(pid) do
     n = node(pid)
