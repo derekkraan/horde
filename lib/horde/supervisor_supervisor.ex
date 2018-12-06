@@ -23,7 +23,7 @@ defmodule Horde.SupervisorSupervisor do
        ship_interval: 50,
        ship_debounce: 400,
        shutdown: 30_000},
-      {Horde.SupervisorImpl, name: root_name},
+      {Horde.SupervisorImpl, Keyword.put(options, :name, root_name)},
       {Horde.GracefulShutdownManager,
        processes_pid: processes_crdt_name(root_name),
        name: graceful_shutdown_manager_name(root_name)},
