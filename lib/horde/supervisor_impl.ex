@@ -16,7 +16,8 @@ defmodule Horde.SupervisorImpl do
               processes_updated_counter: 0,
               processes_updated_at: 0,
               shutting_down: false,
-              distribution_strategy: Horde.UniformDistribution
+              distribution_strategy: Horde.UniformDistribution,
+              start_time: nil
   end
 
   def start_link(opts) do
@@ -43,7 +44,8 @@ defmodule Horde.SupervisorImpl do
         node_id: generate_node_id(),
         name: name,
         members_pid: Process.whereis(members_name(name)),
-        processes_pid: Process.whereis(processes_name(name))
+        processes_pid: Process.whereis(processes_name(name)),
+        start_time: DateTime.utc_now
       }
       |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
 
@@ -56,7 +58,7 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp node_info(state) do
-    {node_status(state), Map.take(state, [:pid, :name, :members_pid, :processes_pid])}
+    {node_status(state), Map.take(state, [:pid, :name, :members_pid, :processes_pid, :start_time])}
   end
 
   defp node_status(%{shutting_down: false}), do: :alive
@@ -329,14 +331,30 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp handle_loss_of_quorum(state) do
-    if !state.distribution_strategy.has_quorum?(state.members) do
-      shut_down_all_processes(state)
-    else
-      state
+    cond do
+      seconds_since_startup(state) < grace_period() -> state
+      has_quorum?(state) -> state
+      true ->
+        Logger.info("Node lost quorum. Shutting down processes.")
+        shut_down_all_processes(state)
     end
   end
 
+  defp grace_period() do
+    Application.get_env(:horde, :grace_period_in_seconds, 0)
+  end
+
+  defp has_quorum?(state) do
+    state.distribution_strategy.has_quorum?(state.members)
+  end
+
+  defp seconds_since_startup(state) do
+    {:alive, %{start_time: start_time}} = state.members[state.node_id]
+    DateTime.diff(DateTime.utc_now, start_time)
+  end
+
   defp shut_down_all_processes(state) do
+    Logger.info("shutting down all processes.")
     :ok = GenServer.stop(processes_supervisor_name(state.name), :normal, :infinity)
     state
   end
