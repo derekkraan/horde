@@ -16,6 +16,7 @@ defmodule Horde.SupervisorImpl do
               processes_updated_counter: 0,
               processes_updated_at: 0,
               shutting_down: false,
+              supervisor_options: [],
               distribution_strategy: Horde.UniformDistribution
   end
 
@@ -41,6 +42,7 @@ defmodule Horde.SupervisorImpl do
       %State{
         pid: self(),
         node_id: generate_node_id(),
+        supervisor_options: options,
         name: name,
         members_pid: Process.whereis(members_name(name)),
         processes_pid: Process.whereis(processes_name(name))
@@ -201,7 +203,7 @@ defmodule Horde.SupervisorImpl do
     send(members_name(state.name), {:add_neighbours, [other_members_pid]})
 
     GenServer.reply(reply_to, :ok)
-    {:noreply, state}
+    {:noreply, mark_alive(state, true)}
   end
 
   defp proxy_to_node(node_id, message, reply_to, state) do
@@ -219,23 +221,24 @@ defmodule Horde.SupervisorImpl do
     end
   end
 
-  defp mark_alive(state) do
-    case Map.get(state.members, state.node_id) do
-      nil ->
-        DeltaCrdt.mutate(state.members_pid, :add, [state.node_id, node_info(state)], :infinity)
+  defp mark_alive(state, force \\ false) do
+    if !force && Map.has_key?(state.members, state.node_id) do
+      state
+    else
+      DeltaCrdt.mutate(
+        members_name(state.name),
+        :add,
+        [state.node_id, node_info(state)],
+        :infinity
+      )
 
-        new_members = Map.put(state.members, state.node_id, node_info(state))
-
-        %{state | members: new_members}
-
-      _ ->
-        state
+      new_members = Map.put(state.members, state.node_id, node_info(state))
+      Map.put(state, :members, new_members)
     end
   end
 
   defp mark_dead(state, node_id) do
     DeltaCrdt.mutate(members_name(state.name), :remove, [node_id], :infinity)
-
     state
   end
 
@@ -257,8 +260,15 @@ defmodule Horde.SupervisorImpl do
       _ -> false
     end)
     |> case do
-      nil -> {:noreply, state}
-      {node_id, _node_state} -> {:noreply, mark_dead(state, node_id)}
+      nil ->
+        {:noreply, state}
+
+      {node_id, _node_state} ->
+        new_state =
+          mark_dead(state, node_id)
+          |> mark_alive()
+
+        {:noreply, new_state}
     end
   end
 
@@ -486,7 +496,8 @@ defmodule Horde.SupervisorImpl do
       Enum.map(children, fn child ->
         {child,
          {Horde.ProcessSupervisor,
-          {child, graceful_shutdown_manager_name(state.name), state.node_id}}}
+          {child, graceful_shutdown_manager_name(state.name), state.node_id,
+           state.supervisor_options}}}
       end)
 
     Enum.map(wrapped_children, fn {child, wrapped_child} ->

@@ -4,11 +4,11 @@ This is an example application that shows how `Horde.Supervisor` and `Horde.Regi
 
 Start the app in two separate terminal windows with:
 
-`HELLO_NODES="count1@127.0.0.1" iex -S mix --name count2@127.0.0.1 --cookie asdf`
+`HELLO_NODES="count1@127.0.0.1" iex --name count2@127.0.0.1 --cookie asdf -S mix`
 
 and
 
-`HELLO_NODES="count2@127.0.0.1" iex -S mix --name count1@127.0.0.1 --cookie asdf`
+`HELLO_NODES="count2@127.0.0.1" iex --name count1@127.0.0.1 --cookie asdf -S mix`
 
 You should notice the message `HELLO from node X` printing in just one of the two instances. If you close that instance, you should (almost instantly) see the messages being output by the other instance.
 

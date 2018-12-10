@@ -1,10 +1,16 @@
 defmodule HelloWorld.SayHello do
   use GenServer
+  require Logger
 
   def child_spec(opts) do
     name = Keyword.get(opts, :name, __MODULE__)
 
-    %{id: "#{__MODULE__}_#{name}", start: {__MODULE__, :start_link, [name]}, shutdown: 10_000}
+    %{
+      id: "#{__MODULE__}_#{name}",
+      start: {__MODULE__, :start_link, [name]},
+      shutdown: 10_000,
+      restart: :permanent
+    }
   end
 
   def start_link(name) do
@@ -22,7 +28,7 @@ defmodule HelloWorld.SayHello do
   end
 
   def handle_info(:say_hello, counter) do
-    IO.puts("HELLO from node #{inspect(Node.self())}")
+    Logger.info("HELLO from node #{inspect(Node.self())}")
     Process.send_after(self(), :say_hello, 5000)
 
     {:noreply, put_global_counter(counter + 1)}
@@ -34,7 +40,9 @@ defmodule HelloWorld.SayHello do
 
   defp get_global_counter() do
     case Horde.Registry.meta(HelloWorld.HelloRegistry, "count") do
-      {:ok, count} -> count
+      {:ok, count} ->
+        count
+
       :error ->
         put_global_counter(0)
         get_global_counter()

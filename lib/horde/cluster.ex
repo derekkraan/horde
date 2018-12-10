@@ -24,7 +24,7 @@ defmodule Horde.Cluster do
     GenServer.call(horde, {:join_hordes, other_horde}, timeout)
   catch
     :exit, {:timeout, details} ->
-      Logger.debug(fn -> "Joining a horde failed. Details: #{inspect(details)}" end)
+      Logger.debug(fn -> "Joining a horde failed. Details: #{inspect({:timeout, details})}" end)
       {:error, details}
   end
 
