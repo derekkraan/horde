@@ -176,6 +176,9 @@ defmodule Horde.RegistryImpl do
 
       {key, {pid, value}} when node(pid) == node() ->
         DeltaCrdt.mutate_async(state.keys_pid, :add, [key, {pid, value}])
+
+      _another_node ->
+        nil
     end)
 
     new_nodes =
