@@ -10,7 +10,9 @@ defmodule HelloWorld.Application do
       {Horde.Supervisor,
        [
          name: HelloWorld.HelloSupervisor,
-         strategy: :one_for_one
+         strategy: :one_for_one,
+         max_restarts: 100_000,
+         max_seconds: 1
        ]},
       %{
         id: HelloWorld.ClusterConnector,
