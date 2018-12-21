@@ -1,3 +1,8 @@
+defmodule Horde.Supervisor.Member do
+  @type t :: %Horde.Supervisor.Member{}
+  defstruct [:node_id, :status, :pid, :name, :members_pid, :processes_pid]
+end
+
 defmodule Horde.SupervisorImpl do
   @moduledoc false
 
@@ -58,7 +63,8 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp node_info(state) do
-    {node_status(state), Map.take(state, [:pid, :name, :members_pid, :processes_pid])}
+    %Horde.Supervisor.Member{status: node_status(state)}
+    |> Map.merge(Map.take(state, [:node_id, :pid, :name, :members_pid, :processes_pid]))
   end
 
   defp node_status(%{shutting_down: false}), do: :alive
@@ -96,12 +102,15 @@ defmodule Horde.SupervisorImpl do
         proxy_to_node(other_node, msg, from, state)
 
       nil ->
-        case state.distribution_strategy.choose_node(child_id, state.members) do
-          {^this_node_id, _} ->
+        case state.distribution_strategy.choose_node(child_id, Map.values(state.members)) do
+          {:ok, %{node_id: ^this_node_id}} ->
             {:reply, {:error, :not_found}, state}
 
-          {other_node_id, _} ->
+          {:ok, %{node_id: other_node_id}} ->
             proxy_to_node(other_node_id, msg, from, state)
+
+          {:error, reason} ->
+            {:reply, {:error, reason}, state}
         end
     end
   end
@@ -110,20 +119,23 @@ defmodule Horde.SupervisorImpl do
     do: {:reply, {:error, {:shutting_down, "this node is shutting down."}}, state}
 
   def handle_call({:start_child, child_spec} = msg, from, %{node_id: this_node_id} = state) do
-    case state.distribution_strategy.choose_node(child_spec.id, state.members) do
-      {^this_node_id, _} ->
+    case state.distribution_strategy.choose_node(child_spec.id, Map.values(state.members)) do
+      {:ok, %{node_id: ^this_node_id}} ->
         {reply, new_state} = add_child(child_spec, state)
         {:reply, reply, new_state}
 
-      {other_node_id, _} ->
+      {:ok, %{node_id: other_node_id}} ->
         proxy_to_node(other_node_id, msg, from, state)
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 
   def handle_call(:which_children, _from, state) do
     which_children =
       Enum.flat_map(state.members, fn
-        {_, {_, %{pid: pid, name: name}}} ->
+        {_, %{pid: pid, name: name}} ->
           [{processes_supervisor_name(name), node(pid)}]
       end)
       |> Enum.flat_map(fn supervisor_pid ->
@@ -150,7 +162,7 @@ defmodule Horde.SupervisorImpl do
   def handle_call(:count_children, _from, state) do
     count =
       Enum.flat_map(state.members, fn
-        {_, {_, %{pid: pid, name: name}}} ->
+        {_, %{pid: pid, name: name}} ->
           [{processes_supervisor_name(name), node(pid)}]
       end)
       |> Enum.flat_map(fn supervisor_pid ->
@@ -208,7 +220,7 @@ defmodule Horde.SupervisorImpl do
 
   defp proxy_to_node(node_id, message, reply_to, state) do
     case Map.get(state.members, node_id) do
-      {:alive, %{pid: other_node_pid}} ->
+      %{status: :alive, pid: other_node_pid} ->
         send(other_node_pid, {:proxy_operation, message, reply_to})
         {:noreply, state}
 
@@ -256,7 +268,7 @@ defmodule Horde.SupervisorImpl do
   @doc false
   def handle_info({:DOWN, _ref, _type, pid, _reason}, state) do
     Enum.find(state.members, fn
-      {_node_id, {_status, %{pid: ^pid}}} -> true
+      {_node_id, %{pid: ^pid}} -> true
       _ -> false
     end)
     |> case do
@@ -339,7 +351,7 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp handle_loss_of_quorum(state) do
-    if !state.distribution_strategy.has_quorum?(state.members) do
+    if !state.distribution_strategy.has_quorum?(Map.values(state.members)) do
       shut_down_all_processes(state)
     else
       state
@@ -354,7 +366,7 @@ defmodule Horde.SupervisorImpl do
   defp handle_updated_members_pids(new_state, state) do
     new_members =
       MapSet.new(new_state.members, fn
-        {_key, {:alive, %{members_pid: members_pid}}} ->
+        {_key, %{status: :alive, members_pid: members_pid}} ->
           members_pid
 
         _ ->
@@ -364,7 +376,7 @@ defmodule Horde.SupervisorImpl do
 
     old_members =
       MapSet.new(state.members, fn
-        {_key, {:alive, %{members_pid: members_pid}}} ->
+        {_key, %{status: :alive, members_pid: members_pid}} ->
           members_pid
 
         _ ->
@@ -383,7 +395,7 @@ defmodule Horde.SupervisorImpl do
   defp handle_updated_process_pids(new_state, state) do
     new_processes =
       MapSet.new(new_state.members, fn
-        {_key, {:alive, %{processes_pid: processes_pid}}} ->
+        {_key, %{status: :alive, processes_pid: processes_pid}} ->
           processes_pid
 
         _ ->
@@ -393,7 +405,7 @@ defmodule Horde.SupervisorImpl do
 
     old_processes =
       MapSet.new(state.members, fn
-        {_key, {:alive, %{processes_pid: processes_pid}}} ->
+        {_key, %{status: :alive, processes_pid: processes_pid}} ->
           processes_pid
 
         _ ->
@@ -422,8 +434,8 @@ defmodule Horde.SupervisorImpl do
       processes_on_dead_nodes(state)
       |> Enum.map(fn {_id, {_node, child}} -> child end)
       |> Enum.filter(fn child ->
-        case state.distribution_strategy.choose_node(child.id, state.members) do
-          {^this_node_id, _node_info} -> true
+        case state.distribution_strategy.choose_node(child.id, Map.values(state.members)) do
+          {:ok, %{node_id: ^this_node_id}} -> true
           _ -> false
         end
       end)
@@ -453,8 +465,8 @@ defmodule Horde.SupervisorImpl do
     {_responses, new_state} =
       Enum.flat_map(state.processes, fn
         {id, {nil, child_spec}} ->
-          case state.distribution_strategy.choose_node(id, state.members) do
-            {^this_node_id, _node_info} -> [child_spec]
+          case state.distribution_strategy.choose_node(id, Map.values(state.members)) do
+            {:ok, %{node_id: ^this_node_id}} -> [child_spec]
             _ -> []
           end
 
@@ -467,7 +479,7 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp monitor_supervisors(members, state) do
-    Enum.each(members, fn {node_id, {_state, %{pid: pid}}} ->
+    Enum.each(members, fn {node_id, %{pid: pid}} ->
       if(!Map.get(state.members, node_id)) do
         Process.monitor(pid)
       end

@@ -1,4 +1,6 @@
 defmodule Horde.UniformQuorumDistribution do
+  @behaviour Horde.DistributionStrategy
+
   @moduledoc """
   Distributes processes to nodes uniformly using a hash ring. Contains a quorum mechanism to handle netsplits.
   """
@@ -6,9 +8,9 @@ defmodule Horde.UniformQuorumDistribution do
 
   def choose_node(identifier, members) do
     if has_quorum?(members) do
-      Horde.UniformDistribution.choose_node(identifier, members)
+      {:ok, Horde.UniformDistribution.choose_node(identifier, members)}
     else
-      nil
+      {:error, "quorum not met"}
     end
   end
 
@@ -22,7 +24,7 @@ defmodule Horde.UniformQuorumDistribution do
       members ->
         alive_count =
           Enum.count(members, fn
-            {_, {:alive, _}} -> true
+            %{status: :alive} -> true
             _ -> false
           end)
 
@@ -34,10 +36,10 @@ defmodule Horde.UniformQuorumDistribution do
     nodes =
       members
       |> Enum.reject(fn
-        {_, {:shutting_down, _}} -> true
+        %{status: :shutting_down} -> true
         _ -> false
       end)
-      |> Enum.sort_by(fn {node_id, _} -> node_id end)
+      |> Enum.sort_by(fn %{node_id: node_id} -> node_id end)
 
     node_count = Enum.count(nodes)
 

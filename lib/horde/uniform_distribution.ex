@@ -1,4 +1,6 @@
 defmodule Horde.UniformDistribution do
+  @behaviour Horde.DistributionStrategy
+
   @moduledoc """
   Distributes processes to nodes uniformly using a hash ring
   """
@@ -7,14 +9,14 @@ defmodule Horde.UniformDistribution do
     members =
       members
       |> Enum.filter(fn
-        {_, {:alive, _}} -> true
+        %{status: :alive} -> true
         _ -> false
       end)
-      |> Enum.sort_by(fn {node_id, _} -> node_id end)
+      |> Enum.sort_by(fn %{node_id: node_id} -> node_id end)
 
     index = XXHash.xxh32(term_to_string_identifier(identifier)) |> rem(Enum.count(members))
 
-    Enum.at(members, index)
+    {:ok, Enum.at(members, index)}
   end
 
   def has_quorum?(_members), do: true
