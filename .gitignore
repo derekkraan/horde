@@ -25,3 +25,5 @@ horde-*.tar
 .elixir_ls
 
 *.beam
+
+.tool-versions
