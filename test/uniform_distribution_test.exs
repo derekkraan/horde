@@ -8,20 +8,20 @@ defmodule UniformDistributionTest do
                                status <- StreamData.member_of([:alive, :dead, :shutting_down]),
                                name <- binary(),
                                pid <- atom(:alias) do
-        {node_id, {status, %{pid: pid, name: name}}}
+        %{node_id: node_id, status: status, pid: pid, name: name}
       end
 
     check all members <- list_of(member),
               own_node_id <- integer(),
               identifier <- string(:alphanumeric) do
-      members = [{own_node_id, {:alive, %{name: :name, pid: :pid}}} | members]
-      chosen = Horde.UniformDistribution.choose_node(identifier, members)
+      members = [%{node_id: own_node_id, status: :alive, name: :name, pid: :pid} | members]
+      choice = Horde.UniformDistribution.choose_node(identifier, members)
 
       # it always chooses a node that's alive
-      assert {_, {:alive, _}} = chosen
+      assert {:ok, %{status: :alive} = chosen_member} = choice
 
       assert Enum.any?(members, fn
-               ^chosen -> true
+               ^chosen_member -> true
                _ -> false
              end)
     end

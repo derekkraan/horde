@@ -8,38 +8,49 @@ defmodule UniformQuorumDistributionTest do
                                status <- StreamData.member_of([:alive, :dead, :shutting_down]),
                                name <- binary(),
                                pid <- atom(:alias) do
-        {node_id, {status, %{pid: pid, name: name}}}
+        %{node_id: node_id, status: status, pid: pid, name: name}
       end
 
     check all members <-
-                uniq_list_of(member, min_length: 2, uniq_fun: fn {node_id, _} -> node_id end),
+                uniq_list_of(member,
+                  min_length: 2,
+                  uniq_fun: fn %{node_id: node_id} -> node_id end
+                ),
               identifier <- string(:alphanumeric) do
       partition_a = members
 
       partition_b =
         members
         |> Enum.map(fn
-          {node_id, {:alive, %{name: name, pid: pid}}} ->
-            {node_id, {:dead, %{name: name, pid: pid}}}
+          %{status: :alive} = member ->
+            %{member | status: :dead}
 
-          {node_id, {:dead, %{name: name, pid: pid}}} ->
-            {node_id, {:alive, %{name: name, pid: pid}}}
+          %{status: :dead} = member ->
+            %{member | status: :alive}
 
           node_spec ->
             node_spec
         end)
 
       chosen_a = Horde.UniformQuorumDistribution.choose_node(identifier, partition_a)
+
       chosen_b = Horde.UniformQuorumDistribution.choose_node(identifier, partition_b)
 
+      partitions_succeeded =
+        [chosen_a, chosen_b]
+        |> Enum.count(fn
+          {:ok, _} -> 1
+          {:error, _} -> false
+        end)
+
       Enum.all?(members, fn
-        {_, {:shutting_down, _}} -> true
+        %{status: :shutting_down} -> true
         _ -> false
       end)
       |> if do
-        assert 0 = [chosen_a, chosen_b] |> Enum.count(fn x -> x end)
+        assert 0 == partitions_succeeded
       else
-        assert 1 = [chosen_a, chosen_b] |> Enum.count(fn x -> x end)
+        assert 1 == partitions_succeeded
       end
     end
   end

@@ -343,11 +343,10 @@ defmodule RegistryTest do
       horde = Horde.Registry.ClusterF
       {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
 
-      carmen =
-        spawn(fn ->
-          Horde.Registry.register(horde, :carmen, "carmen")
-          Process.sleep(300)
-        end)
+      spawn(fn ->
+        Horde.Registry.register(horde, :carmen, "carmen")
+        Process.sleep(300)
+      end)
 
       Process.sleep(20)
 
