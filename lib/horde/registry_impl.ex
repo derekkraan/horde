@@ -115,6 +115,18 @@ defmodule Horde.RegistryImpl do
     )
   end
 
+  defp mark_dead(state, n) do
+    members = DeltaCrdt.read(state.members_pid, 30_000)
+
+    Enum.each(members, fn
+      {node_id, %{own_pid: own_pid}} when node(own_pid) == n ->
+        DeltaCrdt.mutate_async(state.members_pid, :remove, [node_id])
+
+      _ ->
+        nil
+    end)
+  end
+
   def handle_info({:registry_updated, reply_to}, state) do
     registry = DeltaCrdt.read(state.registry_pid, 30_000)
     sync_ets_table(state.registry_ets_table, registry)
@@ -166,16 +178,6 @@ defmodule Horde.RegistryImpl do
     end
 
     {:noreply, state}
-  end
-
-  def mark_dead(state, n) do
-    Enum.each(state.members, fn
-      {node_id, %{own_pid: own_pid}} when node(own_pid) == n ->
-        DeltaCrdt.mutate_async(state.members_pid, :remove, [node_id])
-
-      _ ->
-        nil
-    end)
   end
 
   def handle_info({:nodedown, n}, state) do
