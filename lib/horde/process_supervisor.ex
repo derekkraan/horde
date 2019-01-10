@@ -33,5 +33,8 @@ defmodule Horde.ProcessSupervisor do
     Supervisor.init(children, options)
   end
 
-  defp term_to_string_identifier(term), do: term |> :erlang.term_to_binary() |> Base.encode16()
+  defp term_to_string_identifier(term) do
+    binary = :erlang.term_to_binary(term)
+    :crypto.hash(:sha, binary) |> Base.encode16()
+  end
 end
