@@ -34,6 +34,7 @@ defmodule Horde.SupervisorImpl do
   defp processes_name(name), do: :"#{name}.ProcessesCrdt"
   defp processes_supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
   defp graceful_shutdown_manager_name(name), do: :"#{name}.GracefulShutdownManager"
+  defp registry_name(name), do: :"#{name}.Registry"
 
   @doc false
   def init(options) do
@@ -58,6 +59,8 @@ defmodule Horde.SupervisorImpl do
 
     # add self to members CRDT
     DeltaCrdt.mutate(members_name(name), :add, [state.node_id, node_info(state)], :infinity)
+
+    Registry.start_link(keys: :unique, name: registry_name(name))
 
     {:ok, state}
   end
@@ -89,7 +92,7 @@ defmodule Horde.SupervisorImpl do
         reply =
           DynamicSupervisor.terminate_child(
             processes_supervisor_name(state.name),
-            Process.whereis(Horde.ProcessSupervisor.name(this_node_id, child_id))
+            get_child_pid(state, child_id)
           )
 
         new_state = %{state | processes: Map.delete(state.processes, child_id)}
@@ -218,6 +221,11 @@ defmodule Horde.SupervisorImpl do
     {:noreply, mark_alive(state, true)}
   end
 
+  defp get_child_pid(%{name: name}, child_id) do
+    [{pid, _}] = Registry.lookup(registry_name(name), child_id)
+    pid
+  end
+
   defp proxy_to_node(node_id, message, reply_to, state) do
     case Map.get(state.members, node_id) do
       %{status: :alive, pid: other_node_pid} ->
@@ -343,7 +351,7 @@ defmodule Horde.SupervisorImpl do
       :ok =
         DynamicSupervisor.terminate_child(
           processes_supervisor_name(new_state.name),
-          Process.whereis(Horde.ProcessSupervisor.name(new_state.node_id, id))
+          get_child_pid(new_state, id)
         )
     end)
 
@@ -508,8 +516,12 @@ defmodule Horde.SupervisorImpl do
       Enum.map(children, fn child ->
         {child,
          {Horde.ProcessSupervisor,
-          {child, graceful_shutdown_manager_name(state.name), state.node_id,
-           state.supervisor_options}}}
+          {
+            child,
+            graceful_shutdown_manager_name(state.name),
+            registry_name(state.name),
+            state.supervisor_options
+          }}}
       end)
 
     Enum.map(wrapped_children, fn {child, wrapped_child} ->

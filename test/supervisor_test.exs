@@ -19,7 +19,7 @@ defmodule SupervisorTest do
     pid = self()
 
     task_def = %{
-      id: :proc_1,
+      id: "proc_1",
       start:
         {Task, :start_link,
          [
