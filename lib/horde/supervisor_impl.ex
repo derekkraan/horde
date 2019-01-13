@@ -9,21 +9,18 @@ defmodule Horde.SupervisorImpl do
   require Logger
   use GenServer
 
-  defmodule State do
-    @moduledoc false
-    defstruct pid: nil,
-              node_id: nil,
-              name: nil,
-              members_pid: nil,
-              processes_pid: nil,
-              members: %{},
-              processes: %{},
-              processes_updated_counter: 0,
-              processes_updated_at: 0,
-              shutting_down: false,
-              supervisor_options: [],
-              distribution_strategy: Horde.UniformDistribution
-  end
+  defstruct pid: nil,
+            node_id: nil,
+            name: nil,
+            members_pid: nil,
+            processes_pid: nil,
+            members: %{},
+            processes: %{},
+            processes_updated_counter: 0,
+            processes_updated_at: 0,
+            shutting_down: false,
+            supervisor_options: [],
+            distribution_strategy: Horde.UniformDistribution
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, Keyword.take(opts, [:name]))
@@ -45,7 +42,7 @@ defmodule Horde.SupervisorImpl do
     Process.flag(:trap_exit, true)
 
     state =
-      %State{
+      %__MODULE__{
         pid: self(),
         node_id: generate_node_id(),
         supervisor_options: options,
