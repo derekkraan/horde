@@ -27,3 +27,5 @@ horde-*.tar
 *.beam
 
 .tool-versions
+
+*.app
