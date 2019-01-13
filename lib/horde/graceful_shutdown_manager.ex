@@ -1,4 +1,12 @@
 defmodule Horde.GracefulShutdownManager do
+  # Horde.GracefulShutdownManager notifies the processes CRDT when a child of the supervisor
+  # is terminated and the node is shutting down.
+  #
+  # This ensures a smooth transition when a node is shutting down. If we did not do this here,
+  # then we would have to wait until all children of the supervisor were done shutting down
+  # before releasing them to be restarted on other nodes. If some child processes take much
+  # longer than others to terminate, then this will result in some child processes being
+  # unavailable for longer than necessary.
   @moduledoc false
 
   use GenServer

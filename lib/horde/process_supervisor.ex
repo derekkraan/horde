@@ -1,4 +1,11 @@
 defmodule Horde.ProcessSupervisor do
+  # We wrap processes to be able to inject some functionality which is necessary for
+  # the functioning of Horde.Supervisor.
+  #
+  # 1. registering the pid of this process by its child_id so that it can be referenced by id.
+  # 2. starting a ProcessCanary which will only be shut down after the child process is shut down,
+  #    which allows a sort of callback functionality. This could not easily be achieved with links,
+  #    because we need to send the CRDT some additional information that is then not available.
   @moduledoc false
 
   use Supervisor
