@@ -8,7 +8,7 @@ defmodule Horde.UniformQuorumDistribution do
 
   def choose_node(identifier, members) do
     if has_quorum?(members) do
-      {:ok, Horde.UniformDistribution.choose_node(identifier, members)}
+      Horde.UniformDistribution.choose_node(identifier, members)
     else
       {:error, "quorum not met"}
     end
