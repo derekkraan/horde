@@ -185,8 +185,9 @@ defmodule Horde.DynamicSupervisor do
     :max_children,
     :max_restarts,
     :max_seconds,
+    :process_crdt,
     children: %{},
-    restarts: []
+    restarts: [],
   ]
 
   @doc """
@@ -204,7 +205,7 @@ defmodule Horde.DynamicSupervisor do
 
     %{
       id: id,
-      start: {DynamicSupervisor, :start_link, [opts]},
+      start: {Horde.DynamicSupervisor, :start_link, [opts]},
       type: :supervisor
     }
   end
@@ -258,7 +259,7 @@ defmodule Horde.DynamicSupervisor do
   """
   @spec start_link(options) :: Supervisor.on_start()
   def start_link(options) when is_list(options) do
-    keys = [:extra_arguments, :max_children, :max_seconds, :max_restarts, :strategy]
+    keys = [:extra_arguments, :max_children, :max_seconds, :max_restarts, :strategy, :process_crdt]
     {sup_opts, start_opts} = Keyword.split(options, keys)
     start_link(Supervisor.Default, init(sup_opts), start_opts)
   end
@@ -326,7 +327,7 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp validate_child(%{id: _, start: {mod, _, _} = start} = child) do
+  defp validate_child(%{id: id, start: {mod, _, _} = start} = child) do
     restart = Map.get(child, :restart, :permanent)
     type = Map.get(child, :type, :worker)
     modules = Map.get(child, :modules, [mod])
@@ -337,24 +338,24 @@ defmodule Horde.DynamicSupervisor do
         :supervisor -> Map.get(child, :shutdown, :infinity)
       end
 
-    validate_child(start, restart, shutdown, type, modules)
+    validate_child(id, start, restart, shutdown, type, modules)
   end
 
-  defp validate_child({_, start, restart, shutdown, type, modules}) do
-    validate_child(start, restart, shutdown, type, modules)
+  defp validate_child({id, start, restart, shutdown, type, modules}) do
+    validate_child(id, start, restart, shutdown, type, modules)
   end
 
   defp validate_child(other) do
     {:invalid_child_spec, other}
   end
 
-  defp validate_child(start, restart, shutdown, type, modules) do
+  defp validate_child(id, start, restart, shutdown, type, modules) do
     with :ok <- validate_start(start),
          :ok <- validate_restart(restart),
          :ok <- validate_shutdown(shutdown),
          :ok <- validate_type(type),
          :ok <- validate_modules(modules) do
-      {:ok, {start, restart, shutdown, type, modules}}
+      {:ok, {id, start, restart, shutdown, type, modules}}
     end
   end
 
@@ -511,13 +512,15 @@ defmodule Horde.DynamicSupervisor do
     period = Keyword.get(options, :max_seconds, 5)
     max_children = Keyword.get(options, :max_children, :infinity)
     extra_arguments = Keyword.get(options, :extra_arguments, [])
+    process_crdt = Keyword.get(options, :process_crdt, nil)
 
     flags = %{
       strategy: strategy,
       intensity: intensity,
       period: period,
       max_children: max_children,
-      extra_arguments: extra_arguments
+      extra_arguments: extra_arguments,
+      process_crdt: process_crdt
     }
 
     {:ok, flags}
@@ -539,8 +542,7 @@ defmodule Horde.DynamicSupervisor do
             is_tuple(name) -> name
           end
 
-        state = %DynamicSupervisor{mod: mod, args: init_arg, name: name}
-
+        state = %Horde.DynamicSupervisor{mod: mod, args: init_arg, name: name}
         case init(state, flags) do
           {:ok, state} -> {:ok, state}
           {:error, reason} -> {:stop, {:supervisor_data, reason}}
@@ -560,6 +562,7 @@ defmodule Horde.DynamicSupervisor do
     max_restarts = Map.get(flags, :intensity, 1)
     max_seconds = Map.get(flags, :period, 5)
     strategy = Map.get(flags, :strategy, :one_for_one)
+    process_crdt = Map.get(flags, :process_crdt, nil)
 
     with :ok <- validate_strategy(strategy),
          :ok <- validate_restarts(max_restarts),
@@ -573,7 +576,8 @@ defmodule Horde.DynamicSupervisor do
            max_children: max_children,
            max_restarts: max_restarts,
            max_seconds: max_seconds,
-           strategy: strategy
+           strategy: strategy,
+           process_crdt: process_crdt
        }}
     end
   end
@@ -601,11 +605,11 @@ defmodule Horde.DynamicSupervisor do
     reply =
       for {pid, args} <- children do
         case args do
-          {:restarting, {_, _, _, type, modules}} ->
-            {:undefined, :restarting, type, modules}
+          {:restarting, {id, _, _, _, type, modules}} ->
+            {id, :restarting, type, modules}
 
-          {_, _, _, type, modules} ->
-            {:undefined, pid, type, modules}
+          {id, _, _, _, type, modules} ->
+            {id, pid, type, modules}
         end
       end
 
@@ -618,16 +622,16 @@ defmodule Horde.DynamicSupervisor do
 
     {active, workers, supervisors} =
       Enum.reduce(children, {0, 0, 0}, fn
-        {_pid, {:restarting, {_, _, _, :worker, _}}}, {active, worker, supervisor} ->
+        {_pid, {:restarting, {_, _, _, _, :worker, _}}}, {active, worker, supervisor} ->
           {active, worker + 1, supervisor}
 
-        {_pid, {:restarting, {_, _, _, :supervisor, _}}}, {active, worker, supervisor} ->
+        {_pid, {:restarting, {_, _, _, _, :supervisor, _}}}, {active, worker, supervisor} ->
           {active, worker, supervisor + 1}
 
-        {_pid, {_, _, _, :worker, _}}, {active, worker, supervisor} ->
+        {_pid, {_, _, _, _, :worker, _}}, {active, worker, supervisor} ->
           {active + 1, worker + 1, supervisor}
 
-        {_pid, {_, _, _, :supervisor, _}}, {active, worker, supervisor} ->
+        {_pid, {_, _, _, _, :supervisor, _}}, {active, worker, supervisor} ->
           {active + 1, worker, supervisor + 1}
       end)
 
@@ -650,7 +654,7 @@ defmodule Horde.DynamicSupervisor do
     {init_restart, init_shutdown} = Process.get(Task.Supervisor)
     restart = restart || init_restart
     shutdown = shutdown || init_shutdown
-    child = {{Task.Supervised, :start_link, args}, restart, shutdown, :worker, [Task.Supervised]}
+    child = {:crypto.strong_rand_bytes(16), {Task.Supervised, :start_link, args}, restart, shutdown, :worker, [Task.Supervised]}
     handle_call({:start_child, child}, from, state)
   end
 
@@ -664,15 +668,17 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp handle_start_child({{m, f, args} = mfa, restart, shutdown, type, modules}, state) do
+
+  defp handle_start_child({id, {m, f, args} = mfa, restart, shutdown, type, modules}, state) do
     %{extra_arguments: extra} = state
 
     case reply = start_child(m, f, extra ++ args) do
       {:ok, pid, _} ->
-        {:reply, reply, save_child(pid, mfa, restart, shutdown, type, modules, state)}
+
+        {:reply, reply, save_child(id, pid, mfa, restart, shutdown, type, modules, state)}
 
       {:ok, pid} ->
-        {:reply, reply, save_child(pid, mfa, restart, shutdown, type, modules, state)}
+        {:reply, reply, save_child(id, pid, mfa, restart, shutdown, type, modules, state)}
 
       _ ->
         {:reply, reply, state}
@@ -694,9 +700,9 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp save_child(pid, mfa, restart, shutdown, type, modules, state) do
+  defp save_child(id, pid, mfa, restart, shutdown, type, modules, state) do
     mfa = mfa_for_restart(mfa, restart)
-    put_in(state.children[pid], {mfa, restart, shutdown, type, modules})
+    put_in(state.children[pid], {id, mfa, restart, shutdown, type, modules})
   end
 
   defp mfa_for_restart({m, f, _}, :temporary), do: {m, f, :undefined}
@@ -739,7 +745,7 @@ defmodule Horde.DynamicSupervisor do
   end
 
   def handle_info(msg, state) do
-    :error_logger.error_msg('DynamicSupervisor received unexpected message: ~p~n', [msg])
+    :error_logger.error_msg('Horde.DynamicSupervisor received unexpected message: ~p~n', [msg])
     {:noreply, state}
   end
 
@@ -788,7 +794,7 @@ defmodule Horde.DynamicSupervisor do
       {_, {:restarting, _}}, acc ->
         acc
 
-      {pid, {_, restart, _, _, _} = child}, {pids, times, stacks} ->
+      {pid, {_, _, restart, _, _, _} = child}, {pids, times, stacks} ->
         case monitor_child(pid) do
           :ok ->
             times = exit_child(pid, child, times)
@@ -817,7 +823,7 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp exit_child(pid, {_, _, shutdown, _, _}, times) do
+  defp exit_child(pid, {_, _, _, shutdown, _, _}, times) do
     case shutdown do
       :brutal_kill ->
         Process.exit(pid, :kill)
@@ -865,14 +871,14 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp wait_child(pid, {_, _, :brutal_kill, _, _} = child, reason, stacks) do
+  defp wait_child(pid, {_, _, _, :brutal_kill, _, _} = child, reason, stacks) do
     case reason do
       :killed -> stacks
       _ -> Map.put(stacks, pid, {child, reason})
     end
   end
 
-  defp wait_child(pid, {_, restart, _, _, _} = child, reason, stacks) do
+  defp wait_child(pid, {_, _, restart, _, _, _} = child, reason, stacks) do
     case reason do
       {:shutdown, _} -> stacks
       :shutdown -> stacks
@@ -883,7 +889,7 @@ defmodule Horde.DynamicSupervisor do
 
   defp maybe_restart_child(pid, reason, %{children: children} = state) do
     case children do
-      %{^pid => {_, restart, _, _, _} = child} ->
+      %{^pid => {_, _, restart, _, _, _} = child} ->
         maybe_restart_child(restart, reason, pid, child, state)
 
       %{} ->
@@ -919,6 +925,10 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp delete_child(pid, %{children: children} = state) do
+    if state.process_crdt do
+      {child_id, _,_,_,_,_} = Map.get(children, pid)
+      :ok = DeltaCrdt.mutate(state.process_crdt, :remove, [child_id], :infinity)
+    end
     %{state | children: Map.delete(children, pid)}
   end
 
@@ -959,17 +969,17 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp restart_child(:one_for_one, current_pid, child, state) do
-    {{m, f, args} = mfa, restart, shutdown, type, modules} = child
+    {id, {m, f, args} = mfa, restart, shutdown, type, modules} = child
     %{extra_arguments: extra} = state
 
     case start_child(m, f, extra ++ args) do
       {:ok, pid, _} ->
         state = delete_child(current_pid, state)
-        {:ok, save_child(pid, mfa, restart, shutdown, type, modules, state)}
+        {:ok, save_child(id, pid, mfa, restart, shutdown, type, modules, state)}
 
       {:ok, pid} ->
         state = delete_child(current_pid, state)
-        {:ok, save_child(pid, mfa, restart, shutdown, type, modules, state)}
+        {:ok, save_child(id, pid, mfa, restart, shutdown, type, modules, state)}
 
       :ignore ->
         {:ok, delete_child(current_pid, state)}
@@ -991,10 +1001,10 @@ defmodule Horde.DynamicSupervisor do
     )
   end
 
-  defp extract_child(pid, {{m, f, args}, restart, shutdown, type, _modules}, extra) do
+  defp extract_child(pid, {id, {m, f, args}, restart, shutdown, type, _modules}, extra) do
     [
       pid: pid,
-      id: :undefined,
+      id: id,
       mfargs: {m, f, extra ++ args},
       restart_type: restart,
       shutdown: shutdown,
