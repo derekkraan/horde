@@ -22,14 +22,13 @@ defmodule Horde.ProcessSupervisor do
   def start_link(child_spec, graceful_shutdown_manager, registry_name, options) do
     Supervisor.start_link(
       __MODULE__,
-      {child_spec, graceful_shutdown_manager, registry_name, options}
+      {child_spec, graceful_shutdown_manager, options},
+      name: {:via, Registry, {registry_name, child_spec.id, nil}}
     )
   end
 
-  def init({child_spec, graceful_shutdown_manager, registry_name, options}) do
+  def init({child_spec, graceful_shutdown_manager, options}) do
     options = Keyword.put(options, :strategy, :one_for_one)
-
-    {:ok, _pid} = Registry.register(registry_name, child_spec.id, nil)
 
     children = [
       {Horde.ProcessCanary, {child_spec, graceful_shutdown_manager}}

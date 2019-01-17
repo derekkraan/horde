@@ -540,6 +540,20 @@ defmodule Horde.SupervisorImpl do
               {:error, error}
           end
 
+        {:error, {:already_started, process_supervisor_pid}} ->
+          case Supervisor.start_child(process_supervisor_pid, child) do
+            {:error, {:already_started, child_pid}} ->
+              {:error, {:already_started, child_pid}}
+
+            {:error, error} ->
+              DynamicSupervisor.terminate_child(
+                processes_supervisor_name(state.name),
+                process_supervisor_pid
+              )
+
+              {:error, error}
+          end
+
         {:error, error} ->
           {:error, error}
       end
