@@ -531,6 +531,14 @@ defmodule Horde.SupervisorImpl do
             {:ok, child_pid, term} ->
               {{:ok, child_pid, term}, child}
 
+            {:error, {error, {:child, _, _, _, _, _, _, _}}} ->
+              DynamicSupervisor.terminate_child(
+                processes_supervisor_name(state.name),
+                process_supervisor_pid
+              )
+
+              {:error, error}
+
             {:error, error} ->
               DynamicSupervisor.terminate_child(
                 processes_supervisor_name(state.name),
