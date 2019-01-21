@@ -903,14 +903,26 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp maybe_restart_child(_, :normal, pid, _child, state) do
+    if state.process_crdt do
+      {child_id, _,_,_,_,_} = Map.get(state.children, pid)
+      :ok = DeltaCrdt.mutate(state.process_crdt, :remove, [child_id], :infinity)
+    end
     {:ok, delete_child(pid, state)}
   end
 
   defp maybe_restart_child(_, :shutdown, pid, _child, state) do
+    if state.process_crdt do
+      {child_id, _,_,_,_,_} = Map.get(state.children, pid)
+      :ok = DeltaCrdt.mutate(state.process_crdt, :remove, [child_id], :infinity)
+    end
     {:ok, delete_child(pid, state)}
   end
 
   defp maybe_restart_child(_, {:shutdown, _}, pid, _child, state) do
+    if state.process_crdt do
+      {child_id, _,_,_,_,_} = Map.get(state.children, pid)
+      :ok = DeltaCrdt.mutate(state.process_crdt, :remove, [child_id], :infinity)
+    end
     {:ok, delete_child(pid, state)}
   end
 
@@ -925,10 +937,6 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp delete_child(pid, %{children: children} = state) do
-    if state.process_crdt do
-      {child_id, _,_,_,_,_} = Map.get(children, pid)
-      :ok = DeltaCrdt.mutate(state.process_crdt, :remove, [child_id], :infinity)
-    end
     %{state | children: Map.delete(children, pid)}
   end
 

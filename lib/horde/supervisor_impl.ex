@@ -94,6 +94,9 @@ defmodule Horde.SupervisorImpl do
 
         new_state = %{state | processes: Map.delete(state.processes, child_id)}
 
+        :ok = DeltaCrdt.mutate(processes_name(state.name), :remove, [child_id], :infinity)
+
+
         {:reply, reply, new_state}
 
       {other_node, _child_spec} ->
