@@ -29,13 +29,16 @@ defmodule Horde.Supervisor do
   See `start_link/2` for options.
   """
   def child_spec(options \\ []) do
+    supervisor_options = Keyword.take(options, [:name, :distribution_strategy])
+
     options = Keyword.put_new(options, :id, __MODULE__)
 
     %{
       id: options[:id],
-      start: {__MODULE__, :start_link, [Keyword.drop(options, [:id])]},
+      start: {__MODULE__, :start_link, [supervisor_options]},
       type: :supervisor
     }
+    |> Supervisor.child_spec(options)
   end
 
   @doc """
