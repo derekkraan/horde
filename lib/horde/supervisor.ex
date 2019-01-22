@@ -31,7 +31,9 @@ defmodule Horde.Supervisor do
   def child_spec(options \\ []) do
     supervisor_options = Keyword.take(options, [:name, :distribution_strategy])
 
-    options = Keyword.put_new(options, :id, __MODULE__)
+    options =
+      Keyword.put_new(options, :id, __MODULE__)
+      |> Keyword.take(options, [:id, :start, :restart, :shutdown, :type, :modules])
 
     %{
       id: options[:id],
