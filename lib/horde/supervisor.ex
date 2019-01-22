@@ -37,12 +37,13 @@ defmodule Horde.Supervisor do
         :max_seconds,
         :max_children,
         :extra_arguments,
-        :distribution_strategy
+        :distribution_strategy,
+        :shutdown
       ])
 
     options =
       Keyword.put_new(options, :id, __MODULE__)
-      |> Keyword.take([:id, :start, :restart, :shutdown, :type, :modules])
+      |> Keyword.take([:id, :restart, :shutdown, :type])
 
     %{
       id: options[:id],
