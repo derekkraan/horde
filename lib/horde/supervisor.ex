@@ -33,7 +33,7 @@ defmodule Horde.Supervisor do
 
     options =
       Keyword.put_new(options, :id, __MODULE__)
-      |> Keyword.take(options, [:id, :start, :restart, :shutdown, :type, :modules])
+      |> Keyword.take([:id, :start, :restart, :shutdown, :type, :modules])
 
     %{
       id: options[:id],
