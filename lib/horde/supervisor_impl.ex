@@ -319,6 +319,7 @@ defmodule Horde.SupervisorImpl do
   @doc false
   def handle_info({:members_updated, reply_to}, state) do
     members = DeltaCrdt.read(members_name(state.name), 30_000)
+    Logger.debug("members updated: #{inspect(members)}")
 
     monitor_supervisors(members, state)
 

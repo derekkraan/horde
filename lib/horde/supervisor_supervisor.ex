@@ -6,14 +6,6 @@ defmodule Horde.SupervisorSupervisor do
   def init(options) do
     root_name = get_root_name(options)
 
-    IO.inspect(options)
-
-    DynamicSupervisor.child_spec(
-      Keyword.put(options, :name, supervisor_name(root_name))
-      |> Keyword.put(:type, :supervisor)
-    )
-    |> IO.inspect()
-
     children = [
       {DeltaCrdt,
        crdt: DeltaCrdt.AWLWWMap,
