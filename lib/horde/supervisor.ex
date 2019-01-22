@@ -41,14 +41,13 @@ defmodule Horde.Supervisor do
         :shutdown
       ])
 
-    options =
-      Keyword.put_new(options, :id, __MODULE__)
-      |> Keyword.take([:id, :restart, :shutdown, :type])
+    options = Keyword.take(options, [:id, :restart, :shutdown, :type])
 
     %{
-      id: options[:id],
+      id: Keyword.get(options, :id, __MODULE__),
       start: {__MODULE__, :start_link, [supervisor_options]},
-      type: :supervisor
+      type: :supervisor,
+      shutdown: Keyword.get(options, :shutdown, :infinity)
     }
     |> Supervisor.child_spec(options)
   end
