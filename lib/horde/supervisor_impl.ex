@@ -198,8 +198,6 @@ defmodule Horde.SupervisorImpl do
   end
 
   def handle_call({:join_hordes, other_horde}, from, state) do
-    Logger.info("joining with #{inspect(other_horde)}")
-
     GenServer.cast(
       other_horde,
       {:request_to_join_hordes,
@@ -215,8 +213,6 @@ defmodule Horde.SupervisorImpl do
         state
       ) do
     send(members_name(state.name), {:add_neighbours, [other_members_pid]})
-
-    Logger.info("adding neighbour at #{inspect(other_members_pid)}")
 
     GenServer.reply(reply_to, :ok)
     {:noreply, mark_alive(state, true)}
@@ -323,7 +319,6 @@ defmodule Horde.SupervisorImpl do
   @doc false
   def handle_info({:members_updated, reply_to}, state) do
     members = DeltaCrdt.read(members_name(state.name), 30_000)
-    Logger.info("members updated: #{inspect(members)}")
 
     monitor_supervisors(members, state)
 
