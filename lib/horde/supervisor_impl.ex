@@ -198,6 +198,8 @@ defmodule Horde.SupervisorImpl do
   end
 
   def handle_call({:join_hordes, other_horde}, from, state) do
+    Logger.info("joining with #{inspect(other_horde)}")
+
     GenServer.cast(
       other_horde,
       {:request_to_join_hordes,
@@ -213,6 +215,8 @@ defmodule Horde.SupervisorImpl do
         state
       ) do
     send(members_name(state.name), {:add_neighbours, [other_members_pid]})
+
+    Logger.info("adding neighbour at #{inspect(other_members_pid)}")
 
     GenServer.reply(reply_to, :ok)
     {:noreply, mark_alive(state, true)}
