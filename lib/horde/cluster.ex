@@ -25,7 +25,7 @@ defmodule Horde.Cluster do
   catch
     :exit, {:timeout, details} ->
       Logger.debug(fn -> "Joining a horde failed. Details: #{inspect({:timeout, details})}" end)
-      {:error, details}
+      {:error, {:timeout, details}}
   end
 
   @doc """
