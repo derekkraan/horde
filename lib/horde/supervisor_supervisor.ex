@@ -30,7 +30,8 @@ defmodule Horde.SupervisorSupervisor do
       {Horde.DynamicSupervisor,
        Keyword.put(options, :name, supervisor_name(root_name))
        |> Keyword.put(:type, :supervisor)
-       |> Keyword.put(:process_crdt, processes_crdt_name(root_name))},
+       |> Keyword.put(:process_crdt, processes_crdt_name(root_name))
+       |> Keyword.put(:root_name, root_name)},
       {Horde.SignalShutdown, signal_to: [graceful_shutdown_manager_name(root_name), root_name]}
     ]
 

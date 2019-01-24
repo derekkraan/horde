@@ -230,6 +230,19 @@ defmodule SupervisorTest do
     end
   end
 
+  describe "temporary and transient processes" do
+    test "get removed from supervisor after exit" do
+      test_function = fn -> Process.exit(self(), :kill) end
+      child_spec = %{Task.child_spec(test_function) | restart: :temporary}
+      Task.start_link(fn -> Process.exit(self(), :normal) end)
+      {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
+      Horde.Supervisor.start_child(:horde_transient, child_spec)
+      Process.sleep(1000)
+      :sys.get_state(:"horde_transient.ProcessesSupervisor")
+      |> IO.inspect
+    end
+  end
+
   describe "stress test" do
     test "joining hordes dedups processes" do
       {:ok, _} = Horde.Supervisor.start_link(name: :horde_1_dedup, strategy: :one_for_one)

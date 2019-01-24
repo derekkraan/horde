@@ -185,7 +185,7 @@ defmodule Horde.DynamicSupervisor do
     :max_children,
     :max_restarts,
     :max_seconds,
-    :process_crdt,
+    :root_name,
     children: %{},
     restarts: [],
   ]
@@ -259,7 +259,7 @@ defmodule Horde.DynamicSupervisor do
   """
   @spec start_link(options) :: Supervisor.on_start()
   def start_link(options) when is_list(options) do
-    keys = [:extra_arguments, :max_children, :max_seconds, :max_restarts, :strategy, :process_crdt]
+    keys = [:extra_arguments, :max_children, :max_seconds, :max_restarts, :strategy, :root_name]
     {sup_opts, start_opts} = Keyword.split(options, keys)
     start_link(Supervisor.Default, init(sup_opts), start_opts)
   end
@@ -512,7 +512,7 @@ defmodule Horde.DynamicSupervisor do
     period = Keyword.get(options, :max_seconds, 5)
     max_children = Keyword.get(options, :max_children, :infinity)
     extra_arguments = Keyword.get(options, :extra_arguments, [])
-    process_crdt = Keyword.get(options, :process_crdt, nil)
+    root_name = Keyword.get(options, :root_name, nil)
 
     flags = %{
       strategy: strategy,
@@ -520,7 +520,7 @@ defmodule Horde.DynamicSupervisor do
       period: period,
       max_children: max_children,
       extra_arguments: extra_arguments,
-      process_crdt: process_crdt
+      root_name: root_name
     }
 
     {:ok, flags}
@@ -562,7 +562,7 @@ defmodule Horde.DynamicSupervisor do
     max_restarts = Map.get(flags, :intensity, 1)
     max_seconds = Map.get(flags, :period, 5)
     strategy = Map.get(flags, :strategy, :one_for_one)
-    process_crdt = Map.get(flags, :process_crdt, nil)
+    root_name = Map.get(flags, :root_name, nil)
 
     with :ok <- validate_strategy(strategy),
          :ok <- validate_restarts(max_restarts),
@@ -577,7 +577,7 @@ defmodule Horde.DynamicSupervisor do
            max_restarts: max_restarts,
            max_seconds: max_seconds,
            strategy: strategy,
-           process_crdt: process_crdt
+           root_name: root_name
        }}
     end
   end
@@ -794,7 +794,7 @@ defmodule Horde.DynamicSupervisor do
       {_, {:restarting, _}}, acc ->
         acc
 
-      {pid, {_, _, restart, _, _, _} = child}, {pids, times, stacks} ->
+      {pid, {_child_id, _, restart, _, _, _} = child}, {pids, times, stacks} ->
         case monitor_child(pid) do
           :ok ->
             times = exit_child(pid, child, times)
@@ -903,26 +903,17 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp maybe_restart_child(_, :normal, pid, _child, state) do
-    if state.process_crdt do
-      {child_id, _,_,_,_,_} = Map.get(state.children, pid)
-      :ok = DeltaCrdt.mutate(state.process_crdt, :remove, [child_id], :infinity)
-    end
+    remove_child_from_horde(state, pid)
     {:ok, delete_child(pid, state)}
   end
 
   defp maybe_restart_child(_, :shutdown, pid, _child, state) do
-    if state.process_crdt do
-      {child_id, _,_,_,_,_} = Map.get(state.children, pid)
-      :ok = DeltaCrdt.mutate(state.process_crdt, :remove, [child_id], :infinity)
-    end
+    remove_child_from_horde(state, pid)
     {:ok, delete_child(pid, state)}
   end
 
   defp maybe_restart_child(_, {:shutdown, _}, pid, _child, state) do
-    if state.process_crdt do
-      {child_id, _,_,_,_,_} = Map.get(state.children, pid)
-      :ok = DeltaCrdt.mutate(state.process_crdt, :remove, [child_id], :infinity)
-    end
+    remove_child_from_horde(state, pid)
     {:ok, delete_child(pid, state)}
   end
 
@@ -932,8 +923,16 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp maybe_restart_child(:temporary, reason, pid, child, state) do
+    remove_child_from_horde(state, pid)
     report_error(:child_terminated, reason, pid, child, state)
     {:ok, delete_child(pid, state)}
+  end
+
+  defp remove_child_from_horde(state, pid) do
+    if state.root_name do
+      {child_id, _,_,_,_,_} = Map.get(state.children, pid)
+      GenServer.call(state.root_name, {:remove_process_tracking, child_id})
+    end
   end
 
   defp delete_child(pid, %{children: children} = state) do

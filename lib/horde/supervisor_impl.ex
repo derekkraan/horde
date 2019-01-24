@@ -116,6 +116,13 @@ defmodule Horde.SupervisorImpl do
     end
   end
 
+  def handle_call({:remove_process_tracking, child_id}, _from, state) do
+    IO.inspect("RUNNING")
+    new_state = %{state | processes: Map.delete(state.processes, child_id)}
+    :ok = DeltaCrdt.mutate(processes_name(state.name), :remove, [child_id], :infinity)
+    {:reply, :ok, new_state}
+  end
+
   def handle_call({:start_child, _child_spec}, _from, %{shutting_down: true} = state),
     do: {:reply, {:error, {:shutting_down, "this node is shutting down."}}, state}
 
