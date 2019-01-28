@@ -142,7 +142,7 @@ defmodule SupervisorTest do
       Process.exit(context.horde_1_sup_pid, :kill)
 
       %{workers: workers} = Horde.Supervisor.count_children(context.horde_2)
-      assert workers < max
+      assert workers <= max
 
       Process.sleep(1000)
 
@@ -215,7 +215,9 @@ defmodule SupervisorTest do
       assert_receive {:starting, 500}, 200
       assert_receive {:starting, 5000}, 200
 
-      Task.start_link(fn -> Horde.Supervisor.stop(:horde_1_graceful) end)
+      Task.start_link(fn ->
+        Horde.Supervisor.stop(:horde_1_graceful)
+      end)
 
       assert_receive {:stopping, 500}, 100
       assert_receive {:stopping, 5000}
@@ -231,15 +233,34 @@ defmodule SupervisorTest do
   end
 
   describe "temporary and transient processes" do
-    test "get removed from supervisor after exit" do
+    test "temporary task gets removed from supervisor after exit" do
       test_function = fn -> Process.exit(self(), :kill) end
-      child_spec = %{Task.child_spec(test_function) | restart: :temporary}
-      Task.start_link(fn -> Process.exit(self(), :normal) end)
+
+      child_spec = Task.child_spec(test_function)
       {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
       Horde.Supervisor.start_child(:horde_transient, child_spec)
-      Process.sleep(1000)
-      :sys.get_state(:"horde_transient.ProcessesSupervisor")
-      |> IO.inspect
+
+      assert :sys.get_state(:horde_transient).processes == %{}
+    end
+
+    test "transient process get removed from supervisor after exit" do
+      test_function = fn -> Process.exit(self(), :normal) end
+
+      child_spec = %{Task.child_spec(test_function) | restart: :transient}
+      {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
+      Horde.Supervisor.start_child(:horde_transient, child_spec)
+
+      assert :sys.get_state(:horde_transient).processes == %{}
+    end
+
+    test "transient process does not get removed from supervisor after failed exit" do
+      test_function = fn -> Process.exit(self(), :error) end
+
+      child_spec = %{Task.child_spec(test_function) | restart: :transient}
+      {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
+      Horde.Supervisor.start_child(:horde_transient, child_spec)
+
+      assert %{Task => {_, %{id: Task}, _}} = :sys.get_state(:horde_transient).processes
     end
   end
 

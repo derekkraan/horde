@@ -186,8 +186,10 @@ defmodule Horde.DynamicSupervisor do
     :max_restarts,
     :max_seconds,
     :root_name,
+    :graceful_shutdown_manager,
     children: %{},
-    restarts: [],
+    child_id_to_pid: %{},
+    restarts: []
   ]
 
   @doc """
@@ -206,7 +208,8 @@ defmodule Horde.DynamicSupervisor do
     %{
       id: id,
       start: {Horde.DynamicSupervisor, :start_link, [opts]},
-      type: :supervisor
+      type: :supervisor,
+      shutdown: :infinity
     }
   end
 
@@ -236,6 +239,10 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
+  def find_pid(supervisor, child_id) do
+    call(supervisor, {:find_pid, child_id})
+  end
+
   @doc """
   Starts a supervisor with the given options.
 
@@ -259,7 +266,16 @@ defmodule Horde.DynamicSupervisor do
   """
   @spec start_link(options) :: Supervisor.on_start()
   def start_link(options) when is_list(options) do
-    keys = [:extra_arguments, :max_children, :max_seconds, :max_restarts, :strategy, :root_name]
+    keys = [
+      :extra_arguments,
+      :max_children,
+      :max_seconds,
+      :max_restarts,
+      :strategy,
+      :root_name,
+      :graceful_shutdown_manager
+    ]
+
     {sup_opts, start_opts} = Keyword.split(options, keys)
     start_link(Supervisor.Default, init(sup_opts), start_opts)
   end
@@ -513,6 +529,7 @@ defmodule Horde.DynamicSupervisor do
     max_children = Keyword.get(options, :max_children, :infinity)
     extra_arguments = Keyword.get(options, :extra_arguments, [])
     root_name = Keyword.get(options, :root_name, nil)
+    graceful_shutdown_manager = Keyword.get(options, :graceful_shutdown_manager, nil)
 
     flags = %{
       strategy: strategy,
@@ -520,7 +537,8 @@ defmodule Horde.DynamicSupervisor do
       period: period,
       max_children: max_children,
       extra_arguments: extra_arguments,
-      root_name: root_name
+      root_name: root_name,
+      graceful_shutdown_manager: graceful_shutdown_manager
     }
 
     {:ok, flags}
@@ -543,6 +561,7 @@ defmodule Horde.DynamicSupervisor do
           end
 
         state = %Horde.DynamicSupervisor{mod: mod, args: init_arg, name: name}
+
         case init(state, flags) do
           {:ok, state} -> {:ok, state}
           {:error, reason} -> {:stop, {:supervisor_data, reason}}
@@ -563,6 +582,7 @@ defmodule Horde.DynamicSupervisor do
     max_seconds = Map.get(flags, :period, 5)
     strategy = Map.get(flags, :strategy, :one_for_one)
     root_name = Map.get(flags, :root_name, nil)
+    graceful_shutdown_manager = Map.get(flags, :graceful_shutdown_manager, nil)
 
     with :ok <- validate_strategy(strategy),
          :ok <- validate_restarts(max_restarts),
@@ -577,7 +597,8 @@ defmodule Horde.DynamicSupervisor do
            max_restarts: max_restarts,
            max_seconds: max_seconds,
            strategy: strategy,
-           root_name: root_name
+           root_name: root_name,
+           graceful_shutdown_manager: graceful_shutdown_manager
        }}
     end
   end
@@ -597,6 +618,10 @@ defmodule Horde.DynamicSupervisor do
 
   defp validate_extra_arguments(list) when is_list(list), do: :ok
   defp validate_extra_arguments(extra), do: {:error, {:invalid_extra_arguments, extra}}
+
+  def handle_call({:find_pid, child_id}, _from, state) do
+    {:reply, state.child_id_to_pid[child_id], state}
+  end
 
   @impl true
   def handle_call(:which_children, _from, state) do
@@ -643,6 +668,7 @@ defmodule Horde.DynamicSupervisor do
     case children do
       %{^pid => info} ->
         :ok = terminate_children(%{pid => info}, state)
+        handle_graceful_shutdown_horde(info, state)
         {:reply, :ok, delete_child(pid, state)}
 
       %{} ->
@@ -654,7 +680,11 @@ defmodule Horde.DynamicSupervisor do
     {init_restart, init_shutdown} = Process.get(Task.Supervisor)
     restart = restart || init_restart
     shutdown = shutdown || init_shutdown
-    child = {:crypto.strong_rand_bytes(16), {Task.Supervised, :start_link, args}, restart, shutdown, :worker, [Task.Supervised]}
+
+    child =
+      {:crypto.strong_rand_bytes(16), {Task.Supervised, :start_link, args}, restart, shutdown,
+       :worker, [Task.Supervised]}
+
     handle_call({:start_child, child}, from, state)
   end
 
@@ -668,13 +698,11 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-
   defp handle_start_child({id, {m, f, args} = mfa, restart, shutdown, type, modules}, state) do
     %{extra_arguments: extra} = state
 
     case reply = start_child(m, f, extra ++ args) do
       {:ok, pid, _} ->
-
         {:reply, reply, save_child(id, pid, mfa, restart, shutdown, type, modules, state)}
 
       {:ok, pid} ->
@@ -702,7 +730,8 @@ defmodule Horde.DynamicSupervisor do
 
   defp save_child(id, pid, mfa, restart, shutdown, type, modules, state) do
     mfa = mfa_for_restart(mfa, restart)
-    put_in(state.children[pid], {id, mfa, restart, shutdown, type, modules})
+    state = put_in(state.children[pid], {id, mfa, restart, shutdown, type, modules})
+    put_in(state.child_id_to_pid[id], pid)
   end
 
   defp mfa_for_restart({m, f, _}, :temporary), do: {m, f, :undefined}
@@ -772,7 +801,7 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp terminate_children(children, state) do
-    {pids, times, stacks} = monitor_children(children)
+    {pids, times, stacks} = monitor_children(children, state)
     size = map_size(pids)
 
     timers =
@@ -780,7 +809,7 @@ defmodule Horde.DynamicSupervisor do
         Map.put(acc, :erlang.start_timer(time, self(), :kill), pids)
       end)
 
-    stacks = wait_children(pids, size, timers, stacks)
+    stacks = wait_children(pids, size, timers, stacks, children, state)
 
     for {pid, {child, reason}} <- stacks do
       report_error(:shutdown_error, reason, pid, child, state)
@@ -789,12 +818,13 @@ defmodule Horde.DynamicSupervisor do
     :ok
   end
 
-  defp monitor_children(children) do
+  defp monitor_children(children, state) do
     Enum.reduce(children, {%{}, %{}, %{}}, fn
       {_, {:restarting, _}}, acc ->
         acc
 
-      {pid, {_child_id, _, restart, _, _, _} = child}, {pids, times, stacks} ->
+      {pid, {_child_id, _start, restart, _shutdown, _type, _modules} = child},
+      {pids, times, stacks} ->
         case monitor_child(pid) do
           :ok ->
             times = exit_child(pid, child, times)
@@ -839,7 +869,7 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp wait_children(_pids, 0, timers, stacks) do
+  defp wait_children(_pids, 0, timers, stacks, _children, _state) do
     for {timer, _} <- timers do
       _ = :erlang.cancel_timer(timer)
 
@@ -853,21 +883,27 @@ defmodule Horde.DynamicSupervisor do
     stacks
   end
 
-  defp wait_children(pids, size, timers, stacks) do
+  defp wait_children(pids, size, timers, stacks, children, state) do
     receive do
       {:DOWN, _ref, :process, pid, reason} ->
         case pids do
           %{^pid => child} ->
             stacks = wait_child(pid, child, reason, stacks)
-            wait_children(pids, size - 1, timers, stacks)
+            handle_graceful_shutdown_horde(children[pid], state)
+            wait_children(pids, size - 1, timers, stacks, children, state)
 
           %{} ->
-            wait_children(pids, size, timers, stacks)
+            handle_graceful_shutdown_horde(children[pid], state)
+            wait_children(pids, size, timers, stacks, children, state)
         end
 
       {:timeout, timer, :kill} ->
-        for pid <- Map.fetch!(timers, timer), do: Process.exit(pid, :kill)
-        wait_children(pids, size, Map.delete(timers, timer), stacks)
+        for pid <- Map.fetch!(timers, timer) do
+          Process.exit(pid, :kill)
+          handle_graceful_shutdown_horde(children[pid], state)
+        end
+
+        wait_children(pids, size, Map.delete(timers, timer), stacks, children, state)
     end
   end
 
@@ -885,6 +921,25 @@ defmodule Horde.DynamicSupervisor do
       :normal when restart != :permanent -> stacks
       reason -> Map.put(stacks, pid, {child, reason})
     end
+  end
+
+  defp handle_graceful_shutdown_horde({child_id, start, restart, shutdown, type, modules}, state) do
+    if state.graceful_shutdown_manager do
+      child_spec = %{
+        id: child_id,
+        start: start,
+        restart: restart,
+        shutdown: shutdown,
+        type: type,
+        modules: modules
+      }
+
+      GenServer.cast(state.graceful_shutdown_manager, {:shut_down, child_spec})
+    end
+  end
+
+  defp handle_graceful_shutdown_horde(_, _) do
+    :ok
   end
 
   defp maybe_restart_child(pid, reason, %{children: children} = state) do
@@ -930,13 +985,19 @@ defmodule Horde.DynamicSupervisor do
 
   defp remove_child_from_horde(state, pid) do
     if state.root_name do
-      {child_id, _,_,_,_,_} = Map.get(state.children, pid)
-      GenServer.call(state.root_name, {:remove_process_tracking, child_id})
+      {child_id, _, _, _, _, _} = Map.get(state.children, pid)
+      GenServer.cast(state.root_name, {:remove_process_tracking, child_id})
     end
   end
 
   defp delete_child(pid, %{children: children} = state) do
-    %{state | children: Map.delete(children, pid)}
+    {child_id, _, _, _, _, _} = children[pid]
+
+    %{
+      state
+      | children: Map.delete(children, pid),
+        child_id_to_pid: Map.delete(state.child_id_to_pid, child_id)
+    }
   end
 
   defp restart_child(pid, child, state) do
