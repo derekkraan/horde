@@ -175,12 +175,8 @@
 
 # END OF TERMS AND CONDITIONS
 
-
-
-
 # From commit number 69cd698535eb4982c83f6bf89016b24902bfd1c2
 # This source has been modified from the original located https://github.com/elixir-lang/elixir/blob/master/lib/elixir/lib/dynamic_supervisor.ex
-
 
 defmodule Horde.DynamicSupervisor do
   @moduledoc ~S"""
@@ -419,8 +415,8 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  def find_pid(supervisor, child_id) do
-    call(supervisor, {:find_pid, child_id})
+  def terminate_child_by_id(supervisor, child_id) do
+    call(supervisor, {:terminate_child_by_id, child_id})
   end
 
   @doc """
@@ -799,8 +795,8 @@ defmodule Horde.DynamicSupervisor do
   defp validate_extra_arguments(list) when is_list(list), do: :ok
   defp validate_extra_arguments(extra), do: {:error, {:invalid_extra_arguments, extra}}
 
-  def handle_call({:find_pid, child_id}, _from, state) do
-    {:reply, state.child_id_to_pid[child_id], state}
+  def handle_call({:terminate_child_by_id, child_id}, from, state) do
+    handle_call({:terminate_child, state.child_id_to_pid[child_id]}, from, state)
   end
 
   @impl true

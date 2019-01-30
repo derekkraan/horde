@@ -327,18 +327,10 @@ defmodule Horde.SupervisorImpl do
 
     MapSet.difference(old_process_ids, new_process_ids)
     |> Enum.map(fn id ->
-      pid =
-        Horde.DynamicSupervisor.find_pid(
-          processes_supervisor_name(new_state.name),
-          id
-        )
-
-      if pid do
-        Horde.DynamicSupervisor.terminate_child(
-          processes_supervisor_name(new_state.name),
-          pid
-        )
-      end
+      Horde.DynamicSupervisor.terminate_child_by_id(
+        processes_supervisor_name(new_state.name),
+        id
+      )
 
       :ok
     end)
