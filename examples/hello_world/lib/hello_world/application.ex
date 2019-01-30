@@ -19,13 +19,14 @@ defmodule HelloWorld.Application do
         restart: :transient,
         start:
           {Task, :start_link,
-           [
-             fn ->
-               HelloWorld.ClusterConnector.connect()
-               HelloWorld.HordeConnector.connect()
-               Horde.Supervisor.start_child(HelloWorld.HelloSupervisor, HelloWorld.SayHello)
-             end
-           ]}
+            [
+              fn ->
+                HelloWorld.ClusterConnector.connect()
+                HelloWorld.HordeConnector.connect()
+                :timer.sleep(1000)
+                Horde.Supervisor.start_child(HelloWorld.HelloSupervisor, HelloWorld.SayHello)
+              end
+            ]}
       }
     ]
 
