@@ -28,7 +28,7 @@ defmodule HelloWorld.SayHello do
   end
 
   def handle_info(:say_hello, counter) do
-    Logger.info("HELLO from node #{inspect(Node.self())}")
+    Logger.info("HELLO from node #{inspect(Node.self())} at count #{counter}")
     Process.send_after(self(), :say_hello, 5000)
 
     {:noreply, put_global_counter(counter + 1)}
