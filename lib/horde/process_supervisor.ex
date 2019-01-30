@@ -29,7 +29,10 @@ defmodule Horde.ProcessSupervisor do
   def init({child_spec, graceful_shutdown_manager, registry_name, options}) do
     options = Keyword.put(options, :strategy, :one_for_one)
 
-    {:ok, _pid} = Registry.register(registry_name, child_spec.id, nil)
+    case Registry.register(registry_name, child_spec.id, nil) do
+      {:ok, _pid} -> nil
+      {:error, {:already_registered, _pid}} -> nil # Don't care
+    end
 
     children = [
       {Horde.ProcessCanary, {child_spec, graceful_shutdown_manager}}
