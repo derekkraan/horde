@@ -16,7 +16,6 @@ defmodule Horde.SupervisorImpl do
             processes_pid: nil,
             members: %{},
             processes: %{},
-            child_id_to_pid: %{},
             processes_updated_counter: 0,
             processes_updated_at: 0,
             shutting_down: false,
@@ -85,11 +84,11 @@ defmodule Horde.SupervisorImpl do
 
   def handle_call({:terminate_child, child_id} = msg, from, %{node_id: this_node_id} = state) do
     case Map.get(state.processes, child_id) do
-      {^this_node_id, _child_spec, _child_pid} ->
+      {^this_node_id, _child_spec} ->
         reply =
-          Horde.DynamicSupervisor.terminate_child(
+          Horde.DynamicSupervisor.terminate_child_by_id(
             processes_supervisor_name(state.name),
-            get_child_pid(state, child_id)
+            child_id
           )
 
         new_state = %{state | processes: Map.delete(state.processes, child_id)}
@@ -98,7 +97,7 @@ defmodule Horde.SupervisorImpl do
 
         {:reply, reply, new_state}
 
-      {other_node, _child_spec, _child_pid} ->
+      {other_node, _child_spec} ->
         proxy_to_node(other_node, msg, from, state)
 
       nil ->
@@ -198,11 +197,6 @@ defmodule Horde.SupervisorImpl do
     new_state = %{state | processes: Map.delete(state.processes, child_id)}
     :ok = DeltaCrdt.mutate(processes_name(state.name), :remove, [child_id], :infinity)
     {:noreply, new_state}
-  end
-
-  defp get_child_pid(%{processes: processes}, child_id) do
-    {_, _, child_pid} = Map.get(processes, child_id, nil)
-    child_pid
   end
 
   defp proxy_to_node(node_id, message, reply_to, state) do
@@ -410,7 +404,7 @@ defmodule Horde.SupervisorImpl do
 
   defp processes_for_node(state, node_id) do
     Enum.filter(state.processes, fn
-      {_id, {^node_id, _child_spec, _child_pid}} -> true
+      {_id, {^node_id, _child_spec}} -> true
       _ -> false
     end)
   end
@@ -420,7 +414,7 @@ defmodule Horde.SupervisorImpl do
 
     {_responses, new_state} =
       processes_on_dead_nodes(state)
-      |> Enum.map(fn {_id, {_node, child, _child_pid}} -> child end)
+      |> Enum.map(fn {_id, {_node, child}} -> child end)
       |> Enum.filter(fn child ->
         case state.distribution_strategy.choose_node(child.id, Map.values(state.members)) do
           {:ok, %{node_id: ^this_node_id}} -> true
@@ -437,7 +431,7 @@ defmodule Horde.SupervisorImpl do
 
     procs =
       Enum.filter(processes, fn
-        {_id, {node_id, _child_spec, _child_pid}} ->
+        {_id, {node_id, _child_spec}} ->
           !MapSet.member?(member_ids, node_id)
       end)
 
@@ -453,7 +447,7 @@ defmodule Horde.SupervisorImpl do
   defp claim_unclaimed_processes(%{node_id: this_node_id} = state) do
     {_responses, new_state} =
       Enum.flat_map(state.processes, fn
-        {id, {nil, child_spec, _child_pid}} ->
+        {id, {nil, child_spec}} ->
           case state.distribution_strategy.choose_node(id, Map.values(state.members)) do
             {:ok, %{node_id: ^this_node_id}} -> [child_spec]
             _ -> []
@@ -475,16 +469,16 @@ defmodule Horde.SupervisorImpl do
     end)
   end
 
-  defp update_state_with_child(child, child_pid, state) do
+  defp update_state_with_child(child, state) do
     :ok =
       DeltaCrdt.mutate(
         processes_name(state.name),
         :add,
-        [child.id, {state.node_id, child, child_pid}],
+        [child.id, {state.node_id, child}],
         :infinity
       )
 
-    %{state | processes: Map.put(state.processes, child.id, {state.node_id, child, child_pid})}
+    %{state | processes: Map.put(state.processes, child.id, {state.node_id, child})}
   end
 
   defp add_child(child, state) do
@@ -506,11 +500,11 @@ defmodule Horde.SupervisorImpl do
       {:error, error}, {responses, state} ->
         {[{:error, error} | responses], state}
 
-      {{:ok, child_pid, _term} = resp, child}, {responses, state} ->
-        {[resp | responses], update_state_with_child(child, child_pid, state)}
+      {{:ok, _child_pid, _term} = resp, child}, {responses, state} ->
+        {[resp | responses], update_state_with_child(child, state)}
 
-      {{:ok, child_pid} = resp, child}, {responses, state} ->
-        {[resp | responses], update_state_with_child(child, child_pid, state)}
+      {{:ok, _child_pid} = resp, child}, {responses, state} ->
+        {[resp | responses], update_state_with_child(child, state)}
     end)
   end
 
