@@ -1159,7 +1159,7 @@ defmodule Horde.DynamicSupervisor do
 
   defp remove_child_from_horde(state, pid) do
     {child_id, _, _, _, _, _} = Map.get(state.children, pid)
-    GenServer.cast(state.root_name, {:remove_process_tracking, child_id})
+    GenServer.cast(state.root_name, {:disown_child_process, child_id})
   end
 
   defp delete_child(pid, %{children: children} = state) do

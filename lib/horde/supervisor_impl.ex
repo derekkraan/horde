@@ -193,7 +193,7 @@ defmodule Horde.SupervisorImpl do
     {:noreply, mark_alive(state, true)}
   end
 
-  def handle_cast({:remove_process_tracking, child_id}, state) do
+  def handle_cast({:disown_child_process, child_id}, state) do
     new_state = %{state | processes: Map.delete(state.processes, child_id)}
     :ok = DeltaCrdt.mutate(processes_name(state.name), :remove, [child_id], :infinity)
     {:noreply, new_state}
