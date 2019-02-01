@@ -1,5 +1,182 @@
+# Apache License
+# Version 2.0, January 2004
+# http://www.apache.org/licenses/
+
+# TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+# 1. Definitions.
+
+# "License" shall mean the terms and conditions for use, reproduction,
+# and distribution as defined by Sections 1 through 9 of this document.
+
+# "Licensor" shall mean the copyright owner or entity authorized by
+# the copyright owner that is granting the License.
+
+# "Legal Entity" shall mean the union of the acting entity and all
+# other entities that control, are controlled by, or are under common
+# control with that entity. For the purposes of this definition,
+# "control" means (i) the power, direct or indirect, to cause the
+# direction or management of such entity, whether by contract or
+# otherwise, or (ii) ownership of fifty percent (50%) or more of the
+# outstanding shares, or (iii) beneficial ownership of such entity.
+
+# "You" (or "Your") shall mean an individual or Legal Entity
+# exercising permissions granted by this License.
+
+# "Source" form shall mean the preferred form for making modifications,
+# including but not limited to software source code, documentation
+# source, and configuration files.
+
+# "Object" form shall mean any form resulting from mechanical
+# transformation or translation of a Source form, including but
+# not limited to compiled object code, generated documentation,
+# and conversions to other media types.
+
+# "Work" shall mean the work of authorship, whether in Source or
+# Object form, made available under the License, as indicated by a
+# copyright notice that is included in or attached to the work
+# (an example is provided in the Appendix below).
+
+# "Derivative Works" shall mean any work, whether in Source or Object
+# form, that is based on (or derived from) the Work and for which the
+# editorial revisions, annotations, elaborations, or other modifications
+# represent, as a whole, an original work of authorship. For the purposes
+# of this License, Derivative Works shall not include works that remain
+# separable from, or merely link (or bind by name) to the interfaces of,
+# the Work and Derivative Works thereof.
+
+# "Contribution" shall mean any work of authorship, including
+# the original version of the Work and any modifications or additions
+# to that Work or Derivative Works thereof, that is intentionally
+# submitted to Licensor for inclusion in the Work by the copyright owner
+# or by an individual or Legal Entity authorized to submit on behalf of
+# the copyright owner. For the purposes of this definition, "submitted"
+# means any form of electronic, verbal, or written communication sent
+# to the Licensor or its representatives, including but not limited to
+# communication on electronic mailing lists, source code control systems,
+# and issue tracking systems that are managed by, or on behalf of, the
+# Licensor for the purpose of discussing and improving the Work, but
+# excluding communication that is conspicuously marked or otherwise
+# designated in writing by the copyright owner as "Not a Contribution."
+
+# "Contributor" shall mean Licensor and any individual or Legal Entity
+# on behalf of whom a Contribution has been received by Licensor and
+# subsequently incorporated within the Work.
+
+# 2. Grant of Copyright License. Subject to the terms and conditions of
+# this License, each Contributor hereby grants to You a perpetual,
+# worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+# copyright license to reproduce, prepare Derivative Works of,
+# publicly display, publicly perform, sublicense, and distribute the
+# Work and such Derivative Works in Source or Object form.
+
+# 3. Grant of Patent License. Subject to the terms and conditions of
+# this License, each Contributor hereby grants to You a perpetual,
+# worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+# (except as stated in this section) patent license to make, have made,
+# use, offer to sell, sell, import, and otherwise transfer the Work,
+# where such license applies only to those patent claims licensable
+# by such Contributor that are necessarily infringed by their
+# Contribution(s) alone or by combination of their Contribution(s)
+# with the Work to which such Contribution(s) was submitted. If You
+# institute patent litigation against any entity (including a
+# cross-claim or counterclaim in a lawsuit) alleging that the Work
+# or a Contribution incorporated within the Work constitutes direct
+# or contributory patent infringement, then any patent licenses
+# granted to You under this License for that Work shall terminate
+# as of the date such litigation is filed.
+
+# 4. Redistribution. You may reproduce and distribute copies of the
+# Work or Derivative Works thereof in any medium, with or without
+# modifications, and in Source or Object form, provided that You
+# meet the following conditions:
+
+# (a) You must give any other recipients of the Work or
+# Derivative Works a copy of this License; and
+
+# (b) You must cause any modified files to carry prominent notices
+# stating that You changed the files; and
+
+# (c) You must retain, in the Source form of any Derivative Works
+# that You distribute, all copyright, patent, trademark, and
+# attribution notices from the Source form of the Work,
+# excluding those notices that do not pertain to any part of
+# the Derivative Works; and
+
+# (d) If the Work includes a "NOTICE" text file as part of its
+# distribution, then any Derivative Works that You distribute must
+# include a readable copy of the attribution notices contained
+# within such NOTICE file, excluding those notices that do not
+# pertain to any part of the Derivative Works, in at least one
+# of the following places: within a NOTICE text file distributed
+# as part of the Derivative Works; within the Source form or
+# documentation, if provided along with the Derivative Works; or,
+# within a display generated by the Derivative Works, if and
+# wherever such third-party notices normally appear. The contents
+# of the NOTICE file are for informational purposes only and
+# do not modify the License. You may add Your own attribution
+# notices within Derivative Works that You distribute, alongside
+# or as an addendum to the NOTICE text from the Work, provided
+# that such additional attribution notices cannot be construed
+# as modifying the License.
+
+# You may add Your own copyright statement to Your modifications and
+# may provide additional or different license terms and conditions
+# for use, reproduction, or distribution of Your modifications, or
+# for any such Derivative Works as a whole, provided Your use,
+# reproduction, and distribution of the Work otherwise complies with
+# the conditions stated in this License.
+
+# 5. Submission of Contributions. Unless You explicitly state otherwise,
+# any Contribution intentionally submitted for inclusion in the Work
+# by You to the Licensor shall be under the terms and conditions of
+# this License, without any additional terms or conditions.
+# Notwithstanding the above, nothing herein shall supersede or modify
+# the terms of any separate license agreement you may have executed
+# with Licensor regarding such Contributions.
+
+# 6. Trademarks. This License does not grant permission to use the trade
+# names, trademarks, service marks, or product names of the Licensor,
+# except as required for reasonable and customary use in describing the
+# origin of the Work and reproducing the content of the NOTICE file.
+
+# 7. Disclaimer of Warranty. Unless required by applicable law or
+# agreed to in writing, Licensor provides the Work (and each
+# Contributor provides its Contributions) on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied, including, without limitation, any warranties or conditions
+# of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+# PARTICULAR PURPOSE. You are solely responsible for determining the
+# appropriateness of using or redistributing the Work and assume any
+# risks associated with Your exercise of permissions under this License.
+
+# 8. Limitation of Liability. In no event and under no legal theory,
+# whether in tort (including negligence), contract, or otherwise,
+# unless required by applicable law (such as deliberate and grossly
+# negligent acts) or agreed to in writing, shall any Contributor be
+# liable to You for damages, including any direct, indirect, special,
+# incidental, or consequential damages of any character arising as a
+# result of this License or out of the use or inability to use the
+# Work (including but not limited to damages for loss of goodwill,
+# work stoppage, computer failure or malfunction, or any and all
+# other commercial damages or losses), even if such Contributor
+# has been advised of the possibility of such damages.
+
+# 9. Accepting Warranty or Additional Liability. While redistributing
+# the Work or Derivative Works thereof, You may choose to offer,
+# and charge a fee for, acceptance of support, warranty, indemnity,
+# or other liability obligations and/or rights consistent with this
+# License. However, in accepting such obligations, You may act only
+# on Your own behalf and on Your sole responsibility, not on behalf
+# of any other Contributor, and only if You agree to indemnify,
+# defend, and hold each Contributor harmless for any liability
+# incurred by, or claims asserted against, such Contributor by reason
+# of your accepting any such warranty or additional liability.
+
+# END OF TERMS AND CONDITIONS
+
 # From commit number 69cd698535eb4982c83f6bf89016b24902bfd1c2
-# https://github.com/elixir-lang/elixir
+# This source has been modified from the original located https://github.com/elixir-lang/elixir/blob/master/lib/elixir/lib/dynamic_supervisor.ex
 
 defmodule Horde.DynamicSupervisor do
   @moduledoc ~S"""
@@ -185,7 +362,10 @@ defmodule Horde.DynamicSupervisor do
     :max_children,
     :max_restarts,
     :max_seconds,
+    :root_name,
+    :graceful_shutdown_manager,
     children: %{},
+    child_id_to_pid: %{},
     restarts: []
   ]
 
@@ -204,7 +384,7 @@ defmodule Horde.DynamicSupervisor do
 
     %{
       id: id,
-      start: {DynamicSupervisor, :start_link, [opts]},
+      start: {Horde.DynamicSupervisor, :start_link, [opts]},
       type: :supervisor
     }
   end
@@ -235,6 +415,10 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
+  def terminate_child_by_id(supervisor, child_id) do
+    call(supervisor, {:terminate_child_by_id, child_id})
+  end
+
   @doc """
   Starts a supervisor with the given options.
 
@@ -258,7 +442,16 @@ defmodule Horde.DynamicSupervisor do
   """
   @spec start_link(options) :: Supervisor.on_start()
   def start_link(options) when is_list(options) do
-    keys = [:extra_arguments, :max_children, :max_seconds, :max_restarts, :strategy]
+    keys = [
+      :extra_arguments,
+      :max_children,
+      :max_seconds,
+      :max_restarts,
+      :strategy,
+      :root_name,
+      :graceful_shutdown_manager
+    ]
+
     {sup_opts, start_opts} = Keyword.split(options, keys)
     start_link(Supervisor.Default, init(sup_opts), start_opts)
   end
@@ -326,7 +519,7 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp validate_child(%{id: _, start: {mod, _, _} = start} = child) do
+  defp validate_child(%{id: id, start: {mod, _, _} = start} = child) do
     restart = Map.get(child, :restart, :permanent)
     type = Map.get(child, :type, :worker)
     modules = Map.get(child, :modules, [mod])
@@ -337,24 +530,24 @@ defmodule Horde.DynamicSupervisor do
         :supervisor -> Map.get(child, :shutdown, :infinity)
       end
 
-    validate_child(start, restart, shutdown, type, modules)
+    validate_child(id, start, restart, shutdown, type, modules)
   end
 
-  defp validate_child({_, start, restart, shutdown, type, modules}) do
-    validate_child(start, restart, shutdown, type, modules)
+  defp validate_child({id, start, restart, shutdown, type, modules}) do
+    validate_child(id, start, restart, shutdown, type, modules)
   end
 
   defp validate_child(other) do
     {:invalid_child_spec, other}
   end
 
-  defp validate_child(start, restart, shutdown, type, modules) do
+  defp validate_child(id, start, restart, shutdown, type, modules) do
     with :ok <- validate_start(start),
          :ok <- validate_restart(restart),
          :ok <- validate_shutdown(shutdown),
          :ok <- validate_type(type),
          :ok <- validate_modules(modules) do
-      {:ok, {start, restart, shutdown, type, modules}}
+      {:ok, {id, start, restart, shutdown, type, modules}}
     end
   end
 
@@ -511,13 +704,17 @@ defmodule Horde.DynamicSupervisor do
     period = Keyword.get(options, :max_seconds, 5)
     max_children = Keyword.get(options, :max_children, :infinity)
     extra_arguments = Keyword.get(options, :extra_arguments, [])
+    root_name = Keyword.fetch!(options, :root_name)
+    graceful_shutdown_manager = Keyword.fetch!(options, :graceful_shutdown_manager)
 
     flags = %{
       strategy: strategy,
       intensity: intensity,
       period: period,
       max_children: max_children,
-      extra_arguments: extra_arguments
+      extra_arguments: extra_arguments,
+      root_name: root_name,
+      graceful_shutdown_manager: graceful_shutdown_manager
     }
 
     {:ok, flags}
@@ -539,7 +736,7 @@ defmodule Horde.DynamicSupervisor do
             is_tuple(name) -> name
           end
 
-        state = %DynamicSupervisor{mod: mod, args: init_arg, name: name}
+        state = %Horde.DynamicSupervisor{mod: mod, args: init_arg, name: name}
 
         case init(state, flags) do
           {:ok, state} -> {:ok, state}
@@ -560,6 +757,8 @@ defmodule Horde.DynamicSupervisor do
     max_restarts = Map.get(flags, :intensity, 1)
     max_seconds = Map.get(flags, :period, 5)
     strategy = Map.get(flags, :strategy, :one_for_one)
+    root_name = Map.fetch!(flags, :root_name)
+    graceful_shutdown_manager = Map.fetch!(flags, :graceful_shutdown_manager)
 
     with :ok <- validate_strategy(strategy),
          :ok <- validate_restarts(max_restarts),
@@ -573,7 +772,9 @@ defmodule Horde.DynamicSupervisor do
            max_children: max_children,
            max_restarts: max_restarts,
            max_seconds: max_seconds,
-           strategy: strategy
+           strategy: strategy,
+           root_name: root_name,
+           graceful_shutdown_manager: graceful_shutdown_manager
        }}
     end
   end
@@ -594,6 +795,10 @@ defmodule Horde.DynamicSupervisor do
   defp validate_extra_arguments(list) when is_list(list), do: :ok
   defp validate_extra_arguments(extra), do: {:error, {:invalid_extra_arguments, extra}}
 
+  def handle_call({:terminate_child_by_id, child_id}, from, state) do
+    handle_call({:terminate_child, state.child_id_to_pid[child_id]}, from, state)
+  end
+
   @impl true
   def handle_call(:which_children, _from, state) do
     %{children: children} = state
@@ -601,11 +806,11 @@ defmodule Horde.DynamicSupervisor do
     reply =
       for {pid, args} <- children do
         case args do
-          {:restarting, {_, _, _, type, modules}} ->
-            {:undefined, :restarting, type, modules}
+          {:restarting, {id, _, _, _, type, modules}} ->
+            {id, :restarting, type, modules}
 
-          {_, _, _, type, modules} ->
-            {:undefined, pid, type, modules}
+          {id, _, _, _, type, modules} ->
+            {id, pid, type, modules}
         end
       end
 
@@ -618,16 +823,16 @@ defmodule Horde.DynamicSupervisor do
 
     {active, workers, supervisors} =
       Enum.reduce(children, {0, 0, 0}, fn
-        {_pid, {:restarting, {_, _, _, :worker, _}}}, {active, worker, supervisor} ->
+        {_pid, {:restarting, {_, _, _, _, :worker, _}}}, {active, worker, supervisor} ->
           {active, worker + 1, supervisor}
 
-        {_pid, {:restarting, {_, _, _, :supervisor, _}}}, {active, worker, supervisor} ->
+        {_pid, {:restarting, {_, _, _, _, :supervisor, _}}}, {active, worker, supervisor} ->
           {active, worker, supervisor + 1}
 
-        {_pid, {_, _, _, :worker, _}}, {active, worker, supervisor} ->
+        {_pid, {_, _, _, _, :worker, _}}, {active, worker, supervisor} ->
           {active + 1, worker + 1, supervisor}
 
-        {_pid, {_, _, _, :supervisor, _}}, {active, worker, supervisor} ->
+        {_pid, {_, _, _, _, :supervisor, _}}, {active, worker, supervisor} ->
           {active + 1, worker, supervisor + 1}
       end)
 
@@ -650,7 +855,11 @@ defmodule Horde.DynamicSupervisor do
     {init_restart, init_shutdown} = Process.get(Task.Supervisor)
     restart = restart || init_restart
     shutdown = shutdown || init_shutdown
-    child = {{Task.Supervised, :start_link, args}, restart, shutdown, :worker, [Task.Supervised]}
+
+    child =
+      {:crypto.strong_rand_bytes(16), {Task.Supervised, :start_link, args}, restart, shutdown,
+       :worker, [Task.Supervised]}
+
     handle_call({:start_child, child}, from, state)
   end
 
@@ -664,15 +873,15 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp handle_start_child({{m, f, args} = mfa, restart, shutdown, type, modules}, state) do
+  defp handle_start_child({id, {m, f, args} = mfa, restart, shutdown, type, modules}, state) do
     %{extra_arguments: extra} = state
 
     case reply = start_child(m, f, extra ++ args) do
       {:ok, pid, _} ->
-        {:reply, reply, save_child(pid, mfa, restart, shutdown, type, modules, state)}
+        {:reply, reply, save_child(id, pid, mfa, restart, shutdown, type, modules, state)}
 
       {:ok, pid} ->
-        {:reply, reply, save_child(pid, mfa, restart, shutdown, type, modules, state)}
+        {:reply, reply, save_child(id, pid, mfa, restart, shutdown, type, modules, state)}
 
       _ ->
         {:reply, reply, state}
@@ -694,9 +903,10 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp save_child(pid, mfa, restart, shutdown, type, modules, state) do
+  defp save_child(id, pid, mfa, restart, shutdown, type, modules, state) do
     mfa = mfa_for_restart(mfa, restart)
-    put_in(state.children[pid], {mfa, restart, shutdown, type, modules})
+    state = put_in(state.children[pid], {id, mfa, restart, shutdown, type, modules})
+    put_in(state.child_id_to_pid[id], pid)
   end
 
   defp mfa_for_restart({m, f, _}, :temporary), do: {m, f, :undefined}
@@ -739,7 +949,7 @@ defmodule Horde.DynamicSupervisor do
   end
 
   def handle_info(msg, state) do
-    :error_logger.error_msg('DynamicSupervisor received unexpected message: ~p~n', [msg])
+    :error_logger.error_msg('Horde.DynamicSupervisor received unexpected message: ~p~n', [msg])
     {:noreply, state}
   end
 
@@ -774,7 +984,7 @@ defmodule Horde.DynamicSupervisor do
         Map.put(acc, :erlang.start_timer(time, self(), :kill), pids)
       end)
 
-    stacks = wait_children(pids, size, timers, stacks)
+    stacks = wait_children(pids, size, timers, stacks, children, state)
 
     for {pid, {child, reason}} <- stacks do
       report_error(:shutdown_error, reason, pid, child, state)
@@ -788,7 +998,8 @@ defmodule Horde.DynamicSupervisor do
       {_, {:restarting, _}}, acc ->
         acc
 
-      {pid, {_, restart, _, _, _} = child}, {pids, times, stacks} ->
+      {pid, {_child_id, _start, restart, _shutdown, _type, _modules} = child},
+      {pids, times, stacks} ->
         case monitor_child(pid) do
           :ok ->
             times = exit_child(pid, child, times)
@@ -817,7 +1028,7 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp exit_child(pid, {_, _, shutdown, _, _}, times) do
+  defp exit_child(pid, {_, _, _, shutdown, _, _}, times) do
     case shutdown do
       :brutal_kill ->
         Process.exit(pid, :kill)
@@ -833,7 +1044,7 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp wait_children(_pids, 0, timers, stacks) do
+  defp wait_children(_pids, 0, timers, stacks, _children, _state) do
     for {timer, _} <- timers do
       _ = :erlang.cancel_timer(timer)
 
@@ -847,32 +1058,37 @@ defmodule Horde.DynamicSupervisor do
     stacks
   end
 
-  defp wait_children(pids, size, timers, stacks) do
+  defp wait_children(pids, size, timers, stacks, children, state) do
     receive do
       {:DOWN, _ref, :process, pid, reason} ->
         case pids do
           %{^pid => child} ->
             stacks = wait_child(pid, child, reason, stacks)
-            wait_children(pids, size - 1, timers, stacks)
+            handle_graceful_shutdown_horde(children[pid], state)
+            wait_children(pids, size - 1, timers, stacks, children, state)
 
           %{} ->
-            wait_children(pids, size, timers, stacks)
+            handle_graceful_shutdown_horde(children[pid], state)
+            wait_children(pids, size, timers, stacks, children, state)
         end
 
       {:timeout, timer, :kill} ->
-        for pid <- Map.fetch!(timers, timer), do: Process.exit(pid, :kill)
-        wait_children(pids, size, Map.delete(timers, timer), stacks)
+        for pid <- Map.fetch!(timers, timer) do
+          Process.exit(pid, :kill)
+        end
+
+        wait_children(pids, size, Map.delete(timers, timer), stacks, children, state)
     end
   end
 
-  defp wait_child(pid, {_, _, :brutal_kill, _, _} = child, reason, stacks) do
+  defp wait_child(pid, {_, _, _, :brutal_kill, _, _} = child, reason, stacks) do
     case reason do
       :killed -> stacks
       _ -> Map.put(stacks, pid, {child, reason})
     end
   end
 
-  defp wait_child(pid, {_, restart, _, _, _} = child, reason, stacks) do
+  defp wait_child(pid, {_, _, restart, _, _, _} = child, reason, stacks) do
     case reason do
       {:shutdown, _} -> stacks
       :shutdown -> stacks
@@ -881,9 +1097,24 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
+  defp handle_graceful_shutdown_horde({child_id, start, restart, shutdown, type, modules}, state) do
+    if state.graceful_shutdown_manager do
+      child_spec = %{
+        id: child_id,
+        start: start,
+        restart: restart,
+        shutdown: shutdown,
+        type: type,
+        modules: modules
+      }
+
+      GenServer.cast(state.graceful_shutdown_manager, {:shut_down, child_spec})
+    end
+  end
+
   defp maybe_restart_child(pid, reason, %{children: children} = state) do
     case children do
-      %{^pid => {_, restart, _, _, _} = child} ->
+      %{^pid => {_, _, restart, _, _, _} = child} ->
         maybe_restart_child(restart, reason, pid, child, state)
 
       %{} ->
@@ -897,14 +1128,17 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp maybe_restart_child(_, :normal, pid, _child, state) do
+    remove_child_from_horde(state, pid)
     {:ok, delete_child(pid, state)}
   end
 
   defp maybe_restart_child(_, :shutdown, pid, _child, state) do
+    remove_child_from_horde(state, pid)
     {:ok, delete_child(pid, state)}
   end
 
   defp maybe_restart_child(_, {:shutdown, _}, pid, _child, state) do
+    remove_child_from_horde(state, pid)
     {:ok, delete_child(pid, state)}
   end
 
@@ -914,12 +1148,24 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp maybe_restart_child(:temporary, reason, pid, child, state) do
+    remove_child_from_horde(state, pid)
     report_error(:child_terminated, reason, pid, child, state)
     {:ok, delete_child(pid, state)}
   end
 
+  defp remove_child_from_horde(state, pid) do
+    {child_id, _, _, _, _, _} = Map.get(state.children, pid)
+    GenServer.cast(state.root_name, {:disown_child_process, child_id})
+  end
+
   defp delete_child(pid, %{children: children} = state) do
-    %{state | children: Map.delete(children, pid)}
+    {child_id, _, _, _, _, _} = children[pid]
+
+    %{
+      state
+      | children: Map.delete(children, pid),
+        child_id_to_pid: Map.delete(state.child_id_to_pid, child_id)
+    }
   end
 
   defp restart_child(pid, child, state) do
@@ -959,17 +1205,17 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp restart_child(:one_for_one, current_pid, child, state) do
-    {{m, f, args} = mfa, restart, shutdown, type, modules} = child
+    {id, {m, f, args} = mfa, restart, shutdown, type, modules} = child
     %{extra_arguments: extra} = state
 
     case start_child(m, f, extra ++ args) do
       {:ok, pid, _} ->
         state = delete_child(current_pid, state)
-        {:ok, save_child(pid, mfa, restart, shutdown, type, modules, state)}
+        {:ok, save_child(id, pid, mfa, restart, shutdown, type, modules, state)}
 
       {:ok, pid} ->
         state = delete_child(current_pid, state)
-        {:ok, save_child(pid, mfa, restart, shutdown, type, modules, state)}
+        {:ok, save_child(id, pid, mfa, restart, shutdown, type, modules, state)}
 
       :ignore ->
         {:ok, delete_child(current_pid, state)}
@@ -991,10 +1237,10 @@ defmodule Horde.DynamicSupervisor do
     )
   end
 
-  defp extract_child(pid, {{m, f, args}, restart, shutdown, type, _modules}, extra) do
+  defp extract_child(pid, {id, {m, f, args}, restart, shutdown, type, _modules}, extra) do
     [
       pid: pid,
-      id: :undefined,
+      id: id,
       mfargs: {m, f, extra ++ args},
       restart_type: restart,
       shutdown: shutdown,
