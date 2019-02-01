@@ -30,7 +30,6 @@ defmodule Horde.SupervisorImpl do
   defp members_name(name), do: :"#{name}.MembersCrdt"
   defp processes_name(name), do: :"#{name}.ProcessesCrdt"
   defp processes_supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
-  defp graceful_shutdown_manager_name(name), do: :"#{name}.GracefulShutdownManager"
   defp registry_name(name), do: :"#{name}.Registry"
 
   @doc false
@@ -87,9 +86,9 @@ defmodule Horde.SupervisorImpl do
     case Map.get(state.processes, child_id) do
       {^this_node_id, _child_spec} ->
         reply =
-          DynamicSupervisor.terminate_child(
+          Horde.DynamicSupervisor.terminate_child_by_id(
             processes_supervisor_name(state.name),
-            get_child_pid(state, child_id)
+            child_id
           )
 
         new_state = %{state | processes: Map.delete(state.processes, child_id)}
@@ -140,17 +139,7 @@ defmodule Horde.SupervisorImpl do
       end)
       |> Enum.flat_map(fn supervisor_pid ->
         try do
-          DynamicSupervisor.which_children(supervisor_pid)
-          |> Enum.map(fn
-            {:undefined, :restarting, _, _} = child ->
-              child
-
-            {:undefined, pid, _, _} ->
-              Enum.filter(Supervisor.which_children(pid), fn
-                {Horde.ProcessCanary, _, _, _} -> false
-                _ -> true
-              end)
-          end)
+          Horde.DynamicSupervisor.which_children(supervisor_pid)
         catch
           :exit, _ -> []
         end
@@ -167,21 +156,7 @@ defmodule Horde.SupervisorImpl do
       end)
       |> Enum.flat_map(fn supervisor_pid ->
         try do
-          DynamicSupervisor.which_children(supervisor_pid)
-          |> Enum.map(fn
-            {:undefined, :restarting, _, _} ->
-              %{restarting: 1}
-
-            {:undefined, pid, _, _} ->
-              count = Supervisor.count_children(pid)
-
-              %{
-                count
-                | workers: count.workers - 1,
-                  active: count.active - 1,
-                  specs: count.specs - 1
-              }
-          end)
+          Horde.DynamicSupervisor.count_children(supervisor_pid)
         catch
           :exit, _ -> [nil]
         end
@@ -190,8 +165,8 @@ defmodule Horde.SupervisorImpl do
         nil -> true
         _ -> false
       end)
-      |> Enum.reduce(%{}, fn a, b ->
-        Map.merge(a, b, fn _key, v1, v2 -> v1 + v2 end)
+      |> Enum.reduce(%{}, fn {process_type, count}, acc ->
+        Map.update(acc, process_type, count, &(&1 + count))
       end)
 
     {:reply, count, state}
@@ -218,9 +193,10 @@ defmodule Horde.SupervisorImpl do
     {:noreply, mark_alive(state, true)}
   end
 
-  defp get_child_pid(%{name: name}, child_id) do
-    [{pid, _}] = Registry.lookup(registry_name(name), child_id)
-    pid
+  def handle_cast({:disown_child_process, child_id}, state) do
+    new_state = %{state | processes: Map.delete(state.processes, child_id)}
+    :ok = DeltaCrdt.mutate(processes_name(state.name), :remove, [child_id], :infinity)
+    {:noreply, new_state}
   end
 
   defp proxy_to_node(node_id, message, reply_to, state) do
@@ -345,11 +321,12 @@ defmodule Horde.SupervisorImpl do
 
     MapSet.difference(old_process_ids, new_process_ids)
     |> Enum.map(fn id ->
-      :ok =
-        DynamicSupervisor.terminate_child(
-          processes_supervisor_name(new_state.name),
-          get_child_pid(new_state, id)
-        )
+      Horde.DynamicSupervisor.terminate_child_by_id(
+        processes_supervisor_name(new_state.name),
+        id
+      )
+
+      :ok
     end)
 
     new_state
@@ -453,8 +430,9 @@ defmodule Horde.SupervisorImpl do
     member_ids = Map.keys(members) |> MapSet.new()
 
     procs =
-      Enum.filter(processes, fn {_id, {node_id, _child_spec}} ->
-        !MapSet.member?(member_ids, node_id)
+      Enum.filter(processes, fn
+        {_id, {node_id, _child_spec}} ->
+          !MapSet.member?(member_ids, node_id)
       end)
 
     if !Enum.empty?(procs) do
@@ -509,36 +487,10 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp add_children(children, state) do
-    wrapped_children =
-      Enum.map(children, fn child ->
-        {child,
-         {Horde.ProcessSupervisor,
-          {
-            child,
-            graceful_shutdown_manager_name(state.name),
-            registry_name(state.name),
-            state.supervisor_options
-          }}}
-      end)
-
-    Enum.map(wrapped_children, fn {child, wrapped_child} ->
-      case DynamicSupervisor.start_child(processes_supervisor_name(state.name), wrapped_child) do
-        {:ok, process_supervisor_pid} ->
-          case Supervisor.start_child(process_supervisor_pid, child) do
-            {:ok, child_pid} ->
-              {{:ok, child_pid}, child}
-
-            {:ok, child_pid, term} ->
-              {{:ok, child_pid, term}, child}
-
-            {:error, error} ->
-              DynamicSupervisor.terminate_child(
-                processes_supervisor_name(state.name),
-                process_supervisor_pid
-              )
-
-              {:error, error}
-          end
+    Enum.map(children, fn child ->
+      case Horde.DynamicSupervisor.start_child(processes_supervisor_name(state.name), child) do
+        {:ok, process_pid} ->
+          {{:ok, process_pid}, child}
 
         {:error, error} ->
           {:error, error}

@@ -79,12 +79,6 @@ defmodule Horde.Supervisor do
   """
   def start_child(supervisor, child_spec) do
     child_spec = Supervisor.child_spec(child_spec, [])
-
-    if :transient == Map.get(child_spec, :restart, nil) do
-      raise ArgumentError,
-        message: "#{__MODULE__} does not support `restart: :transient` as an option"
-    end
-
     call(supervisor, {:start_child, child_spec})
   end
 
