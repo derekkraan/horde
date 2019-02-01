@@ -1112,10 +1112,6 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
-  defp handle_graceful_shutdown_horde(_, _) do
-    :ok
-  end
-
   defp maybe_restart_child(pid, reason, %{children: children} = state) do
     case children do
       %{^pid => {_, _, restart, _, _, _} = child} ->
