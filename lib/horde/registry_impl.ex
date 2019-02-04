@@ -185,7 +185,7 @@ defmodule Horde.RegistryImpl do
     mark_dead(state, n)
 
     Enum.each(DeltaCrdt.read(state.keys_pid, 30_000), fn
-      {key, {pid, value}} when node(pid) == n ->
+      {key, {pid, _value}} when node(pid) == n ->
         DeltaCrdt.mutate_async(state.keys_pid, :remove, [key])
         :ets.match_delete(state.keys_ets_table, {key, {pid, :_}})
 
