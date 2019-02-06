@@ -492,6 +492,9 @@ defmodule Horde.SupervisorImpl do
         {:ok, process_pid} ->
           {{:ok, process_pid}, child}
 
+        {:ok, process_pid, term} ->
+          {{:ok, process_pid, term}, child}
+
         {:error, error} ->
           {:error, error}
       end
