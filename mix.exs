@@ -24,7 +24,7 @@ defmodule Horde.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:delta_crdt, "~> 0.2"},
+      {:delta_crdt, github: "derekkraan/delta_crdt_ex"},
       {:xxhash, "~> 0.1"},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
       {:stream_data, "~> 0.4", only: :test},

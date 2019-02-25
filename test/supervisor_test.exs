@@ -10,8 +10,7 @@ defmodule SupervisorTest do
     {:ok, _} = Horde.Supervisor.start_link(name: n2, strategy: :one_for_one)
     {:ok, _} = Horde.Supervisor.start_link(name: n3, strategy: :one_for_one)
 
-    Horde.Cluster.join_hordes(n1, n2)
-    Horde.Cluster.join_hordes(n2, n3)
+    Horde.Cluster.set_members(n1, [n1, n2, n3])
 
     # give the processes a couple ms to sync up
     Process.sleep(100)
@@ -144,7 +143,7 @@ defmodule SupervisorTest do
       %{workers: workers} = Horde.Supervisor.count_children(context.horde_2)
       assert workers <= max
 
-      Process.sleep(1000)
+      Process.sleep(2000)
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
     end
@@ -208,7 +207,7 @@ defmodule SupervisorTest do
         shutdown: 10000
       })
 
-      Horde.Cluster.join_hordes(:horde_1_graceful, :horde_2_graceful)
+      Horde.Cluster.set_members(:horde_1_graceful, [:horde_1_graceful, :horde_2_graceful])
 
       Process.sleep(500)
 
@@ -299,7 +298,7 @@ defmodule SupervisorTest do
            ]}
       })
 
-      Horde.Cluster.join_hordes(:horde_1_dedup, :horde_2_dedup)
+      Horde.Cluster.set_members(:horde_1_dedup, [:horde_1_dedup, :horde_2_dedup])
 
       assert_receive :twice, 2000
       assert_receive :twice, 2000
