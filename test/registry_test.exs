@@ -10,11 +10,11 @@ defmodule RegistryTest do
     end
   end
 
-  describe ".join_hordes/2" do
+  describe ".set_members/2" do
     test "two hordes can join each other" do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_a, keys: :unique)
       {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_a, keys: :unique)
-      Horde.Cluster.join_hordes(:horde_1_a, :horde_2_a)
+      Horde.Cluster.set_members(:horde_1_a, [:horde_1_a, :horde_2_a])
       Process.sleep(50)
       {:ok, members} = Horde.Cluster.members(:horde_2_a)
       assert 2 = Enum.count(members)
@@ -24,8 +24,7 @@ defmodule RegistryTest do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_b, keys: :unique)
       {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_b, keys: :unique)
       {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_b, keys: :unique)
-      Horde.Cluster.join_hordes(:horde_1_b, :horde_2_b)
-      Horde.Cluster.join_hordes(:horde_2_b, :horde_3_b)
+      Horde.Cluster.set_members(:horde_1_b, [:horde_2_b, :horde_3_b])
       Process.sleep(100)
       {:ok, members} = Horde.Cluster.members(:horde_2_b)
       assert 3 = Enum.count(members)
@@ -50,7 +49,7 @@ defmodule RegistryTest do
 
       horde_2 = :horde_2_e
       {:ok, _} = Horde.Registry.start_link(name: horde_2, keys: :unique)
-      Horde.Cluster.join_hordes(horde, horde_2)
+      Horde.Cluster.set_members(horde, [horde, horde_2])
       Horde.Registry.register(horde, :MacLeod, "val1")
       Horde.Registry.register(horde_2, :MacLeod, "val2")
       Process.sleep(200)
@@ -73,7 +72,7 @@ defmodule RegistryTest do
       {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
       registry2 = Horde.Registry.Cluster2
       {:ok, _horde} = Horde.Registry.start_link(name: registry2, keys: :unique)
-      Horde.Cluster.join_hordes(registry, registry2)
+      Horde.Cluster.set_members(registry, [registry, registry2])
 
       Horde.Registry.register(registry, "foo", :value)
       Horde.Registry.register(registry2, "bar", :value)
@@ -103,7 +102,7 @@ defmodule RegistryTest do
       horde2 = :horde_2_f
       {:ok, _horde_1} = Horde.Registry.start_link(name: horde, keys: :unique)
       {:ok, _horde_2} = Horde.Registry.start_link(name: horde2, keys: :unique)
-      Horde.Cluster.join_hordes(horde, horde2)
+      Horde.Cluster.set_members(horde, [horde, horde2])
 
       Horde.Registry.register(horde, :one_day_fly, "value")
       assert %{one_day_fly: _id} = Horde.Registry.processes(horde)
@@ -279,8 +278,7 @@ defmodule RegistryTest do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_g, keys: :unique)
       {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_g, keys: :unique)
       {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_g, keys: :unique)
-      Horde.Cluster.join_hordes(:horde_1_g, :horde_2_g)
-      Horde.Cluster.join_hordes(:horde_2_g, :horde_3_g)
+      Horde.Cluster.set_members(:horde_1_g, [:horde_1_g, :horde_2_g, :horde_3_g])
       Process.sleep(200)
       {:ok, members} = Horde.Cluster.members(:horde_2_g)
       assert 3 = Enum.count(members)
@@ -385,7 +383,7 @@ defmodule RegistryTest do
       r2 = Horde.Registry.PropagateMeta2
       {:ok, _horde} = Horde.Registry.start_link(name: r1, keys: :unique)
       {:ok, _horde} = Horde.Registry.start_link(name: r2, keys: :unique)
-      Horde.Cluster.join_hordes(r1, r2)
+      Horde.Cluster.set_members(r1, [r1, r2])
       Horde.Registry.put_meta(r1, :a_key, "a_value")
       Process.sleep(200)
       assert {:ok, "a_value"} = Horde.Registry.meta(r2, :a_key)

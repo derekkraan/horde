@@ -12,7 +12,7 @@ defmodule Horde.UniformDistribution do
         %{status: :alive} -> true
         _ -> false
       end)
-      |> Enum.sort_by(fn %{node_id: node_id} -> node_id end)
+      |> Enum.sort_by(fn %{name: name} -> name end)
 
     index = XXHash.xxh32(term_to_string_identifier(identifier)) |> rem(Enum.count(members))
 
