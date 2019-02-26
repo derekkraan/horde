@@ -391,7 +391,9 @@ defmodule Horde.SupervisorImpl do
 
   defp handle_updated_members_pids(state) do
     names = Map.keys(state.members)
-    members_crdt_names = Enum.map(names, fn {name, node} -> {members_crdt_name(name), node} end)
+
+    members_crdt_names =
+      Enum.map(names -- [state.name], fn {name, node} -> {members_crdt_name(name), node} end)
 
     send(members_crdt_name(state.name), {:set_neighbours, members_crdt_names})
 
@@ -402,7 +404,7 @@ defmodule Horde.SupervisorImpl do
     names = Map.keys(state.members)
 
     processes_crdt_names =
-      Enum.map(names, fn {name, node} -> {processes_crdt_name(name), node} end)
+      Enum.map(names -- [state.name], fn {name, node} -> {processes_crdt_name(name), node} end)
 
     send(processes_crdt_name(state.name), {:set_neighbours, processes_crdt_names})
 
