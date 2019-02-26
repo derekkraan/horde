@@ -414,7 +414,7 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp shut_down_all_processes(state) do
-    :ok = GenServer.stop(supervisor_name(state.name), :normal, :infinity)
+    :ok = Horde.DynamicSupervisor.stop(supervisor_name(state.name))
     state
   end
 
