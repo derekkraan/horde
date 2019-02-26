@@ -32,6 +32,8 @@ defmodule Horde.SupervisorImpl do
   defp members_status_crdt_name(name), do: :"#{name}.MemberStatusCrdt"
   defp processes_crdt_name(name), do: :"#{name}.ProcessesCrdt"
   defp processes_supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
+
+  defp fully_qualified_name({name, node}) when is_atom(name) and is_atom(node), do: {name, node}
   defp fully_qualified_name(name) when is_atom(name), do: {name, node()}
 
   @doc false
