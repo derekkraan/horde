@@ -301,9 +301,8 @@ defmodule Horde.RegistryImpl do
   defp registry_crdt_name(name), do: :"#{name}.RegistryCrdt"
   defp keys_crdt_name(name), do: :"#{name}.KeysCrdt"
 
-  defp fully_qualified_name(name) when is_atom(name) do
-    {name, node()}
-  end
+  defp fully_qualified_name({name, node}) when is_atom(name) and is_atom(node), do: {name, node}
+  defp fully_qualified_name(name) when is_atom(name), do: {name, node()}
 
   defp link_own_pids(keys) do
     Enum.each(keys, fn
