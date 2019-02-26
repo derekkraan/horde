@@ -118,6 +118,8 @@ defmodule Horde.RegistryImpl do
       DeltaCrdt.read(members_crdt_name(state.name), 30_000)
       |> Map.keys()
 
+    members = members -- [state.name]
+
     nodes =
       Enum.map(members, fn {name, node} -> node end)
       |> Enum.uniq()
@@ -185,9 +187,11 @@ defmodule Horde.RegistryImpl do
       DeltaCrdt.mutate_async(members_crdt_name(state.name), :add, [added_member, 1])
     end)
 
-    send(members_crdt_name(state.name), {:set_neighbours, members_crdt_names(new_members)})
-    send(registry_crdt_name(state.name), {:set_neighbours, registry_crdt_names(new_members)})
-    send(keys_crdt_name(state.name), {:set_neighbours, keys_crdt_names(new_members)})
+    neighbours = MapSet.difference(new_members, MapSet.new([state.name]))
+
+    send(members_crdt_name(state.name), {:set_neighbours, members_crdt_names(neighbours)})
+    send(registry_crdt_name(state.name), {:set_neighbours, registry_crdt_names(neighbours)})
+    send(keys_crdt_name(state.name), {:set_neighbours, keys_crdt_names(neighbours)})
 
     {:reply, :ok, state}
   end
