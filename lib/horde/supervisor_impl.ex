@@ -31,7 +31,7 @@ defmodule Horde.SupervisorImpl do
   defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
   defp members_status_crdt_name(name), do: :"#{name}.MemberStatusCrdt"
   defp processes_crdt_name(name), do: :"#{name}.ProcessesCrdt"
-  defp processes_supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
+  defp supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
 
   defp fully_qualified_name({name, node}) when is_atom(name) and is_atom(node), do: {name, node}
   defp fully_qualified_name(name) when is_atom(name), do: {name, node()}
@@ -107,7 +107,7 @@ defmodule Horde.SupervisorImpl do
       {^this_name, _child_spec} ->
         reply =
           Horde.DynamicSupervisor.terminate_child_by_id(
-            processes_supervisor_name(state.name),
+            supervisor_name(state.name),
             child_id
           )
 
@@ -157,7 +157,7 @@ defmodule Horde.SupervisorImpl do
     which_children =
       Enum.flat_map(state.members, fn
         {_, %{name: {name, node}}} ->
-          [{processes_supervisor_name(name), node}]
+          [{supervisor_name(name), node}]
       end)
       |> Enum.flat_map(fn supervisor_name ->
         try do
@@ -174,7 +174,7 @@ defmodule Horde.SupervisorImpl do
     count =
       Enum.flat_map(state.members, fn
         {_, %{name: {name, node}}} ->
-          [{processes_supervisor_name(name), node}]
+          [{supervisor_name(name), node}]
       end)
       |> Enum.flat_map(fn supervisor_name ->
         try do
@@ -398,7 +398,7 @@ defmodule Horde.SupervisorImpl do
     MapSet.difference(old_process_ids, new_process_ids)
     |> Enum.map(fn id ->
       Horde.DynamicSupervisor.terminate_child_by_id(
-        processes_supervisor_name(new_state.name),
+        supervisor_name(new_state.name),
         id
       )
 
@@ -417,7 +417,7 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp shut_down_all_processes(state) do
-    :ok = GenServer.stop(processes_supervisor_name(state.name), :normal, :infinity)
+    :ok = GenServer.stop(supervisor_name(state.name), :normal, :infinity)
     state
   end
 
@@ -555,7 +555,7 @@ defmodule Horde.SupervisorImpl do
 
   defp add_children(children, state) do
     Enum.map(children, fn child ->
-      case Horde.DynamicSupervisor.start_child(processes_supervisor_name(state.name), child) do
+      case Horde.DynamicSupervisor.start_child(supervisor_name(state.name), child) do
         {:ok, process_pid} ->
           {{:ok, process_pid}, child}
 
