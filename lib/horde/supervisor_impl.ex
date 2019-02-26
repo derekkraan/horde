@@ -384,12 +384,14 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp stop_not_owned_processes(new_state, old_state) do
+    this_name = fully_qualified_name(old_state.name)
+
     old_process_ids =
-      processes_for_node(old_state, fully_qualified_name(old_state.name))
+      Enum.filter(old_state.processes, processes_for_node(this_name))
       |> MapSet.new(fn {id, _rest} -> id end)
 
     new_process_ids =
-      processes_for_node(new_state, fully_qualified_name(new_state.name))
+      Enum.filter(new_state.processes, processes_for_node(this_name))
       |> MapSet.new(fn {id, _rest} -> id end)
 
     MapSet.difference(old_process_ids, new_process_ids)
@@ -414,8 +416,14 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp shut_down_all_processes(state) do
-    :ok = Horde.DynamicSupervisor.stop(supervisor_name(state.name))
-    state
+    case Enum.any?(state.processes, processes_for_node(fully_qualified_name(state.name))) do
+      false ->
+        state
+
+      true ->
+        :ok = Horde.DynamicSupervisor.stop(supervisor_name(state.name))
+        state
+    end
   end
 
   defp set_crdt_neighbours(state) do
@@ -436,11 +444,11 @@ defmodule Horde.SupervisorImpl do
     state
   end
 
-  defp processes_for_node(state, node_name) do
-    Enum.filter(state.processes, fn
+  defp processes_for_node(node_name) do
+    fn
       {_id, {^node_name, _child_spec}} -> true
       _ -> false
-    end)
+    end
   end
 
   defp handle_topology_changes(state) do
