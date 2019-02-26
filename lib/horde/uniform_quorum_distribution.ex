@@ -39,7 +39,9 @@ defmodule Horde.UniformQuorumDistribution do
         %{status: :shutting_down} -> true
         _ -> false
       end)
-      |> Enum.sort_by(fn %{node_id: node_id} -> node_id end)
+      |> Enum.sort_by(fn
+        %{name: name} -> name
+      end)
 
     node_count = Enum.count(nodes)
 
