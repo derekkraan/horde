@@ -59,16 +59,13 @@ defmodule Horde.SupervisorImpl do
 
     state = mark_alive(state)
 
-    state =
-      case Keyword.get(options, :members) do
-        nil ->
-          state
+    {:ok, state, {:continue, {:set_members, Keyword.get(options, :members)}}}
+  end
 
-        members ->
-          set_members(members, state)
-      end
+  def handle_continue({:set_members, nil}, state), do: {:noreply, state}
 
-    {:ok, state}
+  def handle_continue({:set_members, members}, state) do
+    {:noreply, set_members(members, state)}
   end
 
   defp node_info(state) do
