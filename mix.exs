@@ -7,6 +7,7 @@ defmodule Horde.MixProject do
       version: "0.4.0-rc.2",
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       package: package(),
       name: "Horde",
@@ -40,4 +41,7 @@ defmodule Horde.MixProject do
       links: %{github: "https://github.com/derekkraan/horde"}
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 end

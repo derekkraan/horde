@@ -10,6 +10,15 @@ defmodule RegistryTest do
     end
   end
 
+  describe "module-based Registry" do
+    test "can use `init` function to dynamically fetch configuration" do
+      {:ok, _} = TestRegistry1.start_link(name: :init_test_1, keys: :unique)
+      {:ok, _} = TestRegistry2.start_link(name: :init_test_2, keys: :unique)
+      {:ok, members} = Horde.Cluster.members(:init_test_1)
+      assert 2 = Enum.count(members)
+    end
+  end
+
   describe ".set_members/2" do
     test "two hordes can join each other" do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_a, keys: :unique)

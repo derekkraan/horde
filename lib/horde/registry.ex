@@ -9,7 +9,49 @@ defmodule Horde.Registry do
   Cluster membership is managed with `Horde.Cluster`. Joining a cluster can be done with `Horde.Cluster.set_members/2` and leaving the cluster happens automatically when you stop the registry with `Horde.Registry.stop/3`.
 
   Horde.Registry supports the common "via tuple", described in the [documentation](https://hexdocs.pm/elixir/GenServer.html#module-name-registration) for `GenServer`.
+
+  ## Module-based Registry
+
+  Horde supports module-based registries to enable dynamic runtime configuration.
+
+  ```elixir
+  defmodule MyRegistry do
+    use Horde.Registry
+
+    def init(options) do
+      {:ok, Keyword.put(options, :members, get_members())}
+    end
+
+    defp get_members() do
+      # ...
+    end
+  end
+  ```
+
+  Then you can use `MyRegistry.child_spec/1` and `MyRegistry.start_link/1` in the same way as you'd use `Horde.Registry.child_spec/1` and `Horde.Registry.start_link/1`.
   """
+
+  @callback init(options :: Keyword.t()) :: {:ok, options :: Keyword.t()}
+
+  defmacro __using__(_opts) do
+    quote do
+      @behaviour Horde.Registry
+
+      def child_spec(options) do
+        options = Keyword.put_new(options, :id, __MODULE__)
+
+        %{
+          id: Keyword.get(options, :id, __MODULE__),
+          start: {__MODULE__, :start_link, [options]},
+          type: :supervisor
+        }
+      end
+
+      def start_link(options) do
+        Horde.Registry.start_link(Keyword.put(options, :init_module, __MODULE__))
+      end
+    end
+  end
 
   @doc """
   Child spec to enable easy inclusion into a supervisor.
@@ -186,7 +228,7 @@ defmodule Horde.Registry do
   @doc """
   Get the process registry of the horde
   """
-  @deprecated "Use match/4 instead"
+  @deprecated "It be removed in a future version"
   def processes(registry) do
     :ets.match(get_keys_ets_table(registry), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
   end
