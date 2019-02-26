@@ -25,9 +25,12 @@ defmodule Horde.Supervisor do
   2. Use `:init.stop()` to shut down your node. How you accomplish this is up to you, but by simply calling `:init.stop()` somewhere, graceful shutdown will be triggered.
   """
 
+  @callback init(options) :: options
+
   @doc """
   See `start_link/2` for options.
   """
+  @spec child_spec(options :: options()) :: Supervisor.child_spec()
   def child_spec(options \\ []) do
     supervisor_options =
       Keyword.take(options, [
@@ -38,7 +41,8 @@ defmodule Horde.Supervisor do
         :max_children,
         :extra_arguments,
         :distribution_strategy,
-        :shutdown
+        :shutdown,
+        :members
       ])
 
     options = Keyword.take(options, [:id, :restart, :shutdown, :type])
@@ -51,6 +55,17 @@ defmodule Horde.Supervisor do
     }
     |> Supervisor.child_spec(options)
   end
+
+  @type options() :: [option()]
+  @type option ::
+          {:name, name :: atom()}
+          | {:strategy, Supervisor.strategy()}
+          | {:max_restarts, integer()}
+          | {:max_seconds, integer()}
+          | {:extra_arguments, [term()]}
+          | {:distribution_strategy, Horde.DistributionStrategy.t()}
+          | {:shutdown, integer()}
+          | {:members, [Horde.Cluster.member()]}
 
   @doc """
   Works like `DynamicSupervisor.start_link/1`. Extra options are documented here:

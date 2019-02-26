@@ -67,6 +67,24 @@ defmodule Horde.RegistryImpl do
 
     mark_alive(state)
 
+    case Keyword.get(opts, :members) do
+      nil ->
+        nil
+
+      members ->
+        members = Enum.map(members, &fully_qualified_name/1)
+
+        Enum.each(members, fn member ->
+          DeltaCrdt.mutate_async(members_crdt_name(state.name), :add, [member, 1])
+        end)
+
+        neighbours = members -- [fully_qualified_name(state.name)]
+
+        send(members_crdt_name(state.name), {:set_neighbours, members_crdt_names(neighbours)})
+        send(registry_crdt_name(state.name), {:set_neighbours, registry_crdt_names(neighbours)})
+        send(keys_crdt_name(state.name), {:set_neighbours, keys_crdt_names(neighbours)})
+    end
+
     case Keyword.get(opts, :meta) do
       nil ->
         nil

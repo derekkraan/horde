@@ -24,7 +24,7 @@ defmodule RegistryTest do
       {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_b, keys: :unique)
       {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_b, keys: :unique)
       {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_b, keys: :unique)
-      Horde.Cluster.set_members(:horde_1_b, [:horde_2_b, :horde_3_b])
+      Horde.Cluster.set_members(:horde_1_b, [:horde_1_b, :horde_2_b, :horde_3_b])
       Process.sleep(100)
       {:ok, members} = Horde.Cluster.members(:horde_2_b)
       assert 3 = Enum.count(members)

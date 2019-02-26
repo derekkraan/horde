@@ -1,4 +1,6 @@
 defmodule Horde.DistributionStrategy do
+  @type t :: module()
+
   @moduledoc """
   Define your own distribution strategy by implementing this behaviour and configuring Horde to use it.
 

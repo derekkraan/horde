@@ -33,7 +33,8 @@ defmodule Horde.RegistrySupervisor do
        sync_interval: 5,
        ship_interval: 50,
        ship_debounce: 100},
-      {Horde.RegistryImpl, name: root_name, meta: Keyword.get(options, :meta)}
+      {Horde.RegistryImpl,
+       name: root_name, meta: Keyword.get(options, :meta), members: Keyword.get(options, :members)}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)

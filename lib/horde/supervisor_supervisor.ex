@@ -17,6 +17,14 @@ defmodule Horde.SupervisorSupervisor do
        shutdown: 30_000},
       {DeltaCrdt,
        crdt: DeltaCrdt.AWLWWMap,
+       notify: {root_name, :members_status_updated},
+       name: members_status_crdt_name(root_name),
+       sync_interval: 5,
+       ship_interval: 5,
+       ship_debounce: 1,
+       shutdown: 30_000},
+      {DeltaCrdt,
+       crdt: DeltaCrdt.AWLWWMap,
        notify: {root_name, :processes_updated},
        name: processes_crdt_name(root_name),
        sync_interval: 50,
@@ -50,6 +58,7 @@ defmodule Horde.SupervisorSupervisor do
 
   defp supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
   defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
+  defp members_status_crdt_name(name), do: :"#{name}.MemberStatusCrdt"
   defp processes_crdt_name(name), do: :"#{name}.ProcessesCrdt"
   defp graceful_shutdown_manager_name(name), do: :"#{name}.GracefulShutdownManager"
 end
