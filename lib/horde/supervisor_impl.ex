@@ -1,4 +1,6 @@
 defmodule Horde.Supervisor.Member do
+  @moduledoc false
+
   @type t :: %Horde.Supervisor.Member{}
   @type status :: :uninitialized | :alive | :shutting_down | :dead
   defstruct [:status, :name]
@@ -27,6 +29,7 @@ defmodule Horde.SupervisorImpl do
 
   ## GenServer callbacks
   defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
+  defp members_status_crdt_name(name), do: :"#{name}.MemberStatusCrdt"
   defp processes_crdt_name(name), do: :"#{name}.ProcessesCrdt"
   defp processes_supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
   defp fully_qualified_name(name) when is_atom(name), do: {name, node()}
@@ -46,15 +49,16 @@ defmodule Horde.SupervisorImpl do
       }
       |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
 
-    state = %{state | members: %{fully_qualified_name(state.name) => node_info(state)}}
+    state = mark_alive(state)
 
-    # add self to members CRDT
-    DeltaCrdt.mutate(
-      members_crdt_name(name),
-      :add,
-      [fully_qualified_name(state.name), node_info(state)],
-      :infinity
-    )
+    state =
+      case Keyword.get(options, :members) do
+        nil ->
+          state
+
+        members ->
+          set_members(members, state)
+      end
 
     {:ok, state}
   end
@@ -204,7 +208,7 @@ defmodule Horde.SupervisorImpl do
 
   defp mark_alive(state, true) do
     DeltaCrdt.mutate(
-      members_crdt_name(state.name),
+      members_status_crdt_name(state.name),
       :add,
       [fully_qualified_name(state.name), node_info(state)],
       :infinity
@@ -223,7 +227,7 @@ defmodule Horde.SupervisorImpl do
 
   defp mark_dead(state, name) do
     DeltaCrdt.mutate(
-      members_crdt_name(state.name),
+      members_status_crdt_name(state.name),
       :add,
       [name, %Horde.Supervisor.Member{name: name, status: :dead}],
       :infinity
@@ -287,23 +291,39 @@ defmodule Horde.SupervisorImpl do
     {:noreply, state}
   end
 
-  @doc false
   def handle_info({:members_updated, reply_to}, state) do
-    members = DeltaCrdt.read(members_crdt_name(state.name), 30_000)
-
-    new_state =
-      %{state | members: members}
-      |> monitor_supervisors()
-      |> mark_alive()
-      |> handle_loss_of_quorum()
-      |> handle_updated_members_pids()
-      |> handle_updated_process_pids()
-      |> handle_topology_changes()
-      |> claim_unclaimed_processes()
-
+    new_state = update_members(state)
     GenServer.reply(reply_to, :ok)
-
     {:noreply, new_state}
+  end
+
+  def handle_info({:members_status_updated, reply_to}, state) do
+    new_state = update_members(state)
+    GenServer.reply(reply_to, :ok)
+    {:noreply, new_state}
+  end
+
+  defp update_members(state) do
+    members = DeltaCrdt.read(members_crdt_name(state.name), 30_000)
+    members_status = DeltaCrdt.read(members_status_crdt_name(state.name), 30_000)
+
+    members =
+      Map.new(members, fn {member, 1} ->
+        uninitialized_member = %Horde.Supervisor.Member{
+          name: member,
+          status: :uninitialized
+        }
+
+        {member, Map.get(members_status, member, uninitialized_member)}
+      end)
+
+    %{state | members: members}
+    |> monitor_supervisors()
+    |> mark_alive()
+    |> handle_loss_of_quorum()
+    |> set_crdt_neighbours()
+    |> handle_topology_changes()
+    |> claim_unclaimed_processes()
   end
 
   defp member_names(names) do
@@ -314,6 +334,16 @@ defmodule Horde.SupervisorImpl do
   end
 
   def handle_call({:set_members, members}, _from, state) do
+    {:reply, :ok, set_members(members, state)}
+  end
+
+  def handle_info({:set_members, members}, state) do
+    {:noreply, set_members(members, state)}
+  end
+
+  defp set_members(members, state) do
+    members = Enum.map(members, &fully_qualified_name/1)
+
     existing_members = DeltaCrdt.read(members_crdt_name(state.name))
 
     uninitialized_new_members =
@@ -333,25 +363,19 @@ defmodule Horde.SupervisorImpl do
 
     Enum.each(MapSet.difference(existing_member_names, new_member_names), fn removed_member ->
       DeltaCrdt.mutate_async(members_crdt_name(state.name), :remove, [removed_member])
+      DeltaCrdt.mutate_async(members_status_crdt_name(state.name), :remove, [removed_member])
     end)
 
     Enum.each(MapSet.difference(new_member_names, existing_member_names), fn added_member ->
-      DeltaCrdt.mutate_async(members_crdt_name(state.name), :add, [
-        added_member,
-        Map.get(new_members, added_member)
-      ])
+      DeltaCrdt.mutate_async(members_crdt_name(state.name), :add, [added_member, 1])
     end)
 
-    new_state =
-      %{state | members: new_members}
-      |> monitor_supervisors()
-      |> handle_loss_of_quorum()
-      |> handle_updated_members_pids()
-      |> handle_updated_process_pids()
-      |> handle_topology_changes()
-      |> claim_unclaimed_processes()
-
-    {:reply, :ok, new_state}
+    %{state | members: new_members}
+    |> monitor_supervisors()
+    |> handle_loss_of_quorum()
+    |> set_crdt_neighbours()
+    |> handle_topology_changes()
+    |> claim_unclaimed_processes()
   end
 
   defp stop_not_owned_processes(new_state, old_state) do
@@ -389,23 +413,19 @@ defmodule Horde.SupervisorImpl do
     state
   end
 
-  defp handle_updated_members_pids(state) do
-    names = Map.keys(state.members)
+  defp set_crdt_neighbours(state) do
+    names = Map.keys(state.members) -- [state.name]
 
-    members_crdt_names =
-      Enum.map(names -- [state.name], fn {name, node} -> {members_crdt_name(name), node} end)
+    members_crdt_names = Enum.map(names, fn {name, node} -> {members_crdt_name(name), node} end)
 
-    send(members_crdt_name(state.name), {:set_neighbours, members_crdt_names})
-
-    state
-  end
-
-  defp handle_updated_process_pids(state) do
-    names = Map.keys(state.members)
+    members_status_crdt_names =
+      Enum.map(names, fn {name, node} -> {members_status_crdt_name(name), node} end)
 
     processes_crdt_names =
-      Enum.map(names -- [state.name], fn {name, node} -> {processes_crdt_name(name), node} end)
+      Enum.map(names, fn {name, node} -> {processes_crdt_name(name), node} end)
 
+    send(members_crdt_name(state.name), {:set_neighbours, members_crdt_names})
+    send(members_status_crdt_name(state.name), {:set_neighbours, members_status_crdt_names})
     send(processes_crdt_name(state.name), {:set_neighbours, processes_crdt_names})
 
     state
