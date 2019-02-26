@@ -42,6 +42,12 @@ defmodule Horde.RegistryImpl do
   ### GenServer callbacks
 
   def init(opts) do
+    {:ok, opts} =
+      case Keyword.get(opts, :init_module) do
+        nil -> {:ok, opts}
+        module -> module.init(opts)
+      end
+
     Process.flag(:trap_exit, true)
 
     name = Keyword.get(opts, :name)
@@ -139,7 +145,7 @@ defmodule Horde.RegistryImpl do
     members = members -- [state.name]
 
     nodes =
-      Enum.map(members, fn {name, node} -> node end)
+      Enum.map(members, fn {_name, node} -> node end)
       |> Enum.uniq()
 
     monitor_new_nodes(nodes, state)
@@ -338,8 +344,4 @@ defmodule Horde.RegistryImpl do
 
     to_delete_keys |> Enum.each(fn key -> :ets.delete(ets_table, key) end)
   end
-
-  defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
-  defp registry_crdt_name(name), do: :"#{name}.RegistryCrdt"
-  defp keys_crdt_name(name), do: :"#{name}.KeysCrdt"
 end

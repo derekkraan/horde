@@ -36,6 +36,12 @@ defmodule Horde.SupervisorImpl do
 
   @doc false
   def init(options) do
+    {:ok, options} =
+      case Keyword.get(options, :init_module) do
+        nil -> {:ok, options}
+        module -> module.init(options)
+      end
+
     name = Keyword.get(options, :name)
 
     Logger.info("Starting #{inspect(__MODULE__)} with name #{inspect(name)}")
@@ -75,13 +81,17 @@ defmodule Horde.SupervisorImpl do
     state = %{state | shutting_down: true}
 
     DeltaCrdt.mutate(
-      members_crdt_name(state.name),
+      members_status_crdt_name(state.name),
       :add,
       [fully_qualified_name(state.name), node_info(state)],
       :infinity
     )
 
     {:reply, :ok, state}
+  end
+
+  def handle_call({:set_members, members}, _from, state) do
+    {:reply, :ok, set_members(members, state)}
   end
 
   def handle_call(:members, _from, state) do
@@ -303,6 +313,10 @@ defmodule Horde.SupervisorImpl do
     {:noreply, new_state}
   end
 
+  def handle_info({:set_members, members}, state) do
+    {:noreply, set_members(members, state)}
+  end
+
   defp update_members(state) do
     members = DeltaCrdt.read(members_crdt_name(state.name), 30_000)
     members_status = DeltaCrdt.read(members_status_crdt_name(state.name), 30_000)
@@ -331,14 +345,6 @@ defmodule Horde.SupervisorImpl do
       {name, node} -> {name, node}
       name when is_atom(name) -> {name, node()}
     end)
-  end
-
-  def handle_call({:set_members, members}, _from, state) do
-    {:reply, :ok, set_members(members, state)}
-  end
-
-  def handle_info({:set_members, members}, state) do
-    {:noreply, set_members(members, state)}
   end
 
   defp set_members(members, state) do
@@ -456,8 +462,6 @@ defmodule Horde.SupervisorImpl do
   end
 
   def processes_on_dead_nodes(%{processes: processes, members: members}) do
-    member_names = Map.keys(members) |> MapSet.new()
-
     not_dead_nodes =
       Enum.flat_map(members, fn
         {_name, %{status: :dead}} -> []

@@ -23,9 +23,49 @@ defmodule Horde.Supervisor do
   1. Trap exits. Running `Process.flag(:trap_exit)` in the `init/1` callback of any `worker` processes will convert exit signals to messages and allow running `terminate/2` callbacks. It is also important to include the `shutdown` option in your child spec (the default is 5000ms).
 
   2. Use `:init.stop()` to shut down your node. How you accomplish this is up to you, but by simply calling `:init.stop()` somewhere, graceful shutdown will be triggered.
+
+  ## Module-based Supervisor
+
+  Horde supports module-based supervisors to enable dynamic runtime configuration.
+
+  ```elixir
+  defmodule MySupervisor do
+    use Horde.Supervisor
+
+    def init(options) do
+      {:ok, Keyword.put(options, :members, get_members())}
+    end
+
+    defp get_members() do
+      # ...
+    end
+  end
+  ```
+
+  Then you can use `MySupervisor.child_spec/1` and `MySupervisor.start_link/1` in the same way as you'd use `Horde.Supervisor.child_spec/1` and `Horde.Supervisor.start_link/1`.
   """
 
-  @callback init(options) :: options
+  defmacro __using__(_opts) do
+    quote do
+      @behaviour Horde.Supervisor
+
+      def child_spec(options) do
+        options = Keyword.put_new(options, :id, __MODULE__)
+
+        %{
+          id: Keyword.get(options, :id, __MODULE__),
+          start: {__MODULE__, :start_link, [options]},
+          type: :supervisor
+        }
+      end
+
+      def start_link(options) do
+        Horde.Supervisor.start_link(Keyword.put(options, :init_module, __MODULE__))
+      end
+    end
+  end
+
+  @callback init(options()) :: {:ok, options()}
 
   @doc """
   See `start_link/2` for options.

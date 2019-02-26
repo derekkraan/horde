@@ -40,6 +40,15 @@ defmodule SupervisorTest do
     ]
   end
 
+  describe "module-based Supervisor" do
+    test "can use `init` function to dynamically fetch configuration" do
+      {:ok, _} = TestSupervisor1.start_link(name: :init_sup_test_1, strategy: :one_for_one)
+      {:ok, _} = TestSupervisor2.start_link(name: :init_sup_test_2, strategy: :one_for_one)
+      {:ok, members} = Horde.Cluster.members(:init_sup_test_1)
+      assert 2 = Enum.count(members)
+    end
+  end
+
   describe ".start_child/2" do
     test "starts a process", context do
       assert {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
