@@ -187,7 +187,7 @@ defmodule Horde.SupervisorImpl do
         {:request_to_join_hordes, {:supervisor, _other_node_id, other_members_pid, reply_to}},
         state
       ) do
-    send(members_name(state.name), {:add_neighbours, [other_members_pid]})
+    send(members_name(state.name), {:set_neighbours, [other_members_pid]})
 
     GenServer.reply(reply_to, :ok)
     {:noreply, mark_alive(state, true)}
@@ -368,7 +368,7 @@ defmodule Horde.SupervisorImpl do
 
     # if there are new pids in `member_pids`
     if !Enum.empty?(MapSet.difference(new_members, old_members)) do
-      send(state.members_pid, {:add_neighbours, new_members})
+      send(state.members_pid, {:set_neighbours, new_members})
     end
 
     new_state
@@ -396,7 +396,7 @@ defmodule Horde.SupervisorImpl do
       |> MapSet.delete(nil)
 
     if !Enum.empty?(MapSet.difference(new_processes, old_processes)) do
-      send(state.processes_pid, {:add_neighbours, new_processes})
+      send(state.processes_pid, {:set_neighbours, new_processes})
     end
 
     new_state

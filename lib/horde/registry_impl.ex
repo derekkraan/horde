@@ -92,7 +92,7 @@ defmodule Horde.RegistryImpl do
         {:request_to_join_hordes, {:registry, _other_node_id, other_members_pid, reply_to}},
         state
       ) do
-    send(state.members_pid, {:add_neighbours, [other_members_pid]})
+    send(state.members_pid, {:set_neighbours, [other_members_pid]})
     GenServer.reply(reply_to, :ok)
 
     mark_alive(state)
@@ -156,9 +156,9 @@ defmodule Horde.RegistryImpl do
 
     monitor_new_nodes(nodes, state)
 
-    send(state.members_pid, {:add_neighbours, member_pids})
-    send(state.registry_pid, {:add_neighbours, registry_pids})
-    send(state.keys_pid, {:add_neighbours, keys_pids})
+    send(state.members_pid, {:set_neighbours, member_pids})
+    send(state.registry_pid, {:set_neighbours, registry_pids})
+    send(state.keys_pid, {:set_neighbours, keys_pids})
 
     GenServer.reply(reply_to, :ok)
 
