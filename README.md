@@ -83,15 +83,9 @@ Joining supervisors into a single distributed supervisor can be done using `Hord
 {:ok, supervisor_2} = Horde.Supervisor.start_link([], name: :distributed_supervisor_2, strategy: :one_for_one)
 {:ok, supervisor_3} = Horde.Supervisor.start_link([], name: :distributed_supervisor_3, strategy: :one_for_one)
 
-Horde.Cluster.join_hordes(supervisor_1, supervisor_2)
-Horde.Cluster.join_hordes(supervisor_2, supervisor_3)
+Horde.Cluster.set_members(:distributed_supervisor_1, [:distributed_supervisor_1, :distributed_supervisor_2, :distributed_supervisor_3])
 # supervisor_1, supervisor_2 and supervisor_3 will be joined in a single cluster.
-
-Horde.Cluster.leave_hordes(supervisor_2)
-# supervisor_2 will no longer be part of the cluster, but supervisor_1 and supervisor_3 will remain.
 ```
-
-If you tell `Horde.Supervisor` to leave the horde, then it will kill all processes and disassociate them (to be picked up by other nodes). This can be used to implement graceful shutdown / failover.
 
 # Contributing
 
