@@ -314,11 +314,19 @@ defmodule Horde.RegistryImpl do
     end)
   end
 
-  defp monitor_new_nodes(nodes, %{nodes: state_nodes}) do
-    MapSet.difference(MapSet.new(nodes), MapSet.new(state_nodes))
+  defp monitor_new_nodes(nodes, state) do
+    MapSet.difference(MapSet.new(nodes), MapSet.new(state.nodes))
     |> Enum.each(fn
-      n when n == node() -> nil
-      n -> Node.monitor(n, true)
+      n when n == node() ->
+        nil
+
+      n ->
+        try do
+          Node.monitor(n, true)
+        rescue
+          _e in ArgumentError ->
+            mark_dead(state, n)
+        end
     end)
   end
 
