@@ -22,7 +22,8 @@ defmodule HelloWorld.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:horde, path: "../.."}
+      {:horde, path: "../.."},
+      {:libcluster, "~> 3.0.3"}
     ]
   end
 end

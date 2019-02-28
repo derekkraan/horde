@@ -4,6 +4,14 @@ use Mix.Config
 
 config :logger, handle_sasl_reports: true
 
+config :libcluster, :topologies,
+  hello_cluster: [
+    strategy: Cluster.Strategy.Epmd,
+    config: [
+      hosts: [:"count1@127.0.0.1", :"count2@127.0.0.1"]
+    ]
+  ]
+
 # This configuration is loaded before any dependency and is restricted
 # to this project. If another project depends on this project, this
 # file won't be loaded nor affect the parent project. For this reason,
