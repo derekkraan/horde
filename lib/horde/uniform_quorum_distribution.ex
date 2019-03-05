@@ -10,7 +10,7 @@ defmodule Horde.UniformQuorumDistribution do
     if has_quorum?(members) do
       Horde.UniformDistribution.choose_node(identifier, members)
     else
-      {:error, "quorum not met"}
+      {:error, :quorum_not_met}
     end
   end
 
