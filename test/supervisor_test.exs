@@ -51,6 +51,13 @@ defmodule SupervisorTest do
 
   describe ".start_child/2" do
     test "starts a process", context do
+      assert {:ok, _pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
+
+      assert {:error, {:already_started, _child}} =
+               Horde.Supervisor.start_child(context.horde_1, context.task_def)
+    end
+
+    test "returns error when starting same process twice", context do
       assert {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
 
       assert_receive {:process_started, ^pid}

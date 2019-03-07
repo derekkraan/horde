@@ -137,16 +137,20 @@ defmodule Horde.SupervisorImpl do
   def handle_call({:start_child, child_spec} = msg, from, state) do
     this_name = fully_qualified_name(state.name)
 
-    case state.distribution_strategy.choose_node(child_spec.id, Map.values(state.members)) do
-      {:ok, %{name: ^this_name}} ->
-        {reply, new_state} = add_child(child_spec, state)
-        {:reply, reply, new_state}
+    if Map.has_key?(state.processes, child_spec.id) do
+      {:reply, {:error, {:already_started, nil}}, state}
+    else
+      case state.distribution_strategy.choose_node(child_spec.id, Map.values(state.members)) do
+        {:ok, %{name: ^this_name}} ->
+          {reply, new_state} = add_child(child_spec, state)
+          {:reply, reply, new_state}
 
-      {:ok, %{name: other_node_name}} ->
-        proxy_to_node(other_node_name, msg, from, state)
+        {:ok, %{name: other_node_name}} ->
+          proxy_to_node(other_node_name, msg, from, state)
 
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
+        {:error, reason} ->
+          {:reply, {:error, reason}, state}
+      end
     end
   end
 
