@@ -343,12 +343,13 @@ defmodule Horde.RegistryImpl do
   end
 
   defp sync_ets_table(ets_table, registry) do
+    # remove keys that are no longer present
+    Enum.each(:ets.match(ets_table, {:"$1", :_}), fn [key] ->
+      if !Map.has_key?(registry, key) do
+        :ets.delete(ets_table, key)
+      end
+    end)
+
     :ets.insert(ets_table, Map.to_list(registry))
-
-    all_keys = :ets.match(ets_table, {:"$1", :_}) |> MapSet.new(fn [x] -> x end)
-    new_keys = Map.keys(registry) |> MapSet.new()
-    to_delete_keys = MapSet.difference(all_keys, new_keys)
-
-    to_delete_keys |> Enum.each(fn key -> :ets.delete(ets_table, key) end)
   end
 end
