@@ -342,8 +342,9 @@ defmodule RegistryTest do
 
       Process.sleep(20)
 
-      assert {:normal, {GenServer, :call, _}} =
-               catch_exit(Horde.Registry.send({carmen, :santiago}, "Where are you?"))
+      assert_raise ArgumentError, fn ->
+        Horde.Registry.send({Horde.Registry.DoesNotExist, :santiago}, "Where are you?")
+      end
     end
 
     test "sending message to existing process" do

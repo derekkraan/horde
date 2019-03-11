@@ -112,13 +112,13 @@ defmodule Horde.Registry do
           name :: Registry.key(),
           value :: Registry.value()
         ) :: {:ok, pid()} | {:error, :already_registered, pid()}
-  def register(registry, name, value) do
+  def register(registry, name, value) when is_atom(registry) do
     GenServer.call(registry, {:register, name, value, self()})
   end
 
   @doc "unregister the process under the given name"
   @spec unregister(registry :: GenServer.server(), name :: GenServer.name()) :: :ok
-  def unregister(registry, name) do
+  def unregister(registry, name) when is_atom(registry) do
     GenServer.call(registry, {:unregister, name, self()})
   end
 
@@ -129,7 +129,7 @@ defmodule Horde.Registry do
   def lookup({:via, _, {registry, name}}), do: lookup(registry, name)
 
   @doc "Finds the `{pid, value}` for the given `key` in `registry`"
-  def lookup(registry, key) do
+  def lookup(registry, key) when is_atom(registry) do
     with [{^key, {pid, value}}] <- :ets.lookup(get_keys_ets_table(registry), key),
          true <- process_alive?(pid) do
       [{pid, value}]
@@ -141,7 +141,7 @@ defmodule Horde.Registry do
   @spec meta(registry :: Registry.registry(), key :: Registry.meta_key()) ::
           {:ok, Registry.meta_value()} | :error
   @doc "Reads registry metadata given on `start_link/3`"
-  def meta(registry, key) do
+  def meta(registry, key) when is_atom(registry) do
     case :ets.lookup(get_registry_ets_table(registry), key) do
       [{^key, value}] -> {:ok, value}
       _ -> :error
@@ -153,13 +153,13 @@ defmodule Horde.Registry do
           key :: Registry.meta_key(),
           value :: Registry.meta_value()
         ) :: :ok
-  def put_meta(registry, key, value) do
+  def put_meta(registry, key, value) when is_atom(registry) do
     GenServer.call(registry, {:put_meta, key, value})
   end
 
   @spec count(registry :: Registry.registry()) :: non_neg_integer()
   @doc "Returns the number of keys in a registry. It runs in constant time."
-  def count(registry) do
+  def count(registry) when is_atom(registry) do
     :ets.info(get_keys_ets_table(registry), :size)
   end
 
@@ -172,7 +172,7 @@ defmodule Horde.Registry do
 
   @spec keys(registry :: Registry.registry(), pid()) :: [Registry.key()]
   @doc "Returns registered keys for `pid`"
-  def keys(registry, pid) do
+  def keys(registry, pid) when is_atom(registry) do
     case :ets.lookup(get_pids_ets_table(registry), pid) do
       [] -> []
       [{_pid, matches}] -> matches
@@ -186,7 +186,7 @@ defmodule Horde.Registry do
     :ets.select(get_keys_ets_table(registry), spec)
   end
 
-  def dispatch(registry, key, mfa_or_fun, _opts \\ []) do
+  def dispatch(registry, key, mfa_or_fun, _opts \\ []) when is_atom(registry) do
     case :ets.lookup(get_keys_ets_table(registry), key) do
       [] ->
         :ok
@@ -200,7 +200,8 @@ defmodule Horde.Registry do
   defp do_dispatch({m, f, a}, entries), do: apply(m, f, [entries | a])
   defp do_dispatch(fun, entries), do: fun.(entries)
 
-  def unregister_match(registry, key, pattern, guards \\ []) when is_list(guards) do
+  def unregister_match(registry, key, pattern, guards \\ [])
+      when is_atom(registry) and is_list(guards) do
     self = self()
     underscore_guard = {:"=:=", {:element, 1, :"$_"}, {:const, key}}
     delete_spec = [{{:_, {self, pattern}}, [underscore_guard | guards], [:"$_"]}]
@@ -213,7 +214,7 @@ defmodule Horde.Registry do
     :ok
   end
 
-  def update_value(registry, key, callback) do
+  def update_value(registry, key, callback) when is_atom(registry) do
     case :ets.lookup(get_keys_ets_table(registry), key) do
       [{key, {pid, value}}] when pid == self() ->
         new_value = callback.(value)
@@ -229,7 +230,7 @@ defmodule Horde.Registry do
   Get the process registry of the horde
   """
   @deprecated "It be removed in a future version"
-  def processes(registry) do
+  def processes(registry) when is_atom(registry) do
     :ets.match(get_keys_ets_table(registry), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
   end
 
@@ -239,7 +240,7 @@ defmodule Horde.Registry do
   # @spec register_name({pid, term}, pid) :: :yes | :no
   def register_name({registry, key}, pid), do: register_name({registry, key, nil}, pid)
 
-  def register_name({registry, key, value}, pid) do
+  def register_name({registry, key, value}, pid) when is_atom(registry) do
     case GenServer.call(registry, {:register, key, value, pid}) do
       {:ok, _pid} -> :yes
       {:error, _} -> :no
@@ -248,7 +249,7 @@ defmodule Horde.Registry do
 
   @doc false
   # @spec whereis_name({pid, term}) :: pid | :undefined
-  def whereis_name({registry, name}) do
+  def whereis_name({registry, name}) when is_atom(registry) do
     case lookup(registry, name) do
       :undefined -> :undefined
       [{pid, _val}] -> pid
@@ -259,7 +260,7 @@ defmodule Horde.Registry do
   def unregister_name({registry, name}), do: unregister(registry, name)
 
   @doc false
-  def send({registry, name}, msg) do
+  def send({registry, name}, msg) when is_atom(registry) do
     case lookup(registry, name) do
       :undefined -> :erlang.error(:badarg, [{registry, name}, msg])
       [{pid, _value}] -> Kernel.send(pid, msg)
@@ -273,7 +274,7 @@ defmodule Horde.Registry do
     Node.list() |> Enum.member?(n) && :rpc.call(n, Process, :alive?, [pid])
   end
 
-  defp get_registry_ets_table(tab), do: GenServer.call(tab, :get_registry_ets_table)
-  defp get_pids_ets_table(tab), do: GenServer.call(tab, :get_pids_ets_table)
-  defp get_keys_ets_table(tab), do: GenServer.call(tab, :get_keys_ets_table)
+  defp get_registry_ets_table(name), do: name
+  defp get_pids_ets_table(name), do: :"pids_#{name}"
+  defp get_keys_ets_table(name), do: :"keys_#{name}"
 end
