@@ -190,13 +190,7 @@ defmodule Horde.RegistryImpl do
         nil
     end)
 
-    new_nodes =
-      Enum.filter(state.nodes, fn
-        ^n -> false
-        _ -> true
-      end)
-
-    {:noreply, Map.put(state, :nodes, new_nodes)}
+    {:noreply, state}
   end
 
   def handle_call({:set_members, members}, _from, state) do
