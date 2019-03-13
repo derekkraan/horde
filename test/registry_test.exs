@@ -282,22 +282,6 @@ defmodule RegistryTest do
     end
   end
 
-  describe ".leave_horde/2" do
-    test "can leave horde" do
-      {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_g, keys: :unique)
-      {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_g, keys: :unique)
-      {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_g, keys: :unique)
-      Horde.Cluster.set_members(:horde_1_g, [:horde_1_g, :horde_2_g, :horde_3_g])
-      Process.sleep(200)
-      {:ok, members} = Horde.Cluster.members(:horde_2_g)
-      assert 3 = Enum.count(members)
-      :ok = Horde.Registry.stop(:horde_2_g)
-      Process.sleep(20)
-      {:ok, members} = Horde.Cluster.members(:horde_1_g)
-      assert 2 = Enum.count(members)
-    end
-  end
-
   describe "lookup" do
     test "existing process with lookup/2" do
       horde = Horde.Registry.ClusterB
