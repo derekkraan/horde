@@ -45,5 +45,35 @@ defmodule ClusterTest do
       {:ok, _} = Horde.Supervisor.start_link(name: :sup3, strategy: :one_for_one)
       assert :ok = Horde.Cluster.set_members(:sup3, [:sup3, :doesnt_exist], 100)
     end
+
+    test "can join and unjoin supervisor with set_members" do
+      {:ok, _} = Horde.Supervisor.start_link(name: :sup6, strategy: :one_for_one)
+
+      {:ok, _} = Horde.Supervisor.start_link(name: :sup7, strategy: :one_for_one)
+
+      assert :ok = Horde.Cluster.set_members(:sup6, [:sup6, :sup7])
+
+      {:ok, members} = Horde.Cluster.members(:sup6)
+      assert 2 = Enum.count(members)
+
+      assert :ok = Horde.Cluster.set_members(:sup6, [:sup6])
+      {:ok, members} = Horde.Cluster.members(:sup6)
+      assert 1 = Enum.count(members)
+    end
+
+    test "can join and unjoin registry with set_members" do
+      {:ok, _} = Horde.Registry.start_link(name: :reg4, keys: :unique)
+
+      {:ok, _} = Horde.Registry.start_link(name: :reg5, keys: :unique)
+
+      assert :ok = Horde.Cluster.set_members(:reg4, [:reg4, :reg5])
+
+      {:ok, members} = Horde.Cluster.members(:reg4)
+      assert 2 = Enum.count(members)
+
+      assert :ok = Horde.Cluster.set_members(:reg4, [:reg4])
+      {:ok, members} = Horde.Cluster.members(:reg4)
+      assert 1 = Enum.count(members)
+    end
   end
 end
