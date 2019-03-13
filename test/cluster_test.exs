@@ -62,17 +62,18 @@ defmodule ClusterTest do
     end
 
     test "can join and unjoin registry with set_members" do
-      {:ok, _} = Horde.Registry.start_link(name: :reg4, keys: :unique)
+      {:ok, _} = Horde.Registry.start_link(name: :reg6, keys: :unique)
 
-      {:ok, _} = Horde.Registry.start_link(name: :reg5, keys: :unique)
+      {:ok, _} = Horde.Registry.start_link(name: :reg7, keys: :unique)
 
-      assert :ok = Horde.Cluster.set_members(:reg4, [:reg4, :reg5])
+      assert :ok = Horde.Cluster.set_members(:reg6, [:reg4, :reg7])
 
-      {:ok, members} = Horde.Cluster.members(:reg4)
+      {:ok, members} = Horde.Cluster.members(:reg6)
       assert 2 = Enum.count(members)
 
-      assert :ok = Horde.Cluster.set_members(:reg4, [:reg4])
-      {:ok, members} = Horde.Cluster.members(:reg4)
+      assert :ok = Horde.Cluster.set_members(:reg6, [:reg4])
+
+      {:ok, members} = Horde.Cluster.members(:reg6)
       assert 1 = Enum.count(members)
     end
   end
