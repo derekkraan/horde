@@ -15,6 +15,7 @@ defmodule Horde.SupervisorImpl do
   defstruct name: nil,
             members: %{},
             processes: %{},
+            waiting_for_quorum: [],
             processes_updated_counter: 0,
             processes_updated_at: 0,
             supervisor_ref_to_name: %{},
@@ -87,6 +88,14 @@ defmodule Horde.SupervisorImpl do
     )
 
     {:reply, :ok, state}
+  end
+
+  def handle_call(:wait_for_quorum, from, state) do
+    if state.distribution_strategy.has_quorum?(Map.values(state.members)) do
+      {:reply, :ok, state}
+    else
+      {:noreply, %{state | waiting_for_quorum: [from | state.waiting_for_quorum]}}
+    end
   end
 
   def handle_call({:set_members, members}, _from, state) do
@@ -337,7 +346,7 @@ defmodule Horde.SupervisorImpl do
     %{state | members: members}
     |> monitor_supervisors()
     |> mark_alive()
-    |> handle_loss_of_quorum()
+    |> handle_quorum_change()
     |> set_crdt_neighbours()
     |> handle_topology_changes()
     |> claim_unclaimed_processes()
@@ -381,7 +390,7 @@ defmodule Horde.SupervisorImpl do
 
     %{state | members: new_members}
     |> monitor_supervisors()
-    |> handle_loss_of_quorum()
+    |> handle_quorum_change()
     |> set_crdt_neighbours()
     |> handle_topology_changes()
     |> claim_unclaimed_processes()
@@ -411,11 +420,12 @@ defmodule Horde.SupervisorImpl do
     new_state
   end
 
-  defp handle_loss_of_quorum(state) do
-    if !state.distribution_strategy.has_quorum?(Map.values(state.members)) do
-      shut_down_all_processes(state)
+  defp handle_quorum_change(state) do
+    if state.distribution_strategy.has_quorum?(Map.values(state.members)) do
+      Enum.each(state.waiting_for_quorum, fn from -> GenServer.reply(from, :ok) end)
+      %{state | waiting_for_quorum: []}
     else
-      state
+      shut_down_all_processes(state)
     end
   end
 

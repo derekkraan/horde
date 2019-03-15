@@ -337,4 +337,28 @@ defmodule SupervisorTest do
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1)
     end
   end
+
+  test "wait_for_quorum/2" do
+    {:ok, _} =
+      Horde.Supervisor.start_link(
+        name: :horde_quorum_1,
+        strategy: :one_for_one,
+        distribution_strategy: Horde.UniformQuorumDistribution,
+        members: [:horde_quorum_1, :horde_quorum_2, :horde_quorum_3]
+      )
+
+    catch_exit(Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 100))
+
+    {:ok, _} =
+      Horde.Supervisor.start_link(
+        name: :horde_quorum_2,
+        strategy: :one_for_one,
+        distribution_strategy: Horde.UniformQuorumDistribution,
+        members: [:horde_quorum_1, :horde_quorum_2, :horde_quorum_3]
+      )
+
+    # this is 22s right now because DeltaCrdt enforces an "ack timeout" of 20s
+    assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 22000)
+    assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_2, 22000)
+  end
 end

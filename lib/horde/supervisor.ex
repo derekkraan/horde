@@ -159,5 +159,13 @@ defmodule Horde.Supervisor do
   """
   def count_children(supervisor), do: call(supervisor, :count_children)
 
+  @doc """
+  Waits for Horde.Supervisor to have quorum.
+  """
+  @spec wait_for_quorum(horde :: GenServer.server(), timeout :: timeout()) :: :ok
+  def wait_for_quorum(horde, timeout) do
+    GenServer.call(horde, :wait_for_quorum, timeout)
+  end
+
   defp call(supervisor, msg), do: GenServer.call(supervisor, msg, :infinity)
 end
