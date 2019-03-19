@@ -23,6 +23,24 @@ defmodule ClusterTest do
     end
   end
 
+  describe ".members/1" do
+    test "Registry returns same thing after setting members twice" do
+      {:ok, _reg1} = Horde.Registry.start_link(name: :reg0, keys: :unique)
+      assert :ok = Horde.Cluster.set_members(:reg0, [:reg00, :reg0])
+      assert {:ok, [{:reg0, node()}, {:reg00, node()}]} == Horde.Cluster.members(:reg0)
+      assert :ok = Horde.Cluster.set_members(:reg0, [:reg00, :reg0])
+      assert {:ok, [{:reg0, node()}, {:reg00, node()}]} == Horde.Cluster.members(:reg0)
+    end
+
+    test "Supervisor returns same thing after setting members twice" do
+      {:ok, _reg1} = Horde.Supervisor.start_link(name: :sup0, strategy: :one_for_one)
+      assert :ok = Horde.Cluster.set_members(:sup0, [:sup00, :sup0])
+      assert {:ok, [{:sup0, node()}, {:sup00, node()}]} == Horde.Cluster.members(:sup0)
+      assert :ok = Horde.Cluster.set_members(:sup0, [:sup00, :sup0])
+      assert {:ok, [{:sup0, node()}, {:sup00, node()}]} == Horde.Cluster.members(:sup0)
+    end
+  end
+
   describe ".set_members/2" do
     test "returns true when registries joined" do
       {:ok, _reg1} = Horde.Registry.start_link(name: :reg1, keys: :unique)
