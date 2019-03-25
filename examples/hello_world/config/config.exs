@@ -2,11 +2,11 @@
 # and its dependencies with the aid of the Mix.Config module.
 use Mix.Config
 
-config :logger, handle_sasl_reports: true
+config :logger, handle_sasl_reports: true, level: :debug
 
 config :libcluster, :topologies,
   hello_cluster: [
-    strategy: Cluster.Strategy.Epmd,
+    strategy: Cluster.Strategy.EpmdHealthy,
     config: [
       hosts: [:"count1@127.0.0.1", :"count2@127.0.0.1"]
     ]
