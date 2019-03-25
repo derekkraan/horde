@@ -314,15 +314,13 @@ defmodule Horde.SupervisorImpl do
   end
 
   def handle_info({:members_updated, reply_to}, state) do
-    new_state = update_members(state)
     GenServer.reply(reply_to, :ok)
-    {:noreply, new_state}
+    {:noreply, update_members(state)}
   end
 
   def handle_info({:members_status_updated, reply_to}, state) do
-    new_state = update_members(state)
     GenServer.reply(reply_to, :ok)
-    {:noreply, new_state}
+    {:noreply, update_members(state)}
   end
 
   def handle_info({:set_members, members}, state) do
@@ -362,7 +360,7 @@ defmodule Horde.SupervisorImpl do
   defp set_members(members, state) do
     members = Enum.map(members, &fully_qualified_name/1)
 
-    existing_members = DeltaCrdt.read(members_crdt_name(state.name))
+    existing_members = DeltaCrdt.read(members_status_crdt_name(state.name))
 
     uninitialized_new_members =
       member_names(members)
