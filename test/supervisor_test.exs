@@ -190,7 +190,7 @@ defmodule SupervisorTest do
   end
 
   describe "graceful shutdown" do
-    test "stopping a node moves processes over as soon as they are ready" do
+    test "stopping a node moves processes over when they are ready" do
       {:ok, _} = Horde.Supervisor.start_link(name: :horde_1_graceful, strategy: :one_for_one)
       {:ok, _} = Horde.Supervisor.start_link(name: :horde_2_graceful, strategy: :one_for_one)
 
@@ -235,15 +235,15 @@ defmodule SupervisorTest do
       end)
 
       assert_receive {:stopping, 500}, 100
-      assert_receive {:stopping, 5000}
+      assert_receive {:stopping, 5000}, 100
 
       Process.sleep(2000)
 
-      assert_received {:starting, 500}
-      refute_received {:starting, 5000}
+      assert_receive {:starting, 500}, 100
+      refute_receive {:starting, 5000}, 100
 
       Process.sleep(5000)
-      assert_received {:starting, 5000}
+      assert_receive {:starting, 5000}, 100
     end
   end
 
@@ -281,8 +281,19 @@ defmodule SupervisorTest do
 
   describe "stress test" do
     test "joining hordes dedups processes" do
-      {:ok, _} = Horde.Supervisor.start_link(name: :horde_1_dedup, strategy: :one_for_one)
-      {:ok, _} = Horde.Supervisor.start_link(name: :horde_2_dedup, strategy: :one_for_one)
+      {:ok, _} =
+        Horde.Supervisor.start_link(
+          name: :horde_1_dedup,
+          strategy: :one_for_one,
+          members: [:horde_1_dedup, :horde_2_dedup]
+        )
+
+      {:ok, _} =
+        Horde.Supervisor.start_link(
+          name: :horde_2_dedup,
+          strategy: :one_for_one,
+          members: [:horde_1_dedup, :horde_2_dedup]
+        )
 
       pid = self()
 
@@ -358,7 +369,7 @@ defmodule SupervisorTest do
       )
 
     # this is 22s right now because DeltaCrdt enforces an "ack timeout" of 20s
-    assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 22000)
-    assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_2, 22000)
+    assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 1000)
+    assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_2, 1000)
   end
 end
