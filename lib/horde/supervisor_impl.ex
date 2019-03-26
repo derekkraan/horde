@@ -58,7 +58,7 @@ defmodule Horde.SupervisorImpl do
       }
       |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
 
-    state = mark_alive(state)
+    state = set_own_node_status(state)
 
     {:ok, state, {:continue, {:set_members, Keyword.get(options, :members)}}}
   end
@@ -226,9 +226,9 @@ defmodule Horde.SupervisorImpl do
     end
   end
 
-  defp mark_alive(state, force \\ false)
+  defp set_own_node_status(state, force \\ false)
 
-  defp mark_alive(state, true) do
+  defp set_own_node_status(state, true) do
     DeltaCrdt.mutate(
       members_status_crdt_name(state.name),
       :add,
@@ -237,13 +237,15 @@ defmodule Horde.SupervisorImpl do
     )
 
     new_members = Map.put(state.members, fully_qualified_name(state.name), node_info(state))
+
     Map.put(state, :members, new_members)
   end
 
-  defp mark_alive(state, false) do
-    case Map.get(state.members, fully_qualified_name(state.name)) do
-      %{status: :alive} -> state
-      _ -> mark_alive(state, true)
+  defp set_own_node_status(state, false) do
+    if Map.get(state.members, fully_qualified_name(state.name)) == node_info(state) do
+      state
+    else
+      set_own_node_status(state, true)
     end
   end
 
@@ -278,7 +280,7 @@ defmodule Horde.SupervisorImpl do
       name ->
         new_state =
           mark_dead(state, name)
-          |> mark_alive()
+          |> set_own_node_status()
           |> Map.put(:supervisor_ref_to_name, Map.delete(state.supervisor_ref_to_name, ref))
           |> Map.put(:name_to_supervisor_ref, Map.delete(state.name_to_supervisor_ref, name))
 
@@ -343,7 +345,7 @@ defmodule Horde.SupervisorImpl do
 
     %{state | members: members}
     |> monitor_supervisors()
-    |> mark_alive()
+    |> set_own_node_status()
     |> handle_quorum_change()
     |> set_crdt_neighbours()
     |> handle_topology_changes()
