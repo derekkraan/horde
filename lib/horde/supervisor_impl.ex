@@ -260,6 +260,10 @@ defmodule Horde.SupervisorImpl do
     state
   end
 
+  def handle_info({:set_members, members}, state) do
+    {:noreply, set_members(members, state)}
+  end
+
   def handle_info({:proxy_operation, msg, reply_to}, state) do
     case handle_call(msg, reply_to, state) do
       {:reply, reply, new_state} ->
@@ -321,7 +325,7 @@ defmodule Horde.SupervisorImpl do
       {{^this_node, _child_spec}, ^this_node} ->
         nil
 
-      {{^this_node, _child_spec}, other_node} ->
+      {{^this_node, _child_spec}, _other_node} ->
         Horde.DynamicSupervisor.terminate_child_by_id(supervisor_name(state.name), child_id)
 
       _ ->
@@ -376,10 +380,6 @@ defmodule Horde.SupervisorImpl do
 
   defp uninitialized_member(member) do
     %Horde.Supervisor.Member{status: :uninitialized, name: member}
-  end
-
-  def handle_info({:set_members, members}, state) do
-    {:noreply, set_members(members, state)}
   end
 
   defp handle_dead_nodes(state) do
@@ -451,30 +451,6 @@ defmodule Horde.SupervisorImpl do
     |> handle_quorum_change()
     |> set_crdt_neighbours()
     |> handle_topology_changes()
-  end
-
-  defp stop_not_owned_processes(new_state, old_state) do
-    this_name = fully_qualified_name(old_state.name)
-
-    old_process_ids =
-      Enum.filter(old_state.processes, processes_for_node(this_name))
-      |> MapSet.new(fn {id, _rest} -> id end)
-
-    new_process_ids =
-      Enum.filter(new_state.processes, processes_for_node(this_name))
-      |> MapSet.new(fn {id, _rest} -> id end)
-
-    MapSet.difference(old_process_ids, new_process_ids)
-    |> Enum.map(fn id ->
-      Horde.DynamicSupervisor.terminate_child_by_id(
-        supervisor_name(new_state.name),
-        id
-      )
-
-      :ok
-    end)
-
-    new_state
   end
 
   defp handle_quorum_change(state) do
