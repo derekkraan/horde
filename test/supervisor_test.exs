@@ -181,9 +181,7 @@ defmodule SupervisorTest do
 
       assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1)
 
-      Horde.Supervisor.stop(context.horde_1)
-
-      Process.sleep(10000)
+      :ok = Horde.Supervisor.stop(context.horde_1)
 
       assert Horde.Supervisor.count_children(context.horde_2).workers <= max
     end
@@ -265,6 +263,8 @@ defmodule SupervisorTest do
       {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
       Horde.Supervisor.start_child(:horde_transient, child_spec)
 
+      Process.sleep(5)
+
       assert :sys.get_state(:horde_transient).processes == %{}
     end
 
@@ -285,45 +285,47 @@ defmodule SupervisorTest do
         Horde.Supervisor.start_link(
           name: :horde_1_dedup,
           strategy: :one_for_one,
-          members: [:horde_1_dedup, :horde_2_dedup]
+          members: [:horde_1_dedup]
         )
 
       {:ok, _} =
         Horde.Supervisor.start_link(
           name: :horde_2_dedup,
           strategy: :one_for_one,
-          members: [:horde_1_dedup, :horde_2_dedup]
+          members: [:horde_2_dedup]
         )
 
       pid = self()
 
-      Horde.Supervisor.start_child(:horde_1_dedup, %{
-        id: :foo,
-        start:
-          {Task, :start_link,
-           [
-             fn ->
-               send(pid, :twice)
-               Process.sleep(1000)
-               send(pid, :just_once)
-               Process.sleep(999_999)
-             end
-           ]}
-      })
+      {:ok, _pid} =
+        Horde.Supervisor.start_child(:horde_1_dedup, %{
+          id: :foo,
+          start:
+            {Task, :start_link,
+             [
+               fn ->
+                 send(pid, :twice)
+                 Process.sleep(1000)
+                 send(pid, :just_once)
+                 Process.sleep(999_999)
+               end
+             ]}
+        })
 
-      Horde.Supervisor.start_child(:horde_2_dedup, %{
-        id: :foo,
-        start:
-          {Task, :start_link,
-           [
-             fn ->
-               send(pid, :twice)
-               Process.sleep(1000)
-               send(pid, :just_once)
-               Process.sleep(999_999)
-             end
-           ]}
-      })
+      {:ok, _pid} =
+        Horde.Supervisor.start_child(:horde_2_dedup, %{
+          id: :foo,
+          start:
+            {Task, :start_link,
+             [
+               fn ->
+                 send(pid, :twice)
+                 Process.sleep(1000)
+                 send(pid, :just_once)
+                 Process.sleep(999_999)
+               end
+             ]}
+        })
 
       Horde.Cluster.set_members(:horde_1_dedup, [:horde_1_dedup, :horde_2_dedup])
 

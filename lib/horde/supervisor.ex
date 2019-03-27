@@ -118,6 +118,8 @@ defmodule Horde.Supervisor do
       raise "must specify :name in options, got: #{inspect(options)}"
     end
 
+    options = Keyword.put_new(options, :members, [root_name])
+
     options = Keyword.put(options, :root_name, root_name)
 
     Supervisor.start_link(Horde.SupervisorSupervisor, options, name: :"#{root_name}.Supervisor")

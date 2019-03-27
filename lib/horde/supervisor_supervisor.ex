@@ -9,32 +9,15 @@ defmodule Horde.SupervisorSupervisor do
     children = [
       {DeltaCrdt,
        crdt: DeltaCrdt.AWLWWMap,
-       notify: {root_name, :members_updated},
-       name: members_crdt_name(root_name),
+       subscribe_updates: {:crdt_update, root_name},
+       name: crdt_name(root_name),
        sync_interval: 5,
        ship_interval: 5,
        ship_debounce: 1,
-       shutdown: 30_000},
-      {DeltaCrdt,
-       crdt: DeltaCrdt.AWLWWMap,
-       notify: {root_name, :members_status_updated},
-       name: members_status_crdt_name(root_name),
-       sync_interval: 5,
-       ship_interval: 5,
-       ship_debounce: 1,
-       shutdown: 30_000},
-      {DeltaCrdt,
-       crdt: DeltaCrdt.AWLWWMap,
-       notify: {root_name, :processes_updated},
-       name: processes_crdt_name(root_name),
-       sync_interval: 50,
-       ship_interval: 50,
-       ship_debounce: 400,
        shutdown: 30_000},
       {Horde.SupervisorImpl, Keyword.put(options, :name, root_name)},
       {Horde.GracefulShutdownManager,
-       processes_pid: processes_crdt_name(root_name),
-       name: graceful_shutdown_manager_name(root_name)},
+       processes_pid: crdt_name(root_name), name: graceful_shutdown_manager_name(root_name)},
       {Horde.DynamicSupervisor,
        Keyword.put(options, :name, supervisor_name(root_name))
        |> Keyword.put(:type, :supervisor)
@@ -58,8 +41,6 @@ defmodule Horde.SupervisorSupervisor do
   end
 
   defp supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
-  defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
-  defp members_status_crdt_name(name), do: :"#{name}.MemberStatusCrdt"
-  defp processes_crdt_name(name), do: :"#{name}.ProcessesCrdt"
+  defp crdt_name(name), do: :"#{name}.Crdt"
   defp graceful_shutdown_manager_name(name), do: :"#{name}.GracefulShutdownManager"
 end
