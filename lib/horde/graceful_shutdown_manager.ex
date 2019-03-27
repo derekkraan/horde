@@ -32,7 +32,7 @@ defmodule Horde.GracefulShutdownManager do
   def handle_cast({:shut_down, child_spec}, {processes_pid, true} = s) do
     GenServer.cast(
       processes_pid,
-      {:operation, {:add, [child_spec.id, {nil, child_spec}]}}
+      {:operation, {:add, [{:process, child_spec.id}, {nil, child_spec}]}}
     )
 
     {:noreply, s}
