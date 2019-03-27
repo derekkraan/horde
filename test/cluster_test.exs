@@ -74,9 +74,11 @@ defmodule ClusterTest do
       {:ok, members} = Horde.Cluster.members(:sup6)
       assert 2 = Enum.count(members)
 
+      Process.sleep(50)
+
       assert :ok = Horde.Cluster.set_members(:sup6, [:sup6])
-      {:ok, members} = Horde.Cluster.members(:sup6)
-      assert 1 = Enum.count(members)
+
+      {:ok, [sup6: nonode]} = Horde.Cluster.members(:sup6)
     end
 
     test "can join and unjoin registry with set_members" do
