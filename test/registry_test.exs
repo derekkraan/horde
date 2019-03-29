@@ -172,6 +172,7 @@ defmodule RegistryTest do
         )
 
       assert :undefined = Horde.Registry.lookup(:unregister_match_horde, "to_unregister")
+      Process.sleep(200)
       assert [] = Horde.Registry.keys(:unregister_match_horde, self())
     end
   end
