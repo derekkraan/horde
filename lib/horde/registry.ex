@@ -130,7 +130,7 @@ defmodule Horde.Registry do
 
   @doc "Finds the `{pid, value}` for the given `key` in `registry`"
   def lookup(registry, key) when is_atom(registry) do
-    with [{^key, {pid, value}}] <- :ets.lookup(get_keys_ets_table(registry), key),
+    with [{^key, {pid, value}}] <- :ets.lookup(keys_ets_table(registry), key),
          true <- process_alive?(pid) do
       [{pid, value}]
     else
@@ -142,7 +142,7 @@ defmodule Horde.Registry do
           {:ok, Registry.meta_value()} | :error
   @doc "Reads registry metadata given on `start_link/3`"
   def meta(registry, key) when is_atom(registry) do
-    case :ets.lookup(get_registry_ets_table(registry), key) do
+    case :ets.lookup(registry_ets_table(registry), key) do
       [{^key, value}] -> {:ok, value}
       _ -> :error
     end
@@ -160,20 +160,20 @@ defmodule Horde.Registry do
   @spec count(registry :: Registry.registry()) :: non_neg_integer()
   @doc "Returns the number of keys in a registry. It runs in constant time."
   def count(registry) when is_atom(registry) do
-    :ets.info(get_keys_ets_table(registry), :size)
+    :ets.info(keys_ets_table(registry), :size)
   end
 
   def count_match(registry, key, pattern, guards \\ [])
       when is_atom(registry) and is_list(guards) do
     guards = [{:"=:=", {:element, 1, :"$_"}, {:const, key}} | guards]
     spec = [{{:_, {:_, pattern}}, guards, [true]}]
-    :ets.select_count(get_keys_ets_table(registry), spec)
+    :ets.select_count(keys_ets_table(registry), spec)
   end
 
   @spec keys(registry :: Registry.registry(), pid()) :: [Registry.key()]
   @doc "Returns registered keys for `pid`"
   def keys(registry, pid) when is_atom(registry) do
-    case :ets.lookup(get_pids_ets_table(registry), pid) do
+    case :ets.lookup(pids_ets_table(registry), pid) do
       [] -> []
       [{_pid, matches}] -> matches
     end
@@ -183,11 +183,11 @@ defmodule Horde.Registry do
       when is_atom(registry) and is_list(guards) do
     guards = [{:"=:=", {:element, 1, :"$_"}, {:const, key}} | guards]
     spec = [{{:_, {:_, pattern}}, guards, [{:element, 2, :"$_"}]}]
-    :ets.select(get_keys_ets_table(registry), spec)
+    :ets.select(keys_ets_table(registry), spec)
   end
 
   def dispatch(registry, key, mfa_or_fun, _opts \\ []) when is_atom(registry) do
-    case :ets.lookup(get_keys_ets_table(registry), key) do
+    case :ets.lookup(keys_ets_table(registry), key) do
       [] ->
         :ok
 
@@ -202,11 +202,11 @@ defmodule Horde.Registry do
 
   def unregister_match(registry, key, pattern, guards \\ [])
       when is_atom(registry) and is_list(guards) do
-    self = self()
+    pid = self()
     underscore_guard = {:"=:=", {:element, 1, :"$_"}, {:const, key}}
-    delete_spec = [{{:_, {self, pattern}}, [underscore_guard | guards], [:"$_"]}]
+    delete_spec = [{{:_, {pid, pattern}}, [underscore_guard | guards], [:"$_"]}]
 
-    :ets.select(get_keys_ets_table(registry), delete_spec)
+    :ets.select(keys_ets_table(registry), delete_spec)
     |> Enum.each(fn {key, {pid, _val}} ->
       GenServer.call(registry, {:unregister, key, pid})
     end)
@@ -215,7 +215,7 @@ defmodule Horde.Registry do
   end
 
   def update_value(registry, key, callback) when is_atom(registry) do
-    case :ets.lookup(get_keys_ets_table(registry), key) do
+    case :ets.lookup(keys_ets_table(registry), key) do
       [{key, {pid, value}}] when pid == self() ->
         new_value = callback.(value)
         :ok = GenServer.call(registry, {:update_value, key, pid, new_value})
@@ -231,7 +231,7 @@ defmodule Horde.Registry do
   """
   @deprecated "It be removed in a future version"
   def processes(registry) when is_atom(registry) do
-    :ets.match(get_keys_ets_table(registry), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
+    :ets.match(keys_ets_table(registry), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
   end
 
   ### Via callbacks
@@ -274,7 +274,7 @@ defmodule Horde.Registry do
     Node.list() |> Enum.member?(n) && :rpc.call(n, Process, :alive?, [pid])
   end
 
-  defp get_registry_ets_table(name), do: name
-  defp get_pids_ets_table(name), do: :"pids_#{name}"
-  defp get_keys_ets_table(name), do: :"keys_#{name}"
+  defp registry_ets_table(name), do: name
+  defp pids_ets_table(name), do: :"pids_#{name}"
+  defp keys_ets_table(name), do: :"keys_#{name}"
 end

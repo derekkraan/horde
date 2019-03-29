@@ -253,6 +253,8 @@ defmodule SupervisorTest do
       {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
       Horde.Supervisor.start_child(:horde_transient, child_spec)
 
+      Process.sleep(50)
+
       assert :sys.get_state(:horde_transient).processes == %{}
     end
 

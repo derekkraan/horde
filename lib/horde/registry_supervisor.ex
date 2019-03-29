@@ -14,25 +14,11 @@ defmodule Horde.RegistrySupervisor do
     children = [
       {DeltaCrdt,
        crdt: DeltaCrdt.AWLWWMap,
-       notify: {root_name, :members_updated},
-       name: members_crdt_name(root_name),
+       subscribe_updates: {:crdt_update, root_name},
+       name: crdt_name(root_name),
        sync_interval: 5,
        ship_interval: 5,
        ship_debounce: 1},
-      {DeltaCrdt,
-       crdt: DeltaCrdt.AWLWWMap,
-       notify: {root_name, :registry_updated},
-       name: registry_crdt_name(root_name),
-       sync_interval: 5,
-       ship_interval: 50,
-       ship_debounce: 100},
-      {DeltaCrdt,
-       crdt: DeltaCrdt.AWLWWMap,
-       notify: {root_name, :keys_updated},
-       name: keys_crdt_name(root_name),
-       sync_interval: 5,
-       ship_interval: 50,
-       ship_debounce: 100},
       {Horde.RegistryImpl,
        name: root_name,
        meta: Keyword.get(options, :meta),
@@ -53,7 +39,5 @@ defmodule Horde.RegistrySupervisor do
     root_name
   end
 
-  defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
-  defp registry_crdt_name(name), do: :"#{name}.RegistryCrdt"
-  defp keys_crdt_name(name), do: :"#{name}.KeysCrdt"
+  def crdt_name(name), do: :"#{name}.Crdt"
 end
