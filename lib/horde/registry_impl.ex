@@ -1,12 +1,15 @@
 defmodule Horde.RegistryImpl do
   @moduledoc false
 
+  use GenServer
+
   require Logger
 
   defmodule State do
     @moduledoc false
     defstruct name: nil,
               nodes: MapSet.new(),
+              members: MapSet.new(),
               processes_updated_counter: 0,
               processes_updated_at: 0,
               registry_ets_table: nil,
@@ -74,14 +77,12 @@ defmodule Horde.RegistryImpl do
           members = Enum.map(members, &fully_qualified_name/1)
 
           Enum.each(members, fn member ->
-            DeltaCrdt.mutate_async(members_crdt_name(state.name), :add, [member, 1])
+            DeltaCrdt.mutate_async(crdt_name(state.name), :add, [{:member, member}, 1])
           end)
 
           neighbours = members -- [fully_qualified_name(state.name)]
 
-          send(members_crdt_name(state.name), {:set_neighbours, members_crdt_names(neighbours)})
-          send(registry_crdt_name(state.name), {:set_neighbours, registry_crdt_names(neighbours)})
-          send(keys_crdt_name(state.name), {:set_neighbours, keys_crdt_names(neighbours)})
+          send(crdt_name(state.name), {:set_neighbours, crdt_names(neighbours)})
           %{state | nodes: Enum.map(members, fn {_name, node} -> node end) |> MapSet.new()}
       end
 
@@ -96,45 +97,16 @@ defmodule Horde.RegistryImpl do
     {:ok, state}
   end
 
-  def handle_info({:registry_updated, reply_to}, state) do
-    registry = DeltaCrdt.read(registry_crdt_name(state.name), 30_000)
-    sync_ets_table(state.registry_ets_table, registry)
-    GenServer.reply(reply_to, :ok)
-    {:noreply, state}
-  end
-
-  def handle_info({:keys_updated, reply_to}, state) do
-    keys = DeltaCrdt.read(keys_crdt_name(state.name), 30_000)
-    link_own_pids(keys)
-    sync_ets_table(state.pids_ets_table, invert_keys(keys))
-    sync_ets_table(state.keys_ets_table, keys)
-    GenServer.reply(reply_to, :ok)
-    {:noreply, state}
-  end
-
-  def handle_info({:members_updated, reply_to}, state) do
-    members = Map.keys(DeltaCrdt.read(members_crdt_name(state.name), 30_000))
-
-    members = members -- [state.name]
-
-    new_nodes = Enum.map(members, fn {_name, node} -> node end) |> MapSet.new()
-
-    remove_pids_from_nodes(MapSet.difference(state.nodes, new_nodes), state)
-
-    send(members_crdt_name(state.name), {:set_neighbours, members_crdt_names(members)})
-    send(registry_crdt_name(state.name), {:set_neighbours, registry_crdt_names(members)})
-    send(keys_crdt_name(state.name), {:set_neighbours, keys_crdt_names(members)})
-
-    GenServer.reply(reply_to, :ok)
-
-    {:noreply, %{state | nodes: new_nodes}}
+  def handle_info({:crdt_update, diffs}, state) do
+    new_state = process_diffs(state, diffs)
+    {:noreply, new_state}
   end
 
   def handle_info({:EXIT, pid, _reason}, state) do
     case :ets.take(state.pids_ets_table, pid) do
       [{_pid, keys}] ->
         Enum.each(keys, fn key ->
-          DeltaCrdt.mutate_async(keys_crdt_name(state.name), :remove, [key])
+          DeltaCrdt.mutate_async(crdt_name(state.name), :remove, [{:key, key}])
           :ets.match_delete(state.keys_ets_table, {key, {pid, :_}})
         end)
 
@@ -145,40 +117,94 @@ defmodule Horde.RegistryImpl do
     {:noreply, state}
   end
 
+  defp process_diffs(state, [diff | diffs]) do
+    process_diff(state, diff)
+    |> process_diffs(diffs)
+  end
+
+  defp process_diffs(state, []), do: state
+
+  defp process_diff(state, {:add, {:member, member}, 1}) do
+    new_members = MapSet.put(state.members, member)
+
+    send(
+      crdt_name(state.name),
+      {:set_neighbours, crdt_names(MapSet.delete(new_members, fully_qualified_name(state.name)))}
+    )
+
+    new_nodes = Enum.map(new_members, fn {_name, node} -> node end) |> MapSet.new()
+
+    %{state | members: new_members, nodes: new_nodes}
+  end
+
+  defp process_diff(state, {:remove, {:member, member}}) do
+    new_members = MapSet.delete(state.members, member)
+    new_nodes = Enum.map(new_members, fn {_name, node} -> node end) |> MapSet.new()
+
+    %{state | members: new_members, nodes: new_nodes}
+  end
+
+  defp process_diff(state, {:add, {:key, key}, {pid, value}}) do
+    link_local_pid(pid)
+
+    case :ets.lookup(state.pids_ets_table, pid) do
+      [] -> :ets.insert(state.pids_ets_table, {pid, [key]})
+      [{_pid, matches}] -> :ets.insert(state.pids_ets_table, {pid, Enum.uniq([key | matches])})
+    end
+
+    :ets.insert(state.keys_ets_table, {key, {pid, value}})
+    state
+  end
+
+  defp process_diff(state, {:remove, {:key, key}}) do
+    case :ets.lookup(state.keys_ets_table, key) do
+      [] ->
+        nil
+
+      [{key, {pid, _val}}] ->
+        case :ets.lookup(state.pids_ets_table, pid) do
+          [] -> []
+          [{pid, keys}] -> :ets.insert(state.pids_ets_table, {pid, List.delete(keys, key)})
+        end
+    end
+
+    :ets.match_delete(state.keys_ets_table, {key, :_})
+    state
+  end
+
+  defp process_diff(state, {:add, {:registry, key}, value}) do
+    :ets.insert(state.registry_ets_table, {key, value})
+    state
+  end
+
+  defp link_local_pid(pid) when node(pid) == node() do
+    Process.link(pid)
+  end
+
+  defp link_local_pid(_pid), do: nil
+
   def handle_call({:set_members, members}, _from, state) do
-    existing_members = MapSet.new(Map.keys(DeltaCrdt.read(members_crdt_name(state.name))))
     new_members = MapSet.new(member_names(members))
 
-    Enum.each(MapSet.difference(existing_members, new_members), fn removed_member ->
-      DeltaCrdt.mutate_async(members_crdt_name(state.name), :remove, [removed_member])
+    Enum.each(MapSet.difference(state.members, new_members), fn removed_member ->
+      DeltaCrdt.mutate_async(crdt_name(state.name), :remove, [{:member, removed_member}])
     end)
 
-    Enum.each(MapSet.difference(new_members, existing_members), fn added_member ->
-      DeltaCrdt.mutate_async(members_crdt_name(state.name), :add, [added_member, 1])
+    Enum.each(MapSet.difference(new_members, state.members), fn added_member ->
+      DeltaCrdt.mutate_async(crdt_name(state.name), :add, [{:member, added_member}, 1])
     end)
 
     neighbours = MapSet.difference(new_members, MapSet.new([state.name]))
 
-    send(members_crdt_name(state.name), {:set_neighbours, members_crdt_names(neighbours)})
-    send(registry_crdt_name(state.name), {:set_neighbours, registry_crdt_names(neighbours)})
-    send(keys_crdt_name(state.name), {:set_neighbours, keys_crdt_names(neighbours)})
+    send(crdt_name(state.name), {:set_neighbours, crdt_names(neighbours)})
 
-    {:reply, :ok, state}
+    {:reply, :ok, %{state | members: new_members}}
   end
-
-  def handle_call(:get_registry_ets_table, _from, %{registry_ets_table: t} = state),
-    do: {:reply, t, state}
-
-  def handle_call(:get_pids_ets_table, _from, %{pids_ets_table: t} = state),
-    do: {:reply, t, state}
-
-  def handle_call(:get_keys_ets_table, _from, %{keys_ets_table: t} = state),
-    do: {:reply, t, state}
 
   def handle_call({:register, key, value, pid}, _from, state) do
     Process.link(pid)
 
-    DeltaCrdt.mutate_async(keys_crdt_name(state.name), :add, [key, {pid, value}])
+    DeltaCrdt.mutate_async(crdt_name(state.name), :add, [{:key, key}, {pid, value}])
 
     case :ets.lookup(state.pids_ets_table, pid) do
       [] ->
@@ -194,7 +220,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_call({:update_value, key, pid, value}, _from, state) do
-    DeltaCrdt.mutate_async(keys_crdt_name(state.name), :add, [key, {pid, value}])
+    DeltaCrdt.mutate_async(crdt_name(state.name), :add, [{:key, key}, {pid, value}])
 
     :ets.insert(state.keys_ets_table, {key, {pid, value}})
 
@@ -202,7 +228,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_call({:unregister, key, pid}, _from, state) do
-    DeltaCrdt.mutate_async(keys_crdt_name(state.name), :remove, [key])
+    DeltaCrdt.mutate_async(crdt_name(state.name), :remove, [{:key, key}])
 
     case :ets.lookup(state.pids_ets_table, pid) do
       [] -> []
@@ -221,7 +247,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_call(:members, _from, state) do
-    {:reply, {:ok, Map.keys(DeltaCrdt.read(members_crdt_name(state.name), 30_000))}, state}
+    {:reply, {:ok, MapSet.to_list(state.members)}, state}
   end
 
   defp member_names(names) do
@@ -231,71 +257,18 @@ defmodule Horde.RegistryImpl do
     end)
   end
 
-  defp members_crdt_names(names) do
-    Enum.map(names, fn {name, node} -> {members_crdt_name(name), node} end)
+  defp crdt_names(names) do
+    Enum.map(names, fn {name, node} -> {crdt_name(name), node} end)
   end
 
-  defp registry_crdt_names(names) do
-    Enum.map(names, fn {name, node} -> {registry_crdt_name(name), node} end)
-  end
-
-  defp keys_crdt_names(names) do
-    Enum.map(names, fn {name, node} -> {keys_crdt_name(name), node} end)
-  end
-
-  defp members_crdt_name(name), do: :"#{name}.MembersCrdt"
-  defp registry_crdt_name(name), do: :"#{name}.RegistryCrdt"
-  defp keys_crdt_name(name), do: :"#{name}.KeysCrdt"
+  defp crdt_name(name), do: :"#{name}.Crdt"
 
   defp fully_qualified_name({name, node}) when is_atom(name) and is_atom(node), do: {name, node}
   defp fully_qualified_name(name) when is_atom(name), do: {name, node()}
 
-  defp link_own_pids(keys) do
-    Enum.each(keys, fn
-      {_key, {pid, _val}} when node(pid) == node() ->
-        Process.link(pid)
-
-      _ ->
-        nil
-    end)
-  end
-
-  defp remove_pids_from_nodes(nodes, state) do
-    Enum.each(
-      DeltaCrdt.read(keys_crdt_name(state.name), 30_000),
-      fn
-        {_key, {pid, _value}} when node(pid) == node() ->
-          nil
-
-        {key, {pid, _value}} ->
-          if node(pid) in nodes do
-            DeltaCrdt.mutate_async(keys_crdt_name(state.name), :remove, [key])
-            :ets.match_delete(state.keys_ets_table, {key, {pid, :_}})
-          end
-      end
-    )
-  end
-
   defp put_meta(state, key, value) do
-    DeltaCrdt.mutate_async(registry_crdt_name(state.name), :add, [key, value])
+    DeltaCrdt.mutate_async(crdt_name(state.name), :add, [{:registry, key}, value])
 
     :ets.insert(state.registry_ets_table, {key, value})
-  end
-
-  defp invert_keys(keys) do
-    Enum.reduce(keys, %{}, fn {key, {pid, _value}}, pids ->
-      Map.update(pids, pid, [key], fn existing_keys -> [key | existing_keys] end)
-    end)
-  end
-
-  defp sync_ets_table(ets_table, registry) do
-    # remove keys that are no longer present
-    Enum.each(:ets.match(ets_table, {:"$1", :_}), fn [key] ->
-      if !Map.has_key?(registry, key) do
-        :ets.delete(ets_table, key)
-      end
-    end)
-
-    :ets.insert(ets_table, Map.to_list(registry))
   end
 end

@@ -86,7 +86,7 @@ defmodule ClusterTest do
 
       {:ok, _} = Horde.Registry.start_link(name: :reg7, keys: :unique)
 
-      assert :ok = Horde.Cluster.set_members(:reg6, [:reg4, :reg7])
+      assert :ok = Horde.Cluster.set_members(:reg6, [:reg6, :reg7])
 
       {:ok, members} = Horde.Cluster.members(:reg6)
       assert 2 = Enum.count(members)

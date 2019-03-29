@@ -86,9 +86,9 @@ defmodule RegistryTest do
       Horde.Registry.register(registry, "foo", :value)
       Horde.Registry.register(registry2, "bar", :value)
 
-      Process.sleep(200)
+      Process.sleep(100)
 
-      assert ["foo", "bar"] = Horde.Registry.keys(registry, self())
+      assert Enum.sort(["foo", "bar"]) == Enum.sort(Horde.Registry.keys(registry, self()))
     end
   end
 
@@ -318,11 +318,10 @@ defmodule RegistryTest do
       horde = Horde.Registry.ClusterE
       {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
 
-      carmen =
-        spawn(fn ->
-          Horde.Registry.register(horde, :carmen, "carmen")
-          Process.sleep(300)
-        end)
+      spawn(fn ->
+        Horde.Registry.register(horde, :carmen, "carmen")
+        Process.sleep(300)
+      end)
 
       Process.sleep(20)
 
