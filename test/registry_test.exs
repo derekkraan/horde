@@ -264,8 +264,11 @@ defmodule RegistryTest do
       assert {"bar", "foo"} =
                Horde.Registry.update_value(:update_value_horde, "foo", fn "foo" -> "bar" end)
 
-      self = self()
-      assert [{^self, "bar"}] = Horde.Registry.lookup(:update_value_horde, "foo")
+      pid = self()
+
+      Process.sleep(200)
+
+      assert [{^pid, "bar"}] = Horde.Registry.lookup(:update_value_horde, "foo")
     end
 
     test "can only update own values" do
