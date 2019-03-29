@@ -94,6 +94,7 @@ defmodule ClusterTest do
       assert :ok = Horde.Cluster.set_members(:reg6, [:reg4])
 
       {:ok, members} = Horde.Cluster.members(:reg6)
+      Process.sleep(200)
       assert 1 = Enum.count(members)
     end
   end
