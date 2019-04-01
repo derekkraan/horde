@@ -97,5 +97,12 @@ defmodule ClusterTest do
       Process.sleep(200)
       assert 1 = Enum.count(members)
     end
+
+    test "supervisor can start child" do
+      {:ok, _} = start_supervised({Horde.Supervisor, [name: :sup, strategy: :one_for_one]})
+      assert :ok = Horde.Cluster.set_members(:sup, [:sup])
+      {:ok, child_pid} = Supervisor.start_child(:sup, {Task, fn -> :ok end})
+      assert is_pid(child_pid)
+    end
   end
 end
