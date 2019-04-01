@@ -1,6 +1,6 @@
 defmodule Cluster.Strategy.EpmdHealthy do
   @moduledoc """
-  This ing strategy relies on Erlang's built-in distribution protocol.
+  This clustering strategy relies on Erlang's built-in distribution protocol.
 
   You can have lib automatically connect nodes on startup for you by configuring
   the strategy like below:

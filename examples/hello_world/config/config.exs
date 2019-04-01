@@ -8,7 +8,7 @@ config :libcluster, :topologies,
   hello_cluster: [
     strategy: Cluster.Strategy.EpmdHealthy,
     config: [
-      hosts: [:"count1@127.0.0.1", :"count2@127.0.0.1"]
+      hosts: [:"count1@127.0.0.1", :"count2@127.0.0.1", :"count3@127.0.0.1"]
     ]
   ]
 

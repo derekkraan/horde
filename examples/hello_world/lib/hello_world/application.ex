@@ -12,10 +12,12 @@ defmodule HelloWorld.Application do
        [
          name: HelloWorld.HelloSupervisor,
          strategy: :one_for_one,
+         distribution_strategy: Horde.UniformQuorumDistribution,
          max_restarts: 100_000,
          max_seconds: 1,
          members: supervisor_members()
        ]},
+      {Cluster.Supervisor, [Application.get_env(:libcluster, :topologies)]},
       %{
         id: HelloWorld.ClusterConnector,
         restart: :transient,
@@ -23,7 +25,7 @@ defmodule HelloWorld.Application do
           {Task, :start_link,
            [
              fn ->
-               Process.sleep(500)
+               Horde.Supervisor.wait_for_quorum(HelloWorld.HelloSupervisor, 30_000)
                Horde.Supervisor.start_child(HelloWorld.HelloSupervisor, HelloWorld.SayHello)
              end
            ]}
@@ -41,14 +43,16 @@ defmodule HelloWorld.Application do
   defp registry_members do
     [
       {HelloWorld.HelloRegistry, :"count1@127.0.0.1"},
-      {HelloWorld.HelloRegistry, :"count2@127.0.0.1"}
+      {HelloWorld.HelloRegistry, :"count2@127.0.0.1"},
+      {HelloWorld.HelloRegistry, :"count3@127.0.0.1"}
     ]
   end
 
   defp supervisor_members do
     [
       {HelloWorld.HelloSupervisor, :"count1@127.0.0.1"},
-      {HelloWorld.HelloSupervisor, :"count2@127.0.0.1"}
+      {HelloWorld.HelloSupervisor, :"count2@127.0.0.1"},
+      {HelloWorld.HelloSupervisor, :"count3@127.0.0.1"}
     ]
   end
 end
