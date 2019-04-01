@@ -86,7 +86,7 @@ defmodule RegistryTest do
       Horde.Registry.register(registry, "foo", :value)
       Horde.Registry.register(registry2, "bar", :value)
 
-      Process.sleep(100)
+      Process.sleep(1000)
 
       assert Enum.sort(["foo", "bar"]) == Enum.sort(Horde.Registry.keys(registry, self()))
     end
