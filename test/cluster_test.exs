@@ -78,7 +78,7 @@ defmodule ClusterTest do
 
       assert :ok = Horde.Cluster.set_members(:sup6, [:sup6])
 
-      {:ok, [sup6: nonode]} = Horde.Cluster.members(:sup6)
+      {:ok, [sup6: _nonode]} = Horde.Cluster.members(:sup6)
     end
 
     test "can join and unjoin registry with set_members" do
