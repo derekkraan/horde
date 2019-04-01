@@ -474,7 +474,7 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp set_crdt_neighbours(state) do
-    names = Map.keys(state.members) -- [state.name]
+    names = Map.keys(state.members) -- [fully_qualified_name(state.name)]
 
     crdt_names = Enum.map(names, fn {name, node} -> {crdt_name(name), node} end)
 

@@ -80,9 +80,12 @@ defmodule Horde.RegistryImpl do
             DeltaCrdt.mutate_async(crdt_name(state.name), :add, [{:member, member}, 1])
           end)
 
-          neighbours = members -- [fully_qualified_name(state.name)]
+          neighbours =
+            List.delete(members, [fully_qualified_name(state.name)])
+            |> crdt_names()
 
-          send(crdt_name(state.name), {:set_neighbours, crdt_names(neighbours)})
+          send(crdt_name(state.name), {:set_neighbours, neighbours})
+
           %{state | nodes: Enum.map(members, fn {_name, node} -> node end) |> MapSet.new()}
       end
 
@@ -127,10 +130,11 @@ defmodule Horde.RegistryImpl do
   defp process_diff(state, {:add, {:member, member}, 1}) do
     new_members = MapSet.put(state.members, member)
 
-    send(
-      crdt_name(state.name),
-      {:set_neighbours, crdt_names(MapSet.delete(new_members, fully_qualified_name(state.name)))}
-    )
+    neighbours =
+      MapSet.delete(new_members, fully_qualified_name(state.name))
+      |> crdt_names()
+
+    send(crdt_name(state.name), {:set_neighbours, neighbours})
 
     new_nodes = Enum.map(new_members, fn {_name, node} -> node end) |> MapSet.new()
 
@@ -194,9 +198,11 @@ defmodule Horde.RegistryImpl do
       DeltaCrdt.mutate_async(crdt_name(state.name), :add, [{:member, added_member}, 1])
     end)
 
-    neighbours = MapSet.difference(new_members, MapSet.new([state.name]))
+    neighbours =
+      MapSet.delete(new_members, fully_qualified_name(state.name))
+      |> crdt_names()
 
-    send(crdt_name(state.name), {:set_neighbours, crdt_names(neighbours)})
+    send(crdt_name(state.name), {:set_neighbours, neighbours})
 
     {:reply, :ok, %{state | members: new_members}}
   end
