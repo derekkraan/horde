@@ -139,8 +139,8 @@ defmodule RegistryTest do
           [{:>, :"$1", 12}]
         )
 
-      assert ["another_key", "to_unregister"] =
-               Horde.Registry.keys(:unregister_match_horde, self())
+      assert Enum.sort(["another_key", "to_unregister"]) ==
+               Enum.sort(Horde.Registry.keys(:unregister_match_horde, self()))
 
       :ok =
         Horde.Registry.unregister_match(
