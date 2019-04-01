@@ -437,13 +437,13 @@ defmodule Horde.SupervisorImpl do
     existing_member_names = Map.keys(state.members) |> MapSet.new()
 
     Enum.each(MapSet.difference(existing_member_names, new_member_names), fn removed_member ->
-      DeltaCrdt.mutate_async(crdt_name(state.name), :remove, [{:member, removed_member}])
+      DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:member, removed_member}])
 
-      DeltaCrdt.mutate_async(crdt_name(state.name), :remove, [{:member_node_info, removed_member}])
+      DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:member_node_info, removed_member}])
     end)
 
     Enum.each(MapSet.difference(new_member_names, existing_member_names), fn added_member ->
-      DeltaCrdt.mutate_async(crdt_name(state.name), :add, [{:member, added_member}, 1])
+      DeltaCrdt.mutate(crdt_name(state.name), :add, [{:member, added_member}, 1])
     end)
 
     %{state | members: new_members, members_info: new_members_info}
