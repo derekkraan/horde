@@ -9,7 +9,6 @@ defmodule StressTest do
   end
 
   def init({number, seconds_to_live}) do
-    IO.inspect("#{number}")
     {:ok, {number, seconds_to_live}, {:continue, :start_processes}}
   end
 
@@ -18,6 +17,10 @@ defmodule StressTest do
   end
 
   def handle_continue(:start_processes, {number, seconds_to_live}) do
+    seconds_with_jitter =
+      (seconds_to_live * 0.75 + :rand.uniform(seconds_to_live) / 2)
+      |> round()
+
     Horde.Supervisor.start_child(HelloWorld.HelloSupervisor, %{
       id: number,
       restart: :transient,
@@ -27,8 +30,8 @@ defmodule StressTest do
         [
           fn ->
             Horde.Registry.register(HelloWorld.HelloRegistry, number, nil)
-            Process.sleep(seconds_to_live * 1000)
-            Logger.info("process #{number} finished")
+            Process.sleep(seconds_with_jitter * 1000)
+            Logger.info("process #{number} finished after #{seconds_with_jitter}s")
           end
         ]
       }
