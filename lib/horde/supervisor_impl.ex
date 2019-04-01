@@ -428,7 +428,7 @@ defmodule Horde.SupervisorImpl do
     new_members_info =
       Map.merge(
         uninitialized_new_members_info,
-        Map.take(state.members, Map.keys(uninitialized_new_members_info))
+        Map.take(state.members_info, Map.keys(uninitialized_new_members_info))
       )
 
     new_members = Map.new(new_members_info, fn {member, _} -> {member, 1} end)
