@@ -301,15 +301,35 @@ defmodule Horde.SupervisorImpl do
   def handle_info({:crdt_update, diffs}, state) do
     new_state =
       update_members(state, diffs)
-      |> monitor_supervisors()
-      |> set_own_node_status()
-      |> handle_quorum_change()
-      |> set_crdt_neighbours()
       |> update_processes(diffs)
-      |> handle_dead_nodes()
+
+    new_state =
+      if has_membership_change?(diffs) do
+        monitor_supervisors(new_state)
+        |> set_own_node_status()
+        |> handle_quorum_change()
+        |> set_crdt_neighbours()
+        |> handle_dead_nodes()
+      else
+        new_state
+      end
 
     {:noreply, new_state}
   end
+
+  def has_membership_change?([{:add, {:member_node_info, _}, _} | diffs]), do: true
+
+  def has_membership_change?([{:remove, {:member_node_info, _}} | diffs]), do: true
+
+  def has_membership_change?([{:add, {:member, _}, _} | diffs]), do: true
+
+  def has_membership_change?([{:remove, {:member, _}} | diffs]), do: true
+
+  def has_membership_change?([_diff | diffs]) do
+    has_membership_change?(diffs)
+  end
+
+  def has_membership_change?([]), do: false
 
   defp update_processes(state, [diff | diffs]) do
     update_process(state, diff)
@@ -317,6 +337,19 @@ defmodule Horde.SupervisorImpl do
   end
 
   defp update_processes(state, []), do: state
+
+  defp update_process(state, {:add, {:process, child_id}, {nil, child_spec}}) do
+    this_name = fully_qualified_name(state.name)
+
+    case state.distribution_strategy.choose_node(child_id, Map.values(members(state))) do
+      {:ok, %{name: ^this_name}} ->
+        {_resp, state} = add_child(child_spec, state)
+        state
+
+      _ ->
+        state
+    end
+  end
 
   defp update_process(state, {:add, {:process, child_id}, {node, child_spec}}) do
     this_node = fully_qualified_name(state.name)
@@ -455,7 +488,7 @@ defmodule Horde.SupervisorImpl do
     |> monitor_supervisors()
     |> handle_quorum_change()
     |> set_crdt_neighbours()
-    |> handle_topology_changes()
+    |> handle_dead_nodes()
   end
 
   defp handle_quorum_change(state) do
@@ -493,46 +526,6 @@ defmodule Horde.SupervisorImpl do
       {_id, {^node_name, _child_spec}} -> true
       _ -> false
     end
-  end
-
-  defp handle_topology_changes(state) do
-    this_name = fully_qualified_name(state.name)
-
-    {_responses, new_state} =
-      processes_on_dead_nodes(state)
-      |> Enum.map(fn {_id, {_node, child}} -> child end)
-      |> Enum.filter(fn child ->
-        case state.distribution_strategy.choose_node(child.id, Map.values(members(state))) do
-          {:ok, %{name: ^this_name}} -> true
-          _ -> false
-        end
-      end)
-      |> add_children(state)
-
-    new_state
-  end
-
-  def processes_on_dead_nodes(%{processes: processes} = state) do
-    not_dead_nodes =
-      Enum.flat_map(members(state), fn
-        {_name, %{status: :dead}} -> []
-        {name, _} -> [name]
-      end)
-      |> MapSet.new()
-
-    procs =
-      Enum.reject(processes, fn
-        {_id, {node_name, _child_spec}} ->
-          MapSet.member?(not_dead_nodes, node_name)
-      end)
-
-    if !Enum.empty?(procs) do
-      Logger.debug(fn ->
-        "Found #{Enum.count(procs)} processes on dead nodes"
-      end)
-    end
-
-    procs
   end
 
   defp monitor_supervisors(state) do
