@@ -9,7 +9,7 @@ defmodule Horde.SupervisorSupervisor do
     children = [
       {DeltaCrdt,
        crdt: DeltaCrdt.AWLWWMap,
-       subscribe_updates: {:crdt_update, root_name},
+       on_diffs: fn diffs -> send(root_name, {:crdt_update, diffs}) end,
        name: crdt_name(root_name),
        sync_interval: 100,
        shutdown: 30_000},

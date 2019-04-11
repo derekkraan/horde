@@ -25,7 +25,8 @@ defmodule Horde.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:delta_crdt, "~> 0.4.3", github: "derekkraan/delta_crdt_ex", branch: "better_syncing"},
+      {:delta_crdt, "~> 0.4.3",
+       github: "derekkraan/delta_crdt_ex", branch: "merkle_anti_entropy"},
       {:xxhash, "~> 0.1"},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
       {:benchee, "> 0.0.1", only: :dev, runtime: false},
