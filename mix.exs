@@ -28,8 +28,10 @@ defmodule Horde.MixProject do
       {:delta_crdt, "~> 0.4.3"},
       {:xxhash, "~> 0.1"},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
+      {:benchee, "> 0.0.1", only: :dev, runtime: false},
       {:stream_data, "~> 0.4", only: :test},
-      {:benchee, "> 0.0.1", only: :dev, runtime: false}
+      {:local_cluster, "~> 1.0.4", only: :test},
+      {:schism, "~> 1.0.1", only: :test}
     ]
   end
 
