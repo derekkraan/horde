@@ -40,7 +40,7 @@ defmodule Horde.MixProject do
       description: "Distributed supervisor & process registry built with δ-CRDTs",
       licenses: ["MIT"],
       maintainers: ["Derek Kraan"],
-      links: %{github: "https://github.com/derekkraan/horde"}
+      links: %{GitHub: "https://github.com/derekkraan/horde"}
     ]
   end
 
