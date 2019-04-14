@@ -40,6 +40,30 @@ defmodule SupervisorTest do
     ]
   end
 
+  @tag timeout: 120_000
+  test "many transient processes", context do
+    test_pid = self()
+
+    number = 1000
+
+    Enum.each(1..number, fn x ->
+      Enum.random([context.horde_1, context.horde_2, context.horde_3])
+      |> Horde.Supervisor.start_child(%{
+        id: x,
+        restart: :transient,
+        start: {Task, :start_link, [fn -> send(test_pid, x) end]}
+      })
+    end)
+
+    Enum.each(1..number, fn x ->
+      assert_receive ^x
+    end)
+
+    Enum.each(1..number, fn x ->
+      refute_receive ^x, 10
+    end)
+  end
+
   describe "module-based Supervisor" do
     test "can use `init` function to dynamically fetch configuration" do
       {:ok, _} = TestSupervisor1.start_link(name: :init_sup_test_1, strategy: :one_for_one)
@@ -372,7 +396,6 @@ defmodule SupervisorTest do
         members: [:horde_quorum_1, :horde_quorum_2, :horde_quorum_3]
       )
 
-    # this is 22s right now because DeltaCrdt enforces an "ack timeout" of 20s
     assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 1000)
     assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_2, 1000)
   end
