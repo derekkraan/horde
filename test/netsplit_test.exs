@@ -1,6 +1,7 @@
 defmodule NetsplitTest do
   use ExUnit.Case
 
+  @tag :skip
   test "supervisor recovers after netsplit" do
     [node1, node2] = nodes = LocalCluster.start_nodes("cluster-", 2)
 
