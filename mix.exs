@@ -25,7 +25,7 @@ defmodule Horde.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:delta_crdt, "~> 0.5.0"},
+      {:delta_crdt, "~> 0.5.1"},
       {:xxhash, "~> 0.1"},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
       {:benchee, "> 0.0.1", only: :dev, runtime: false},
