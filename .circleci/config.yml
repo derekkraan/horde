@@ -5,8 +5,7 @@ version: 2
 jobs:
   build:
     docker:
-      # specify the version here
-      - image: circleci/elixir:1.7
+      - image: circleci/elixir:1.8
 
     working_directory: ~/repo
     steps:
