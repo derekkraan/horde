@@ -130,7 +130,7 @@ defmodule Horde.Registry do
 
   @doc "Finds the `{pid, value}` for the given `key` in `registry`"
   def lookup(registry, key) when is_atom(registry) do
-    with [{^key, {pid, value}}] <- :ets.lookup(keys_ets_table(registry), key),
+    with [{^key, _member, {pid, value}}] <- :ets.lookup(keys_ets_table(registry), key),
          true <- process_alive?(pid) do
       [{pid, value}]
     else
@@ -163,11 +163,35 @@ defmodule Horde.Registry do
     :ets.info(keys_ets_table(registry), :size)
   end
 
+  @doc "See `Registry.match/4` for details."
+  def match(registry, key, pattern, guards \\ [])
+      when is_atom(registry) and is_list(guards) do
+    underscore_guard = {:"=:=", {:element, 1, :"$_"}, {:const, key}}
+    spec = [{{:_, :_, {:_, pattern}}, [underscore_guard | guards], [{:element, 3, :"$_"}]}]
+
+    :ets.select(keys_ets_table(registry), spec)
+  end
+
   def count_match(registry, key, pattern, guards \\ [])
       when is_atom(registry) and is_list(guards) do
-    guards = [{:"=:=", {:element, 1, :"$_"}, {:const, key}} | guards]
-    spec = [{{:_, {:_, pattern}}, guards, [true]}]
+    underscore_guard = {:"=:=", {:element, 1, :"$_"}, {:const, key}}
+    spec = [{{:_, :_, {:_, pattern}}, [underscore_guard | guards], [true]}]
+
     :ets.select_count(keys_ets_table(registry), spec)
+  end
+
+  def unregister_match(registry, key, pattern, guards \\ [])
+      when is_atom(registry) and is_list(guards) do
+    pid = self()
+    underscore_guard = {:"=:=", {:element, 1, :"$_"}, {:const, key}}
+    spec = [{{:_, :_, {pid, pattern}}, [underscore_guard | guards], [:"$_"]}]
+
+    :ets.select(keys_ets_table(registry), spec)
+    |> Enum.each(fn {key, _member, {pid, _val}} ->
+      GenServer.call(registry, {:unregister, key, pid})
+    end)
+
+    :ok
   end
 
   @spec keys(registry :: Registry.registry(), pid()) :: [Registry.key()]
@@ -179,19 +203,12 @@ defmodule Horde.Registry do
     end
   end
 
-  def match(registry, key, pattern, guards \\ [])
-      when is_atom(registry) and is_list(guards) do
-    guards = [{:"=:=", {:element, 1, :"$_"}, {:const, key}} | guards]
-    spec = [{{:_, {:_, pattern}}, guards, [{:element, 2, :"$_"}]}]
-    :ets.select(keys_ets_table(registry), spec)
-  end
-
   def dispatch(registry, key, mfa_or_fun, _opts \\ []) when is_atom(registry) do
     case :ets.lookup(keys_ets_table(registry), key) do
       [] ->
         :ok
 
-      [{_key, pid_value}] ->
+      [{_key, _member, pid_value}] ->
         do_dispatch(mfa_or_fun, [pid_value])
         :ok
     end
@@ -200,23 +217,9 @@ defmodule Horde.Registry do
   defp do_dispatch({m, f, a}, entries), do: apply(m, f, [entries | a])
   defp do_dispatch(fun, entries), do: fun.(entries)
 
-  def unregister_match(registry, key, pattern, guards \\ [])
-      when is_atom(registry) and is_list(guards) do
-    pid = self()
-    underscore_guard = {:"=:=", {:element, 1, :"$_"}, {:const, key}}
-    delete_spec = [{{:_, {pid, pattern}}, [underscore_guard | guards], [:"$_"]}]
-
-    :ets.select(keys_ets_table(registry), delete_spec)
-    |> Enum.each(fn {key, {pid, _val}} ->
-      GenServer.call(registry, {:unregister, key, pid})
-    end)
-
-    :ok
-  end
-
   def update_value(registry, key, callback) when is_atom(registry) do
     case :ets.lookup(keys_ets_table(registry), key) do
-      [{key, {pid, value}}] when pid == self() ->
+      [{key, _member, {pid, value}}] when pid == self() ->
         new_value = callback.(value)
         :ok = GenServer.call(registry, {:update_value, key, pid, new_value})
         {new_value, value}
@@ -231,7 +234,7 @@ defmodule Horde.Registry do
   """
   @deprecated "It be removed in a future version"
   def processes(registry) when is_atom(registry) do
-    :ets.match(keys_ets_table(registry), :"$1") |> Map.new(fn [{k, v}] -> {k, v} end)
+    :ets.match(keys_ets_table(registry), :"$1") |> Map.new(fn [{k, _m, v}] -> {k, v} end)
   end
 
   ### Via callbacks
