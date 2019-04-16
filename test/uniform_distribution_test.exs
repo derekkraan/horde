@@ -26,4 +26,21 @@ defmodule UniformDistributionTest do
              end)
     end
   end
+
+  property "returns error if no alive nodes are available" do
+    member =
+      ExUnitProperties.gen all node_id <- integer(1..100_000),
+                               status <- StreamData.member_of([:dead, :shutting_down]),
+                               name <- binary(),
+                               pid <- atom(:alias) do
+        %{node_id: node_id, status: status, pid: pid, name: name}
+      end
+
+    check all members <- list_of(member),
+              identifier <- string(:alphanumeric) do
+      choice = Horde.UniformDistribution.choose_node(identifier, members)
+
+      assert {:error, :no_alive_nodes} = choice
+    end
+  end
 end

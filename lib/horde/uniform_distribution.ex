@@ -14,9 +14,14 @@ defmodule Horde.UniformDistribution do
       end)
       |> Enum.sort_by(fn %{name: name} -> name end)
 
-    index = XXHash.xxh32(term_to_string_identifier(identifier)) |> rem(Enum.count(members))
+    case Enum.count(members) do
+      0 ->
+        {:error, :no_alive_nodes}
 
-    {:ok, Enum.at(members, index)}
+      count ->
+        index = XXHash.xxh32(term_to_string_identifier(identifier)) |> rem(count)
+        {:ok, Enum.at(members, index)}
+    end
   end
 
   def has_quorum?(_members), do: true
