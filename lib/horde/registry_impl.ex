@@ -14,7 +14,8 @@ defmodule Horde.RegistryImpl do
               processes_updated_at: 0,
               registry_ets_table: nil,
               pids_ets_table: nil,
-              keys_ets_table: nil
+              keys_ets_table: nil,
+              members_ets_table: nil
   end
 
   @spec child_spec(options :: list()) :: Supervisor.child_spec()
@@ -50,6 +51,7 @@ defmodule Horde.RegistryImpl do
     name = Keyword.get(opts, :name)
     pids_name = :"pids_#{name}"
     keys_name = :"keys_#{name}"
+    members_name = :"members_#{name}"
 
     Logger.info("Starting #{inspect(__MODULE__)} with name #{inspect(name)}")
 
@@ -60,12 +62,14 @@ defmodule Horde.RegistryImpl do
     :ets.new(name, [:named_table, {:read_concurrency, true}])
     :ets.new(pids_name, [:named_table, {:read_concurrency, true}])
     :ets.new(keys_name, [:named_table, {:read_concurrency, true}])
+    :ets.new(members_name, [:named_table, {:read_concurrency, true}])
 
     state = %State{
       name: name,
       registry_ets_table: name,
       pids_ets_table: pids_name,
-      keys_ets_table: keys_name
+      keys_ets_table: keys_name,
+      members_ets_table: members_name
     }
 
     state =
@@ -78,6 +82,7 @@ defmodule Horde.RegistryImpl do
 
           Enum.each(members, fn member ->
             DeltaCrdt.mutate(crdt_name(state.name), :add, [{:member, member}, 1], :infinity)
+            :ets.insert(state.members_ets_table, {member, 1})
           end)
 
           neighbours =
@@ -130,6 +135,8 @@ defmodule Horde.RegistryImpl do
   defp process_diff(state, {:add, {:member, member}, 1}) do
     new_members = MapSet.put(state.members, member)
 
+    :ets.insert(state.members_ets_table, {member, 1})
+
     neighbours =
       MapSet.delete(new_members, fully_qualified_name(state.name))
       |> crdt_names()
@@ -142,6 +149,8 @@ defmodule Horde.RegistryImpl do
   end
 
   defp process_diff(state, {:remove, {:member, member}}) do
+    :ets.match_delete(state.members_ets_table, {member, 1})
+
     new_members = MapSet.delete(state.members, member)
     new_nodes = Enum.map(new_members, fn {_name, node} -> node end) |> MapSet.new()
 

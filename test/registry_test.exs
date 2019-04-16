@@ -408,5 +408,27 @@ defmodule RegistryTest do
 
       assert [] = Horde.Registry.keys(registry, pid)
     end
+
+    test "a node is removed from the cluster and its processes are cleaned up" do
+      reg1 = Horde.Registry.ClusterK
+      reg2 = Horde.Registry.ClusterL
+      {:ok, _} = Horde.Registry.start_link(name: reg1, keys: :unique, members: [reg1, reg2])
+      {:ok, _} = Horde.Registry.start_link(name: reg2, keys: :unique)
+
+      %{pid: pid} =
+        Task.async(fn ->
+          Horde.Registry.register(reg1, "key", nil)
+          Process.sleep(400)
+        end)
+
+      Process.sleep(100)
+
+      assert [{^pid, nil}] = Horde.Registry.lookup(reg1, "key")
+      assert [{^pid, nil}] = Horde.Registry.lookup(reg2, "key")
+
+      Horde.Cluster.set_members(reg2, [reg2])
+
+      assert :undefined = Horde.Registry.lookup(reg2, "key")
+    end
   end
 end

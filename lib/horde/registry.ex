@@ -96,6 +96,8 @@ defmodule Horde.Registry do
 
     options = Keyword.put(options, :root_name, root_name)
 
+    options = Keyword.put_new(options, :members, [root_name])
+
     Supervisor.start_link(Horde.RegistrySupervisor, options, name: :"#{root_name}.Supervisor")
   end
 
@@ -130,7 +132,8 @@ defmodule Horde.Registry do
 
   @doc "Finds the `{pid, value}` for the given `key` in `registry`"
   def lookup(registry, key) when is_atom(registry) do
-    with [{^key, _member, {pid, value}}] <- :ets.lookup(keys_ets_table(registry), key),
+    with [{^key, member, {pid, value}}] <- :ets.lookup(keys_ets_table(registry), key),
+         true <- member_in_cluster?(registry, member),
          true <- process_alive?(pid) do
       [{pid, value}]
     else
@@ -277,7 +280,15 @@ defmodule Horde.Registry do
     Node.list() |> Enum.member?(n) && :rpc.call(n, Process, :alive?, [pid])
   end
 
-  defp registry_ets_table(name), do: name
-  defp pids_ets_table(name), do: :"pids_#{name}"
-  defp keys_ets_table(name), do: :"keys_#{name}"
+  defp member_in_cluster?(registry, member) do
+    case :ets.lookup(members_ets_table(registry), member) do
+      [] -> false
+      _ -> true
+    end
+  end
+
+  defp registry_ets_table(registry), do: registry
+  defp pids_ets_table(registry), do: :"pids_#{registry}"
+  defp keys_ets_table(registry), do: :"keys_#{registry}"
+  defp members_ets_table(registry), do: :"members_#{registry}"
 end
