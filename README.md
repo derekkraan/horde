@@ -63,7 +63,7 @@ defmodule MyApp.Application do
     children = [
       {Horde.Supervisor, [name: MyApp.DistributedSupervisor, strategy: :one_for_one]}
     ]
-    Supervsior.start_link(children, strategy: :one_for_one)
+    Supervisor.start_link(children, strategy: :one_for_one)
   end
 end
 ```
