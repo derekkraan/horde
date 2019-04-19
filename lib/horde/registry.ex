@@ -56,6 +56,11 @@ defmodule Horde.Registry do
     end
   end
 
+  @type option ::
+          {:keys, :unique}
+          | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
+          | {:name, term()}
+
   @doc """
   Child spec to enable easy inclusion into a supervisor.
 
@@ -73,7 +78,7 @@ defmodule Horde.Registry do
   ])
   ```
   """
-  @spec child_spec(options :: list()) :: Supervisor.child_spec()
+  @spec child_spec(options :: [option()]) :: Supervisor.child_spec()
   def child_spec(options \\ []) do
     options = Keyword.put_new(options, :id, __MODULE__)
 
