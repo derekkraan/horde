@@ -82,7 +82,8 @@ defmodule Horde.Supervisor do
         :extra_arguments,
         :distribution_strategy,
         :shutdown,
-        :members
+        :members,
+        :delta_crdt_options
       ])
 
     options = Keyword.take(options, [:id, :restart, :shutdown, :type])
@@ -106,6 +107,7 @@ defmodule Horde.Supervisor do
           | {:distribution_strategy, Horde.DistributionStrategy.t()}
           | {:shutdown, integer()}
           | {:members, [Horde.Cluster.member()]}
+          | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
 
   @doc """
   Works like `DynamicSupervisor.start_link/1`. Extra options are documented here:

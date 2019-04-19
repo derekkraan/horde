@@ -12,11 +12,7 @@ defmodule Horde.RegistrySupervisor do
     end
 
     children = [
-      {DeltaCrdt,
-       crdt: DeltaCrdt.AWLWWMap,
-       on_diffs: fn diffs -> on_diffs(diffs, root_name) end,
-       name: crdt_name(root_name),
-       sync_interval: 100},
+      {DeltaCrdt, delta_crdt_options(options)},
       {Horde.RegistryImpl,
        name: root_name,
        meta: Keyword.get(options, :meta),
@@ -45,6 +41,21 @@ defmodule Horde.RegistrySupervisor do
         # the process might already been stopped
         :ok
     end
+  end
+
+  defp delta_crdt_options(options) do
+    root_name = get_root_name(options)
+    crdt_options = Keyword.get(options, :delta_crdt_options, [])
+    mutable = [sync_interval: 100, max_sync_size: 500, shutdown: 30_000]
+
+    immutable = [
+      crdt: DeltaCrdt.AWLWWMap,
+      on_diffs: fn diffs -> on_diffs(diffs, root_name) end,
+      name: crdt_name(root_name)
+    ]
+
+    Keyword.merge(mutable, crdt_options)
+    |> Keyword.merge(immutable)
   end
 
   def crdt_name(name), do: :"#{name}.Crdt"

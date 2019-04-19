@@ -7,12 +7,7 @@ defmodule Horde.SupervisorSupervisor do
     root_name = get_root_name(options)
 
     children = [
-      {DeltaCrdt,
-       crdt: DeltaCrdt.AWLWWMap,
-       on_diffs: fn diffs -> on_diffs(diffs, root_name) end,
-       name: crdt_name(root_name),
-       sync_interval: 100,
-       shutdown: 30_000},
+      {DeltaCrdt, delta_crdt_options(options)},
       {Horde.SupervisorImpl, Keyword.put(options, :name, root_name)},
       {Horde.GracefulShutdownManager,
        processes_pid: crdt_name(root_name), name: graceful_shutdown_manager_name(root_name)},
@@ -26,6 +21,21 @@ defmodule Horde.SupervisorSupervisor do
     ]
 
     Supervisor.init(children, strategy: :one_for_all)
+  end
+
+  defp delta_crdt_options(options) do
+    root_name = get_root_name(options)
+    crdt_options = Keyword.get(options, :delta_crdt_options, [])
+    mutable = [sync_interval: 100, max_sync_size: 500, shutdown: 30_000]
+
+    immutable = [
+      crdt: DeltaCrdt.AWLWWMap,
+      on_diffs: fn diffs -> on_diffs(diffs, root_name) end,
+      name: crdt_name(root_name)
+    ]
+
+    Keyword.merge(mutable, crdt_options)
+    |> Keyword.merge(immutable)
   end
 
   defp get_root_name(options) do
