@@ -1,6 +1,4 @@
-# Horde
-
-[![Hex pm](http://img.shields.io/hexpm/v/horde.svg?style=flat)](https://hex.pm/packages/horde) [![CircleCI badge](https://circleci.com/gh/derekkraan/horde.png?circle-token=:circle-token)](https://circleci.com/gh/derekkraan/horde)
+# Horde [![Hex pm](http://img.shields.io/hexpm/v/horde.svg?style=flat)](https://hex.pm/packages/horde) [![CircleCI badge](https://circleci.com/gh/derekkraan/horde.png?circle-token=:circle-token)](https://circleci.com/gh/derekkraan/horde)
 
 Horde is comprised of `Horde.Supervisor`, a distributed supervisor, and `Horde.Registry`, a distributed registry. Horde is built on top of [DeltaCrdt](https://github.com/derekkraan/delta_crdt_ex).
 
