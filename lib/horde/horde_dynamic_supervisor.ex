@@ -1049,6 +1049,7 @@ defmodule Horde.DynamicSupervisor do
       {:ok, %{strategy: strategy} = state} ->
         case restart_child(strategy, pid, child, state) do
           {:ok, state} ->
+            update_child_pid_horde(child, state)
             {:ok, state}
 
           {:try_again, state} ->
@@ -1060,6 +1061,12 @@ defmodule Horde.DynamicSupervisor do
         report_error(:shutdown, :reached_max_restart_intensity, pid, child, state)
         {:shutdown, delete_child(pid, state)}
     end
+  end
+
+  defp update_child_pid_horde({child_id, _, _, _, _, _}, state) do
+    %{child_id_to_pid: child_id_to_pid} = state
+    new_pid = Map.get(child_id_to_pid, child_id)
+    GenServer.call(state.root_name, {:update_child_pid, child_id, new_pid})
   end
 
   defp add_restart(state) do
