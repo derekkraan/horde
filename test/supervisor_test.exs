@@ -75,16 +75,18 @@ defmodule SupervisorTest do
 
   describe ".start_child/2" do
     test "starts a process", context do
-      assert {:ok, _pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      assert {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
 
-      assert {:error, {:already_started, _child}} =
-               Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      assert_receive {:process_started, ^pid}
     end
 
     test "returns error when starting same process twice", context do
       assert {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
 
-      assert_receive {:process_started, ^pid}
+      assert is_pid(pid)
+
+      assert {:error, {:already_started, ^pid}} =
+               Horde.Supervisor.start_child(context.horde_1, context.task_def)
     end
 
     test "starts a process with id that doesn't implement String.Chars", context do
@@ -100,6 +102,27 @@ defmodule SupervisorTest do
       assert_receive {:process_started, pid}
       Process.exit(pid, :kill)
       assert_receive {:process_started, _pid}
+    end
+
+    test "already_started error contains the correct pid", context do
+      {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      assert_receive {:process_started, ^pid}
+
+      assert {:error, {:already_started, ^pid}} =
+               Horde.Supervisor.start_child(context.horde_1, context.task_def)
+
+      Process.exit(pid, :kill)
+
+      assert_receive {:process_started, new_pid}
+
+      # Give some time to supervisor to restart child.
+      # Some time the Task gets executed before the end of the EXIT signal handling
+      Process.sleep(100)
+
+      assert {:error, {:already_started, ^new_pid}} =
+               Horde.Supervisor.start_child(context.horde_1, context.task_def)
+
+      refute new_pid == pid
     end
 
     test "processes are started on different nodes", context do
@@ -301,7 +324,7 @@ defmodule SupervisorTest do
       {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
       Horde.Supervisor.start_child(:horde_transient, child_spec)
 
-      assert %{Task => {_, %{id: Task}}} = :sys.get_state(:horde_transient).processes
+      assert %{Task => {_, %{id: Task}, _}} = :sys.get_state(:horde_transient).processes
     end
   end
 
