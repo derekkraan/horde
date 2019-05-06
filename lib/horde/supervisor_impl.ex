@@ -317,13 +317,13 @@ defmodule Horde.SupervisorImpl do
     {:noreply, new_state}
   end
 
-  def has_membership_change?([{:add, {:member_node_info, _}, _} | diffs]), do: true
+  def has_membership_change?([{:add, {:member_node_info, _}, _} | _diffs]), do: true
 
-  def has_membership_change?([{:remove, {:member_node_info, _}} | diffs]), do: true
+  def has_membership_change?([{:remove, {:member_node_info, _}} | _diffs]), do: true
 
-  def has_membership_change?([{:add, {:member, _}, _} | diffs]), do: true
+  def has_membership_change?([{:add, {:member, _}, _} | _diffs]), do: true
 
-  def has_membership_change?([{:remove, {:member, _}} | diffs]), do: true
+  def has_membership_change?([{:remove, {:member, _}} | _diffs]), do: true
 
   def has_membership_change?([_diff | diffs]) do
     has_membership_change?(diffs)
