@@ -240,6 +240,25 @@ defmodule Horde.Registry do
     :ets.match(keys_ets_table(registry), :"$1") |> Map.new(fn [{k, _m, v}] -> {k, v} end)
   end
 
+  @doc """
+  Select key, pid, and values from the process registry of the horde
+  """
+  def select(registry, spec) when is_atom(registry) and is_list(spec) do
+    spec =
+      for part <- spec do
+        case part do
+          {{key, pid, value}, guards, select} ->
+            {{key, {registry, :_}, {pid, value}}, guards, select}
+
+          _ ->
+            raise ArgumentError,
+                  "invalid match specification in Registry.select/2: #{inspect(spec)}"
+        end
+      end
+
+      :ets.select(keys_ets_table(registry), spec)
+  end
+
   ### Via callbacks
 
   @doc false
