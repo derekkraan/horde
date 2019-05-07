@@ -92,6 +92,34 @@ defmodule RegistryTest do
     end
   end
 
+  describe ".select/2" do
+    test "returns correct pids / values" do
+      {:ok, _} = Horde.Registry.start_link(name: :select_horde, keys: :unique)
+
+      Horde.Registry.register(:select_horde, "foo", "foo")
+      Horde.Registry.register(:select_horde, "bar", bar: 33)
+
+      self = self()
+      assert [{^self, "foo"}, {^self, "bar"}] =
+        Horde.Registry.select(:select_horde, [{{:"$1", :"$2", :"$3"}, [], [{{:"$2", :"$1"}}]}])
+      assert [{}, {}] =
+        Horde.Registry.select(:select_horde, [{{:"$1", :"$2", :"$3"}, [], [{{}}]}])
+      assert [{^self, "foo"}, {^self, bar: 33}] =
+        Horde.Registry.select(:select_horde, [{{:"$1", :"$2", :"$3"}, [], [{{:"$2", :"$3"}}]}])
+      assert [^self, ^self] =
+        Horde.Registry.select(:select_horde, [{{:"$2", :"$3", :"$1"}, [], [:"$3"]}])
+      assert ["foo", "bar"] =
+        Horde.Registry.select(:select_horde, [{{:"$1", :_, :_}, [], [:"$1"]}])
+
+
+      assert ["foo"] =
+        Horde.Registry.select(:select_horde, [{{:_, :_, :"$1"}, [{:==, :"$1", "foo"}], [:"$1"]}])
+
+      assert [[bar: 33]] =
+        Horde.Registry.select(:select_horde, [{{:_, :_, :"$1"}, [{:"=/=", :"$1", "foo"}], [:"$1"]}])
+    end
+  end
+
   describe "register via callbacks" do
     test "register a name the 'via' way" do
       horde = Horde.Registry.ClusterA
