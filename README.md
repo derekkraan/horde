@@ -69,7 +69,17 @@ end
 Adding a child to the supervisor:
 
 ```elixir
-Horde.Supervisor.start_child(MyApp.DistributedSupervisor, %{id: :gen_server, start: {GenServer, :start_link, []}})
+# Add a Task
+Horde.Supervisor.start_child(MyApp.DistributedSupervisor, %{id: :task, start: {Task, :start_link, [:infinity]}})
+
+# Add an Agent
+Horde.Supervisor.start_child(MyApp.DistributedSupervisor, %{id: :agent, start: {Agent, :start_link, [fn -> %{} end]}})
+
+# Add a GenServer: You need a previously defined GenServer to call the one
+# liner below.  We have a test ("graceful shutdown") in
+# `test/supervisor_test.exs` that exercises and displays that behavior. After
+# defined, it would be very similar to this:
+Horde.Supervisor.start_child(MyApp.DistributedSupervisor, %{id: :gen_server, start: {GenServer, :start_link, [DefinedGenServer, {500, pid}]}})
 ```
 
 And so on. The public API should be the same as `Supervisor` (and please open an issue if you find a difference).
