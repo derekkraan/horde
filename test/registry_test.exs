@@ -93,30 +93,119 @@ defmodule RegistryTest do
   end
 
   describe ".select/2" do
-    test "returns correct pids / values" do
-      {:ok, _} = Horde.Registry.start_link(name: :select_horde, keys: :unique)
+    test "empty list for empty registry" do
+      registry = :select_empty
+      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      assert Horde.Registry.select(registry, [{{:_, :_, :_}, [], [:"$_"]}]) == []
+    end
 
-      Horde.Registry.register(:select_horde, "foo", "foo")
-      Horde.Registry.register(:select_horde, "bar", bar: 33)
+    test "select all" do
+      registry = :select_all
+      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      name = {:via, Horde.Registry, {registry, "hello"}}
+      {:ok, pid} = Agent.start_link(fn -> 0 end, name: name)
+      {:ok, _} = Horde.Registry.register(registry, "world", :value)
 
-      self = self()
-      assert [{^self, "foo"}, {^self, "bar"}] =
-        Horde.Registry.select(:select_horde, [{{:"$1", :"$2", :"$3"}, [], [{{:"$2", :"$1"}}]}])
-      assert [{}, {}] =
-        Horde.Registry.select(:select_horde, [{{:"$1", :"$2", :"$3"}, [], [{{}}]}])
-      assert [{^self, "foo"}, {^self, bar: 33}] =
-        Horde.Registry.select(:select_horde, [{{:"$1", :"$2", :"$3"}, [], [{{:"$2", :"$3"}}]}])
-      assert [^self, ^self] =
-        Horde.Registry.select(:select_horde, [{{:"$2", :"$3", :"$1"}, [], [:"$3"]}])
-      assert ["foo", "bar"] =
-        Horde.Registry.select(:select_horde, [{{:"$1", :_, :_}, [], [:"$1"]}])
+      assert Horde.Registry.select(registry, [
+               {{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$2", :"$3"}}]}
+             ])
+             |> Enum.sort() == [{"hello", pid, nil}, {"world", self(), :value}]
+    end
 
+    test "select supports full match specs" do
+      registry = :select_full_match_specs
+      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      value = {1, :atom, 1}
+      {:ok, _} = Horde.Registry.register(registry, "hello", value)
 
-      assert ["foo"] =
-        Horde.Registry.select(:select_horde, [{{:_, :_, :"$1"}, [{:==, :"$1", "foo"}], [:"$1"]}])
+      assert [{"hello", self(), value}] ==
+               Horde.Registry.select(registry, [
+                 {{"hello", :"$2", :"$3"}, [], [{{"hello", :"$2", :"$3"}}]}
+               ])
 
-      assert [[bar: 33]] =
-        Horde.Registry.select(:select_horde, [{{:_, :_, :"$1"}, [{:"=/=", :"$1", "foo"}], [:"$1"]}])
+      assert [{"hello", self(), value}] ==
+               Horde.Registry.select(registry, [
+                 {{:"$1", self(), :"$3"}, [], [{{:"$1", self(), :"$3"}}]}
+               ])
+
+      assert [{"hello", self(), value}] ==
+               Horde.Registry.select(registry, [
+                 {{:"$1", :"$2", value}, [], [{{:"$1", :"$2", {value}}}]}
+               ])
+
+      assert [] ==
+               Horde.Registry.select(registry, [
+                 {{"world", :"$2", :"$3"}, [], [{{"world", :"$2", :"$3"}}]}
+               ])
+
+      assert [] == Horde.Registry.select(registry, [{{:"$1", :"$2", {1.0, :_, :_}}, [], [:"$_"]}])
+
+      assert [{"hello", self(), value}] ==
+               Horde.Registry.select(registry, [
+                 {{:"$1", :"$2", {:"$3", :atom, :"$4"}}, [],
+                  [{{:"$1", :"$2", {{:"$3", :atom, :"$4"}}}}]}
+               ])
+
+      assert [{"hello", self(), {1, :atom, 1}}] ==
+               Horde.Registry.select(registry, [
+                 {{:"$1", :"$2", {:"$3", :"$4", :"$3"}}, [],
+                  [{{:"$1", :"$2", {{:"$3", :"$4", :"$3"}}}}]}
+               ])
+
+      value2 = %{a: "a", b: "b"}
+      {:ok, _} = Horde.Registry.register(registry, "world", value2)
+
+      assert [:match] ==
+               Horde.Registry.select(registry, [{{"world", self(), %{b: "b"}}, [], [:match]}])
+
+      assert ["hello", "world"] ==
+               Horde.Registry.select(registry, [{{:"$1", :_, :_}, [], [:"$1"]}]) |> Enum.sort()
+    end
+
+    test "select supports guard conditions" do
+      registry = :select_guards
+      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      value = {1, :atom, 2}
+      {:ok, _} = Horde.Registry.register(registry, "hello", value)
+
+      assert [{"hello", self(), {1, :atom, 2}}] ==
+               Horde.Registry.select(registry, [
+                 {{:"$1", :"$2", {:"$3", :"$4", :"$5"}}, [{:>, :"$5", 1}],
+                  [{{:"$1", :"$2", {{:"$3", :"$4", :"$5"}}}}]}
+               ])
+
+      assert [] ==
+               Horde.Registry.select(registry, [
+                 {{:_, :_, {:_, :_, :"$1"}}, [{:>, :"$1", 2}], [:"$_"]}
+               ])
+
+      assert ["hello"] ==
+               Horde.Registry.select(registry, [
+                 {{:"$1", :_, {:_, :"$2", :_}}, [{:is_atom, :"$2"}], [:"$1"]}
+               ])
+    end
+
+    test "select allows multiple specs" do
+      registry = :select_multiple_specs
+      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      {:ok, _} = Horde.Registry.register(registry, "hello", :value)
+      {:ok, _} = Horde.Registry.register(registry, "world", :value)
+
+      assert ["hello", "world"] ==
+               Horde.Registry.select(registry, [
+                 {{"hello", :_, :_}, [], [{:element, 1, :"$_"}]},
+                 {{"world", :_, :_}, [], [{:element, 1, :"$_"}]}
+               ])
+               |> Enum.sort()
+    end
+
+    test "raises on incorrect shape of match spec" do
+      registry = :select_raises
+      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+
+      assert_raise ArgumentError, fn ->
+        Horde.Registry.select(registry, [{:_, [], []}])
+      end
     end
   end
 
