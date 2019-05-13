@@ -235,7 +235,7 @@ defmodule Horde.Registry do
   @doc """
   Get the process registry of the horde
   """
-  @deprecated "It be removed in a future version"
+  @deprecated "Use `select/2` instead."
   def processes(registry) when is_atom(registry) do
     :ets.match(keys_ets_table(registry), :"$1") |> Map.new(fn [{k, _m, v}] -> {k, v} end)
   end
@@ -256,7 +256,7 @@ defmodule Horde.Registry do
         end
       end
 
-      :ets.select(keys_ets_table(registry), spec)
+    :ets.select(keys_ets_table(registry), spec)
   end
 
   ### Via callbacks
