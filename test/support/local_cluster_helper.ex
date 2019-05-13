@@ -26,7 +26,7 @@ defmodule EchoServer do
   end
 
   def handle_info(:do_send, pid) do
-    send(pid, {node, :hello_echo_server})
+    send(pid, {node(), :hello_echo_server})
     Process.send_after(self(), :do_send, 1_000)
     {:noreply, pid}
   end
