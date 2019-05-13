@@ -538,7 +538,7 @@ defmodule RegistryTest do
           Process.sleep(400)
         end)
 
-      Process.sleep(100)
+      Process.sleep(200)
 
       assert [{^pid, nil}] = Horde.Registry.lookup(reg1, "key")
       assert [{^pid, nil}] = Horde.Registry.lookup(reg2, "key")
