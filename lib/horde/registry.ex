@@ -115,7 +115,13 @@ defmodule Horde.Registry do
           value :: Registry.value()
         ) :: {:ok, pid()} | {:error, :already_registered, pid()}
   def register(registry, name, value) when is_atom(registry) do
-    GenServer.call(registry, {:register, name, value, self()})
+    case :ets.lookup(keys_ets_table(registry), name) do
+      [] ->
+        GenServer.call(registry, {:register, name, value, self()})
+
+      [{^name, _member, {pid, _value}}] ->
+        {:error, {:already_registered, pid}}
+    end
   end
 
   @doc "unregister the process under the given name"

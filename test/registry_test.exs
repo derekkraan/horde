@@ -41,31 +41,38 @@ defmodule RegistryTest do
   end
 
   describe ".register/3" do
-    test "cannot register 2 processes under same name with same horde" do
-      horde = :horde_1_d
-      {:ok, _horde_1} = Horde.Registry.start_link(name: horde, keys: :unique)
-      {:ok, horde: horde}
+    test "has unique registrations" do
+      registry = :horde_1_d
+      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
 
-      Horde.Registry.register(horde, :highlander, "val")
-      Horde.Registry.register(horde, :highlander, "val")
-      processes = Horde.Registry.processes(horde)
-      assert [:highlander] = Map.keys(processes)
+      {:ok, pid} = Horde.Registry.register(registry, "hello", :value)
+      assert is_pid(pid)
+      assert Horde.Registry.keys(registry, self()) == ["hello"]
+
+      assert {:error, {:already_registered, pid}} =
+               Horde.Registry.register(registry, "hello", :value)
+
+      assert pid == self()
+      assert Horde.Registry.keys(registry, self()) == ["hello"]
+
+      {:ok, pid} = Horde.Registry.register(registry, "world", :value)
+      assert is_pid(pid)
+      assert Horde.Registry.keys(registry, self()) |> Enum.sort() == ["hello", "world"]
     end
 
-    test "cannot register 2 processes under same name with different hordes" do
-      horde = :horde_1_e
-      {:ok, _horde_1} = Horde.Registry.start_link(name: horde, keys: :unique)
+    test "has unique registrations across processes" do
+      registry = :horde_1_e
+      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
 
-      horde_2 = :horde_2_e
-      {:ok, _} = Horde.Registry.start_link(name: horde_2, keys: :unique)
-      Horde.Cluster.set_members(horde, [horde, horde_2])
-      Horde.Registry.register(horde, :MacLeod, "val1")
-      Horde.Registry.register(horde_2, :MacLeod, "val2")
-      Process.sleep(200)
-      processes = Horde.Registry.processes(horde)
-      processes_2 = Horde.Registry.processes(horde_2)
-      assert 1 = Map.size(processes)
-      assert processes == processes_2
+      {_, task} = register_task(registry, "hello", :value)
+      Process.link(Process.whereis(registry))
+
+      assert {:error, {:already_registered, ^task}} =
+               Horde.Registry.register(registry, "hello", :recent)
+
+      assert Horde.Registry.keys(registry, self()) == []
+      {:links, links} = Process.info(self(), :links)
+      assert Process.whereis(registry) in links
     end
   end
 
@@ -547,5 +554,18 @@ defmodule RegistryTest do
 
       assert :undefined = Horde.Registry.lookup(reg2, "key")
     end
+  end
+
+  defp register_task(registry, key, value) do
+    parent = self()
+
+    {:ok, task} =
+      Task.start(fn ->
+        send(parent, Horde.Registry.register(registry, key, value))
+        Process.sleep(:infinity)
+      end)
+
+    assert_receive {:ok, owner}
+    {owner, task}
   end
 end
