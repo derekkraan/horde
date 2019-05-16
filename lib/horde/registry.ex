@@ -254,7 +254,7 @@ defmodule Horde.Registry do
       for part <- spec do
         case part do
           {{key, pid, value}, guards, select} ->
-            {{key, {registry, :_}, {pid, value}}, guards, select}
+            {{key, :_, {pid, value}}, guards, select}
 
           _ ->
             raise ArgumentError,
