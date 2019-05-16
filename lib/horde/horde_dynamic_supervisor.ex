@@ -1031,7 +1031,11 @@ defmodule Horde.DynamicSupervisor do
   end
 
   defp delete_child(pid, %{children: children} = state) do
-    {child_id, _, _, _, _, _} = children[pid]
+    child_id =
+      case children[pid] do
+        {:restarting, {child_id, _, _, _, _, _}} -> child_id
+        {child_id, _, _, _, _, _} -> child_id
+      end
 
     %{
       state
