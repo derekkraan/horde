@@ -21,73 +21,71 @@ defmodule RegistryTest do
 
   describe ".set_members/2" do
     test "two hordes can join each other" do
-      {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_a, keys: :unique)
-      {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_a, keys: :unique)
-      Horde.Cluster.set_members(:horde_1_a, [:horde_1_a, :horde_2_a])
+      horde1 = start_registry()
+      horde2 = start_registry()
+
+      Horde.Cluster.set_members(horde1, [horde1, horde2])
       Process.sleep(50)
-      {:ok, members} = Horde.Cluster.members(:horde_2_a)
+      {:ok, members} = Horde.Cluster.members(horde2)
       assert 2 = Enum.count(members)
     end
 
     test "three nodes can make a single registry" do
-      {:ok, _horde_1} = Horde.Registry.start_link(name: :horde_1_b, keys: :unique)
-      {:ok, _horde_2} = Horde.Registry.start_link(name: :horde_2_b, keys: :unique)
-      {:ok, _horde_3} = Horde.Registry.start_link(name: :horde_3_b, keys: :unique)
-      Horde.Cluster.set_members(:horde_1_b, [:horde_1_b, :horde_2_b, :horde_3_b])
+      horde1 = start_registry()
+      horde2 = start_registry()
+      horde3 = start_registry()
+
+      Horde.Cluster.set_members(horde1, [horde1, horde2, horde3])
       Process.sleep(100)
-      {:ok, members} = Horde.Cluster.members(:horde_2_b)
+      {:ok, members} = Horde.Cluster.members(horde2)
       assert 3 = Enum.count(members)
     end
   end
 
   describe ".register/3" do
     test "has unique registrations" do
-      registry = :horde_1_d
-      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      horde = start_registry()
 
-      {:ok, pid} = Horde.Registry.register(registry, "hello", :value)
+      {:ok, pid} = Horde.Registry.register(horde, "hello", :value)
       assert is_pid(pid)
-      assert Horde.Registry.keys(registry, self()) == ["hello"]
+      assert Horde.Registry.keys(horde, self()) == ["hello"]
 
       assert {:error, {:already_registered, pid}} =
-               Horde.Registry.register(registry, "hello", :value)
+               Horde.Registry.register(horde, "hello", :value)
 
       assert pid == self()
-      assert Horde.Registry.keys(registry, self()) == ["hello"]
+      assert Horde.Registry.keys(horde, self()) == ["hello"]
 
-      {:ok, pid} = Horde.Registry.register(registry, "world", :value)
+      {:ok, pid} = Horde.Registry.register(horde, "world", :value)
       assert is_pid(pid)
-      assert Horde.Registry.keys(registry, self()) |> Enum.sort() == ["hello", "world"]
+      assert Horde.Registry.keys(horde, self()) |> Enum.sort() == ["hello", "world"]
     end
 
     test "has unique registrations across processes" do
-      registry = :horde_1_e
-      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      horde = start_registry()
 
-      {_, task} = register_task(registry, "hello", :value)
-      Process.link(Process.whereis(registry))
+      {_, task} = register_task(horde, "hello", :value)
+      Process.link(Process.whereis(horde))
 
       assert {:error, {:already_registered, ^task}} =
-               Horde.Registry.register(registry, "hello", :recent)
+               Horde.Registry.register(horde, "hello", :recent)
 
-      assert Horde.Registry.keys(registry, self()) == []
+      assert Horde.Registry.keys(horde, self()) == []
       {:links, links} = Process.info(self(), :links)
-      assert Process.whereis(registry) in links
+      assert Process.whereis(horde) in links
     end
   end
 
   describe ".keys/2" do
     test "empty list if not registered" do
-      registry = Horde.Registry.Cluster0
-      {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
+      registry = start_registry()
       assert [] = Horde.Registry.keys(registry, self())
     end
 
     test "registered keys are returned" do
-      registry = Horde.Registry.Cluster1
-      {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
-      registry2 = Horde.Registry.Cluster2
-      {:ok, _horde} = Horde.Registry.start_link(name: registry2, keys: :unique)
+      registry = start_registry()
+      registry2 = start_registry()
+
       Horde.Cluster.set_members(registry, [registry, registry2])
 
       Horde.Registry.register(registry, "foo", :value)
@@ -101,14 +99,13 @@ defmodule RegistryTest do
 
   describe ".select/2" do
     test "empty list for empty registry" do
-      registry = :select_empty
-      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      registry = start_registry()
       assert Horde.Registry.select(registry, [{{:_, :_, :_}, [], [:"$_"]}]) == []
     end
 
     test "select all" do
-      registry = :select_all
-      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      registry = start_registry()
+
       name = {:via, Horde.Registry, {registry, "hello"}}
       {:ok, pid} = Agent.start_link(fn -> 0 end, name: name)
       {:ok, _} = Horde.Registry.register(registry, "world", :value)
@@ -120,8 +117,8 @@ defmodule RegistryTest do
     end
 
     test "select supports full match specs" do
-      registry = :select_full_match_specs
-      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      registry = start_registry()
+
       value = {1, :atom, 1}
       {:ok, _} = Horde.Registry.register(registry, "hello", value)
 
@@ -170,8 +167,8 @@ defmodule RegistryTest do
     end
 
     test "select supports guard conditions" do
-      registry = :select_guards
-      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      registry = start_registry()
+
       value = {1, :atom, 2}
       {:ok, _} = Horde.Registry.register(registry, "hello", value)
 
@@ -193,8 +190,8 @@ defmodule RegistryTest do
     end
 
     test "select allows multiple specs" do
-      registry = :select_multiple_specs
-      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      registry = start_registry()
+
       {:ok, _} = Horde.Registry.register(registry, "hello", :value)
       {:ok, _} = Horde.Registry.register(registry, "world", :value)
 
@@ -221,8 +218,7 @@ defmodule RegistryTest do
     end
 
     test "raises on incorrect shape of match spec" do
-      registry = :select_raises
-      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+      registry = start_registry()
 
       assert_raise ArgumentError, fn ->
         Horde.Registry.select(registry, [{:_, [], []}])
@@ -232,8 +228,7 @@ defmodule RegistryTest do
 
   describe "register via callbacks" do
     test "register a name the 'via' way" do
-      horde = Horde.Registry.ClusterA
-      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
+      horde = start_registry()
 
       name = {:via, Horde.Registry, {horde, "precious"}}
       {:ok, apid} = Agent.start_link(fn -> 0 end, name: name)
@@ -245,10 +240,8 @@ defmodule RegistryTest do
 
   describe ".unregister/2" do
     test "can unregister processes" do
-      horde = :horde_1_f
-      horde2 = :horde_2_f
-      {:ok, _horde_1} = Horde.Registry.start_link(name: horde, keys: :unique)
-      {:ok, _horde_2} = Horde.Registry.start_link(name: horde2, keys: :unique)
+      horde = start_registry()
+      horde2 = start_registry()
       Horde.Cluster.set_members(horde, [horde, horde2])
 
       Horde.Registry.register(horde, :one_day_fly, "value")
@@ -265,65 +258,67 @@ defmodule RegistryTest do
 
   describe ".unregister_match/4" do
     test "unregisters matching processes" do
-      Horde.Registry.start_link(name: :unregister_match_horde, keys: :unique)
-      Horde.Registry.register(:unregister_match_horde, "to_unregister", "match_unregister")
-      Horde.Registry.register(:unregister_match_horde, "another_key", value: 12)
+      horde = start_registry()
+
+      Horde.Registry.register(horde, "to_unregister", "match_unregister")
+      Horde.Registry.register(horde, "another_key", value: 12)
 
       :ok =
         Horde.Registry.unregister_match(
-          :unregister_match_horde,
+          horde,
           "another_key",
           [value: :"$1"],
           [{:>, :"$1", 12}]
         )
 
       assert Enum.sort(["another_key", "to_unregister"]) ==
-               Enum.sort(Horde.Registry.keys(:unregister_match_horde, self()))
+               Enum.sort(Horde.Registry.keys(horde, self()))
 
       :ok =
         Horde.Registry.unregister_match(
-          :unregister_match_horde,
+          horde,
           "another_key",
           [value: :"$1"],
           [{:>, :"$1", 11}]
         )
 
-      assert ["to_unregister"] = Horde.Registry.keys(:unregister_match_horde, self())
+      assert ["to_unregister"] = Horde.Registry.keys(horde, self())
 
       :ok =
         Horde.Registry.unregister_match(
-          :unregister_match_horde,
+          horde,
           "to_unregister",
           "doesn't match"
         )
 
       assert [{self(), "match_unregister"}] ==
-               Horde.Registry.lookup(:unregister_match_horde, "to_unregister")
+               Horde.Registry.lookup(horde, "to_unregister")
 
-      assert ["to_unregister"] = Horde.Registry.keys(:unregister_match_horde, self())
+      assert ["to_unregister"] = Horde.Registry.keys(horde, self())
 
       :ok =
         Horde.Registry.unregister_match(
-          :unregister_match_horde,
+          horde,
           "to_unregister",
           "match_unregister"
         )
 
       Process.sleep(200)
 
-      assert :undefined = Horde.Registry.lookup(:unregister_match_horde, "to_unregister")
-      assert [] = Horde.Registry.keys(:unregister_match_horde, self())
+      assert :undefined = Horde.Registry.lookup(horde, "to_unregister")
+      assert [] = Horde.Registry.keys(horde, self())
     end
   end
 
   describe ".dispatch/4" do
     test "dispatches to correct processes" do
-      Horde.Registry.start_link(name: :dispatch_registry, keys: :unique)
-      Horde.Registry.register(:dispatch_registry, "d1", "value1")
-      Horde.Registry.register(:dispatch_registry, "d2", "value2")
+      horde = start_registry()
+
+      Horde.Registry.register(horde, "d1", "value1")
+      Horde.Registry.register(horde, "d2", "value2")
 
       assert :ok =
-               Horde.Registry.dispatch(:dispatch_registry, "d1", fn [{pid, value}] ->
+               Horde.Registry.dispatch(horde, "d1", fn [{pid, value}] ->
                  send(pid, {:value, value})
                end)
 
@@ -333,7 +328,7 @@ defmodule RegistryTest do
         def send([{pid, value}]), do: Kernel.send(pid, {:value, value})
       end
 
-      assert :ok = Horde.Registry.dispatch(:dispatch_registry, "d2", {TestSender, :send, []})
+      assert :ok = Horde.Registry.dispatch(horde, "d2", {TestSender, :send, []})
 
       assert_received({:value, "value2"})
     end
@@ -341,31 +336,32 @@ defmodule RegistryTest do
 
   describe ".count/1" do
     test "returns correct number" do
-      {:ok, _} = Horde.Registry.start_link(name: :count_horde, keys: :unique)
-      Horde.Registry.register(:count_horde, "foo", "foo")
-      Horde.Registry.register(:count_horde, "bar", "bar")
-      assert 2 = Horde.Registry.count(:count_horde)
+      horde = start_registry()
+
+      Horde.Registry.register(horde, "foo", "foo")
+      Horde.Registry.register(horde, "bar", "bar")
+      assert 2 = Horde.Registry.count(horde)
     end
   end
 
   describe ".count_match/4" do
     test "returns correct number" do
-      {:ok, _} = Horde.Registry.start_link(name: :count_match_horde, keys: :unique)
+      horde = start_registry()
 
-      Horde.Registry.register(:count_match_horde, "foo", "foo")
-      Horde.Registry.register(:count_match_horde, "bar", bar: 33)
+      Horde.Registry.register(horde, "foo", "foo")
+      Horde.Registry.register(horde, "bar", bar: 33)
 
-      assert 1 = Horde.Registry.count_match(:count_match_horde, "foo", :_)
-      assert 0 = Horde.Registry.count_match(:count_match_horde, "bar", bar: 34)
-      assert 1 = Horde.Registry.count_match(:count_match_horde, "bar", bar: 33)
+      assert 1 = Horde.Registry.count_match(horde, "foo", :_)
+      assert 0 = Horde.Registry.count_match(horde, "bar", bar: 34)
+      assert 1 = Horde.Registry.count_match(horde, "bar", bar: 33)
 
       assert 0 =
-               Horde.Registry.count_match(:count_match_horde, "bar", [bar: :"$1"], [
+               Horde.Registry.count_match(horde, "bar", [bar: :"$1"], [
                  {:>, :"$1", 34}
                ])
 
       assert 1 =
-               Horde.Registry.count_match(:count_match_horde, "bar", [bar: :"$1"], [
+               Horde.Registry.count_match(horde, "bar", [bar: :"$1"], [
                  {:>, :"$1", 32}
                ])
     end
@@ -581,5 +577,12 @@ defmodule RegistryTest do
 
     assert_receive {:ok, owner}
     {owner, task}
+  end
+
+  defp start_registry(opts \\ [keys: :unique]) do
+    horde = :"h#{-:erlang.monotonic_time()}"
+    {:ok, _pid} = Horde.Registry.start_link([name: horde] ++ opts)
+
+    horde
   end
 end
