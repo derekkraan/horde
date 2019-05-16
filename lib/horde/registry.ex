@@ -124,6 +124,8 @@ defmodule Horde.Registry do
 
   `{:name_conflict, {name, value}, registry_name, winning_pid}`
 
+  When two registries are joined using `Horde.Cluster.set_members/2`,
+  this name conflict message can also occur.
   """
   @spec register(
           registry :: GenServer.server(),
