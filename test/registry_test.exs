@@ -206,6 +206,20 @@ defmodule RegistryTest do
                |> Enum.sort()
     end
 
+    test "select works with clustered registries" do
+      horde1 = :select_clustered_a
+      horde2 = :select_clustered_b
+      {:ok, _} = Horde.Registry.start_link(name: horde1, keys: :unique)
+      {:ok, _} = Horde.Registry.start_link(name: horde2, keys: :unique)
+      Horde.Cluster.set_members(horde1, [horde1, horde2])
+
+      {:ok, _} = Horde.Registry.register(horde1, "a", :value)
+      Process.sleep(100)
+
+      assert ["a"] = Horde.Registry.select(horde1, [{{:"$1", :_, :_}, [], [:"$1"]}])
+      assert ["a"] = Horde.Registry.select(horde2, [{{:"$1", :_, :_}, [], [:"$1"]}])
+    end
+
     test "raises on incorrect shape of match spec" do
       registry = :select_raises
       {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
