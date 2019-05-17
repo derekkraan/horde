@@ -90,14 +90,40 @@ defmodule RegistryTest do
       Process.flag(:trap_exit, true)
       Horde.Cluster.set_members(horde1, [horde1, horde2])
 
-      me = self()
-      assert_receive {:EXIT, me, {:name_conflict, {"hello", :value}, ^horde1, ^winner_pid}}
+      assert_receive {:EXIT, _from, {:name_conflict, {"hello", :value}, ^horde1, ^winner_pid}}
 
       Process.flag(:trap_exit, false)
 
       # only the winner process is registered
       assert %{"hello" => {winner_pid, :value}} == Horde.Registry.processes(horde1)
       assert %{"hello" => {winner_pid, :value}} == Horde.Registry.processes(horde2)
+    end
+
+    test "name conflicts in separate processes" do
+      horde1 = start_registry()
+      horde2 = start_registry()
+
+      process = fn horde ->
+        fn ->
+          {:ok, _} = Horde.Registry.register(horde, "name", nil)
+          {:ok, _} = Horde.Registry.register(horde, {:other, make_ref()}, nil)
+          Process.sleep(:infinity)
+        end
+      end
+
+      pid1 = spawn(process.(horde1))
+      Process.sleep(10)
+      pid2 = spawn(process.(horde2))
+
+      Horde.Cluster.set_members(horde1, [horde1, horde2])
+
+      Process.sleep(100)
+
+      # pid1 has lost
+      refute Process.alive?(pid1)
+
+      assert [{:other, _}, "name"] = Map.keys(Horde.Registry.processes(horde1)) |> Enum.sort()
+      assert [{:other, _}, "name"] = Map.keys(Horde.Registry.processes(horde2)) |> Enum.sort()
     end
   end
 
