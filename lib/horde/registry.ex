@@ -119,8 +119,8 @@ defmodule Horde.Registry do
   However, due to the eventual consistent nature of the CRDT, a
   conflict resolution will take place, and the CRDT will pick one of
   the two processes as the "winner" of the name. The losing process
-  will then receive a message to indicate that it has lost the name
-  registration. The message looks like this:
+  will be sent an exit signal (using `Process.exit/2`) with the
+  following reason:
 
   `{:name_conflict, {name, value}, registry_name, winning_pid}`
 
