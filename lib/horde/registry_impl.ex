@@ -114,10 +114,7 @@ defmodule Horde.RegistryImpl do
     case :ets.take(state.pids_ets_table, pid) do
       [{_pid, keys}] ->
         Enum.each(keys, fn key ->
-          if not name_conflict_key?(key, reason) do
-            DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
-          end
-
+          DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
           :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
         end)
 
@@ -127,9 +124,6 @@ defmodule Horde.RegistryImpl do
 
     {:noreply, state}
   end
-
-  defp name_conflict_key?(key, {:name_conflict, {key, _}, _, _}), do: true
-  defp name_conflict_key?(_key, _reason), do: false
 
   defp process_diffs(state, [diff | diffs]) do
     process_diff(state, diff)
@@ -175,6 +169,7 @@ defmodule Horde.RegistryImpl do
            :ets.lookup(state.keys_ets_table, key) do
       # There was a conflict in the name registry, send the  losing PID
       # an exit signal indicating it has lost the name registration.
+      :ets.match_delete(state.pids_ets_table, {other_pid, :_})
       Process.exit(other_pid, {:name_conflict, {key, other_value}, state.name, pid})
     end
 
