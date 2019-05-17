@@ -110,11 +110,14 @@ defmodule Horde.RegistryImpl do
     {:noreply, new_state}
   end
 
-  def handle_info({:EXIT, pid, _reason}, state) do
+  def handle_info({:EXIT, pid, reason}, state) do
     case :ets.take(state.pids_ets_table, pid) do
       [{_pid, keys}] ->
         Enum.each(keys, fn key ->
-          DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
+          if not name_conflict_key?(key, reason) do
+            DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
+          end
+
           :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
         end)
 
@@ -124,6 +127,9 @@ defmodule Horde.RegistryImpl do
 
     {:noreply, state}
   end
+
+  defp name_conflict_key?(key, {:name_conflict, {key, _}, _, _}), do: true
+  defp name_conflict_key?(_key, _reason), do: false
 
   defp process_diffs(state, [diff | diffs]) do
     process_diff(state, diff)
