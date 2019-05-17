@@ -160,16 +160,13 @@ defmodule Horde.RegistryImpl do
   defp process_diff(state, {:add, {:key, key}, {member, pid, value}}) do
     link_local_pid(pid)
 
-    case :ets.lookup(state.pids_ets_table, pid) do
-      [] -> :ets.insert(state.pids_ets_table, {pid, [key]})
-      [{_pid, matches}] -> :ets.insert(state.pids_ets_table, {pid, Enum.uniq([key | matches])})
-    end
+    add_key_to_pids_table(state, pid, key)
 
     with [{^key, _member, {other_pid, other_value}}] when other_pid != pid <-
            :ets.lookup(state.keys_ets_table, key) do
       # There was a conflict in the name registry, send the  losing PID
       # an exit signal indicating it has lost the name registration.
-      :ets.match_delete(state.pids_ets_table, {other_pid, :_})
+      remove_key_from_pids_table(state, other_pid, key)
       Process.exit(other_pid, {:name_conflict, {key, other_value}, state.name, pid})
     end
 
@@ -183,10 +180,7 @@ defmodule Horde.RegistryImpl do
         nil
 
       [{key, _member, {pid, _val}}] ->
-        case :ets.lookup(state.pids_ets_table, pid) do
-          [] -> []
-          [{pid, keys}] -> :ets.insert(state.pids_ets_table, {pid, List.delete(keys, key)})
-        end
+        remove_key_from_pids_table(state, pid, key)
     end
 
     :ets.match_delete(state.keys_ets_table, {key, :_, :_})
@@ -196,6 +190,32 @@ defmodule Horde.RegistryImpl do
   defp process_diff(state, {:add, {:registry, key}, value}) do
     :ets.insert(state.registry_ets_table, {key, value})
     state
+  end
+
+  defp add_key_to_pids_table(state, pid, key) do
+    case :ets.lookup(state.pids_ets_table, pid) do
+      [] ->
+        :ets.insert(state.pids_ets_table, {pid, [key]})
+
+      [{^pid, keys}] ->
+        :ets.insert(state.pids_ets_table, {pid, Enum.uniq([key | keys])})
+    end
+  end
+
+  defp remove_key_from_pids_table(state, pid, key) do
+    case :ets.lookup(state.pids_ets_table, pid) do
+      [] ->
+        :ok
+
+      [{^pid, keys}] ->
+        case List.delete(keys, key) do
+          [] ->
+            :ets.match_delete(state.pids_ets_table, {pid, :_})
+
+          new_keys ->
+            :ets.insert(state.pids_ets_table, {pid, new_keys})
+        end
+    end
   end
 
   defp link_local_pid(pid) when node(pid) == node() do
@@ -234,13 +254,7 @@ defmodule Horde.RegistryImpl do
       :infinity
     )
 
-    case :ets.lookup(state.pids_ets_table, pid) do
-      [] ->
-        :ets.insert(state.pids_ets_table, {pid, [key]})
-
-      [{_pid, keys}] ->
-        :ets.insert(state.pids_ets_table, {pid, [key | keys]})
-    end
+    add_key_to_pids_table(state, pid, key)
 
     :ets.insert(state.keys_ets_table, {key, fully_qualified_name(state.name), {pid, value}})
 
@@ -263,10 +277,7 @@ defmodule Horde.RegistryImpl do
   def handle_call({:unregister, key, pid}, _from, state) do
     DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
 
-    case :ets.lookup(state.pids_ets_table, pid) do
-      [] -> []
-      [{pid, keys}] -> :ets.insert(state.pids_ets_table, {pid, List.delete(keys, key)})
-    end
+    remove_key_from_pids_table(state, pid, key)
 
     :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
 
