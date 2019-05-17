@@ -167,9 +167,9 @@ defmodule Horde.RegistryImpl do
 
     with [{^key, _member, {other_pid, other_value}}] when other_pid != pid <-
            :ets.lookup(state.keys_ets_table, key) do
-      # There was a conflict in the name registry, send the losing PID
-      # a message that it has lost the name registration.
-      send(other_pid, {:name_conflict, {key, other_value}, state.name, pid})
+      # There was a conflict in the name registry, send the  losing PID
+      # an exit signal indicating it has lost the name registration.
+      Process.exit(other_pid, {:name_conflict, {key, other_value}, state.name, pid})
     end
 
     :ets.insert(state.keys_ets_table, {key, member, {pid, value}})

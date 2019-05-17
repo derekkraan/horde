@@ -87,9 +87,13 @@ defmodule RegistryTest do
           Process.sleep(:infinity)
         end)
 
+      Process.flag(:trap_exit, true)
       Horde.Cluster.set_members(horde1, [horde1, horde2])
 
-      assert_receive {:name_conflict, {"hello", :value}, ^horde1, ^winner_pid}
+      me = self()
+      assert_receive {:EXIT, me, {:name_conflict, {"hello", :value}, ^horde1, ^winner_pid}}
+
+      Process.flag(:trap_exit, false)
 
       # only the winner process is registered
       assert %{"hello" => {winner_pid, :value}} == Horde.Registry.processes(horde1)
