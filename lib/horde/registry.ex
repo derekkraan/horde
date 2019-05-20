@@ -128,7 +128,7 @@ defmodule Horde.Registry do
   this name conflict message can also occur.
   """
   @spec register(
-          registry :: GenServer.server(),
+          registry :: Registry.registry(),
           name :: Registry.key(),
           value :: Registry.value()
         ) :: {:ok, pid()} | {:error, :already_registered, pid()}
@@ -143,7 +143,7 @@ defmodule Horde.Registry do
   end
 
   @doc "unregister the process under the given name"
-  @spec unregister(registry :: GenServer.server(), name :: GenServer.name()) :: :ok
+  @spec unregister(registry :: Registry.registry(), name :: Registry.key()) :: :ok
   def unregister(registry, name) when is_atom(registry) do
     GenServer.call(registry, {:unregister, name, self()})
   end
