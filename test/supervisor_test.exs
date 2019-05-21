@@ -351,4 +351,80 @@ defmodule SupervisorTest do
     assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 1000)
     assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_2, 1000)
   end
+
+  defmodule TestNameConflicts do
+    use GenServer
+
+    def child_spec({x, registry}) do
+      %{id: nil, start: {__MODULE__, :start_link, [x, registry]}, restart: :transient}
+    end
+
+    def start_link(x, registry) do
+      GenServer.start_link(__MODULE__, nil, name: {:via, Horde.Registry, {registry, x}})
+      |> case do
+        {:error, {:already_started, _}} -> :ignore
+        other -> other
+      end
+    end
+
+    def init(nil) do
+      {:ok, nil, {:continue, :sleep}}
+    end
+
+    def handle_continue(:sleep, state) do
+      Process.sleep(2000)
+      {:stop, :normal, state}
+    end
+  end
+
+  test "name conflicts don't trigger max restart intensity" do
+    {:ok, _} = Horde.Supervisor.start_link(name: :horde_max_intensity_1, strategy: :one_for_one)
+    {:ok, _} = Horde.Supervisor.start_link(name: :horde_max_intensity_2, strategy: :one_for_one)
+
+    {:ok, _} = Horde.Registry.start_link(name: :horde_max_intensity_reg_1, keys: :unique)
+    {:ok, _} = Horde.Registry.start_link(name: :horde_max_intensity_reg_2, keys: :unique)
+
+    number_workers = 50
+
+    child_processes =
+      Enum.flat_map(1..number_workers, fn x ->
+        {:ok, pid1} =
+          Horde.Supervisor.start_child(
+            :horde_max_intensity_1,
+            {TestNameConflicts, {number_workers - x + 1, :horde_max_intensity_reg_1}}
+          )
+
+        {:ok, pid2} =
+          Horde.Supervisor.start_child(
+            :horde_max_intensity_2,
+            {TestNameConflicts, {x, :horde_max_intensity_reg_2}}
+          )
+
+        [pid1, pid2]
+      end)
+      |> MapSet.new()
+
+    assert %{workers: ^number_workers} = Horde.Supervisor.count_children(:horde_max_intensity_1)
+    assert %{workers: ^number_workers} = Horde.Supervisor.count_children(:horde_max_intensity_2)
+
+    Horde.Cluster.set_members(:horde_max_intensity_reg_1, [
+      :horde_max_intensity_reg_1,
+      :horde_max_intensity_reg_2
+    ])
+
+    Process.sleep(200)
+
+    %{workers: workers_1} = Horde.Supervisor.count_children(:horde_max_intensity_1)
+    %{workers: workers_2} = Horde.Supervisor.count_children(:horde_max_intensity_2)
+
+    assert ^number_workers = workers_1 + workers_2
+
+    deduped_child_processes =
+      (Horde.Supervisor.which_children(:horde_max_intensity_1) ++
+         Horde.Supervisor.which_children(:horde_max_intensity_2))
+      |> Enum.map(fn {:undefined, pid, :worker, _} -> pid end)
+      |> MapSet.new()
+
+    assert MapSet.subset?(deduped_child_processes, child_processes)
+  end
 end

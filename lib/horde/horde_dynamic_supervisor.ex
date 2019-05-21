@@ -994,6 +994,10 @@ defmodule Horde.DynamicSupervisor do
     end
   end
 
+  defp maybe_restart_child(_, {:name_conflict, _, _, _}, pid, child, state) do
+    restart_child_no_max_intensity(pid, child, state)
+  end
+
   defp maybe_restart_child(:permanent, reason, pid, child, state) do
     report_error(:child_terminated, reason, pid, child, state)
     restart_child(pid, child, state)
@@ -1044,18 +1048,24 @@ defmodule Horde.DynamicSupervisor do
     }
   end
 
+  defp restart_child_no_max_intensity(pid, child, state) do
+    %{strategy: strategy} = state
+
+    case restart_child(strategy, pid, child, state) do
+      {:ok, state} ->
+        update_child_pid_horde(child, state)
+        {:ok, state}
+
+      {:try_again, state} ->
+        send(self(), {:"$gen_restart", pid})
+        {:ok, state}
+    end
+  end
+
   defp restart_child(pid, child, state) do
     case add_restart(state) do
-      {:ok, %{strategy: strategy} = state} ->
-        case restart_child(strategy, pid, child, state) do
-          {:ok, state} ->
-            update_child_pid_horde(child, state)
-            {:ok, state}
-
-          {:try_again, state} ->
-            send(self(), {:"$gen_restart", pid})
-            {:ok, state}
-        end
+      {:ok, state} ->
+        restart_child_no_max_intensity(pid, child, state)
 
       {:shutdown, state} ->
         report_error(:shutdown, :reached_max_restart_intensity, pid, child, state)
