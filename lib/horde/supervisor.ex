@@ -142,10 +142,10 @@ defmodule Horde.Supervisor do
   @doc """
   Terminate a child process.
 
-  Unlike `DynamicSupervisor.terminate_child/2`, this function expects a child_id, and not a pid.
+  Works like `DynamicSupervisor.terminate_child/2`.
   """
-  @spec terminate_child(Supervisor.supervisor(), child_id :: term()) :: :ok | {:error, :not_found}
-  def terminate_child(supervisor, child_id), do: call(supervisor, {:terminate_child, child_id})
+  @spec terminate_child(Supervisor.supervisor(), child_pid :: pid()) :: :ok | {:error, :not_found}
+  def terminate_child(supervisor, child_pid), do: call(supervisor, {:terminate_child, child_pid})
 
   @doc """
   Works like `DynamicSupervisor.which_children/1`.

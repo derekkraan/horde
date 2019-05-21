@@ -80,13 +80,13 @@ defmodule SupervisorTest do
       assert_receive {:process_started, ^pid}
     end
 
-    test "returns error when starting same process twice", context do
+    test "does not return error when starting same process twice", context do
       assert {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
 
       assert is_pid(pid)
 
-      assert {:error, {:already_started, ^pid}} =
-               Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      assert {:ok, other_pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      assert pid != other_pid
     end
 
     test "starts a process with id that doesn't implement String.Chars", context do
@@ -102,27 +102,6 @@ defmodule SupervisorTest do
       assert_receive {:process_started, pid}
       Process.exit(pid, :kill)
       assert_receive {:process_started, _pid}
-    end
-
-    test "already_started error contains the correct pid", context do
-      {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
-      assert_receive {:process_started, ^pid}
-
-      assert {:error, {:already_started, ^pid}} =
-               Horde.Supervisor.start_child(context.horde_1, context.task_def)
-
-      Process.exit(pid, :kill)
-
-      assert_receive {:process_started, new_pid}
-
-      # Give some time to supervisor to restart child.
-      # Some time the Task gets executed before the end of the EXIT signal handling
-      Process.sleep(100)
-
-      assert {:error, {:already_started, ^new_pid}} =
-               Horde.Supervisor.start_child(context.horde_1, context.task_def)
-
-      refute new_pid == pid
     end
 
     test "processes are started on different nodes", context do
@@ -151,7 +130,9 @@ defmodule SupervisorTest do
     test "collects results from all horde nodes", context do
       Horde.Supervisor.start_child(context.horde_1, %{context.task_def | id: :proc_1})
       Horde.Supervisor.start_child(context.horde_1, %{context.task_def | id: :proc_2})
-      assert 2 = Horde.Supervisor.which_children(context.horde_1) |> Enum.count()
+
+      assert [{:undefined, _, _, _}, {:undefined, _, _, _}] =
+               Horde.Supervisor.which_children(context.horde_1)
     end
   end
 
@@ -173,12 +154,15 @@ defmodule SupervisorTest do
 
   describe ".terminate_child/2" do
     test "terminates the child", context do
-      Horde.Supervisor.start_child(
-        context.horde_1,
-        Map.put(context.task_def, :id, "kill_me")
-      )
+      {:ok, pid} =
+        Horde.Supervisor.start_child(
+          context.horde_1,
+          Map.put(context.task_def, :id, "kill_me")
+        )
 
-      :ok = Horde.Supervisor.terminate_child(context.horde_1, "kill_me")
+      Process.sleep(100)
+
+      :ok = Horde.Supervisor.terminate_child(context.horde_1, pid)
     end
   end
 
@@ -302,7 +286,7 @@ defmodule SupervisorTest do
 
       Process.sleep(50)
 
-      assert :sys.get_state(:horde_transient).processes == %{}
+      assert :sys.get_state(:horde_transient).processes_by_id == %{}
     end
 
     test "transient process get removed from supervisor after exit" do
@@ -314,7 +298,7 @@ defmodule SupervisorTest do
 
       Process.sleep(200)
 
-      assert :sys.get_state(:horde_transient).processes == %{}
+      assert :sys.get_state(:horde_transient).processes_by_id == %{}
     end
 
     test "transient process does not get removed from supervisor after failed exit" do
@@ -324,67 +308,12 @@ defmodule SupervisorTest do
       {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
       Horde.Supervisor.start_child(:horde_transient, child_spec)
 
-      assert %{Task => {_, %{id: Task}, _}} = :sys.get_state(:horde_transient).processes
+      processes = :sys.get_state(:horde_transient).processes_by_id
+      assert Enum.count(processes) == 1
     end
   end
 
   describe "stress test" do
-    test "joining hordes dedups processes" do
-      {:ok, _} =
-        Horde.Supervisor.start_link(
-          name: :horde_1_dedup,
-          strategy: :one_for_one,
-          members: [:horde_1_dedup]
-        )
-
-      {:ok, _} =
-        Horde.Supervisor.start_link(
-          name: :horde_2_dedup,
-          strategy: :one_for_one,
-          members: [:horde_2_dedup]
-        )
-
-      pid = self()
-
-      {:ok, _pid} =
-        Horde.Supervisor.start_child(:horde_1_dedup, %{
-          id: :foo,
-          start:
-            {Task, :start_link,
-             [
-               fn ->
-                 send(pid, :twice)
-                 Process.sleep(1000)
-                 send(pid, :just_once)
-                 Process.sleep(999_999)
-               end
-             ]}
-        })
-
-      {:ok, _pid} =
-        Horde.Supervisor.start_child(:horde_2_dedup, %{
-          id: :foo,
-          start:
-            {Task, :start_link,
-             [
-               fn ->
-                 send(pid, :twice)
-                 Process.sleep(1000)
-                 send(pid, :just_once)
-                 Process.sleep(999_999)
-               end
-             ]}
-        })
-
-      Horde.Cluster.set_members(:horde_1_dedup, [:horde_1_dedup, :horde_2_dedup])
-
-      assert_receive :twice, 2000
-      assert_receive :twice, 2000
-      refute_receive :twice, 2000
-      assert_receive :just_once, 2000
-      refute_receive :just_once, 2000
-    end
-
     test "registering a lot of workers doesn't cause an exit", context do
       max = 2000
 
