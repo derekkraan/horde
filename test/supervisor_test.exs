@@ -160,7 +160,7 @@ defmodule SupervisorTest do
           Map.put(context.task_def, :id, "kill_me")
         )
 
-      Process.sleep(100)
+      Process.sleep(200)
 
       :ok = Horde.Supervisor.terminate_child(context.horde_1, pid)
     end
