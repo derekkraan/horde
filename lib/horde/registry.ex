@@ -2,13 +2,16 @@ defmodule Horde.Registry do
   @moduledoc """
   A distributed process registry.
 
-  Horde.Registry implements a distributed Registry backed by an add-wins last-write-wins δ-CRDT (provided by `DeltaCrdt.AWLWWMap`). This CRDT is used for both tracking membership of the cluster and implementing the registry functionality itself. Local changes to the registry will automatically be synced to other nodes in the cluster.
-
-  Because of the semantics of an AWLWWMap, the guarantees provided by Horde.Registry are more relaxed than those provided by the standard library Registry. Conflicts will be automatically silently resolved by the underlying AWLWWMap.
+  Horde.Registry implements a distributed Registry backed by a δ-CRDT (provided by `DeltaCrdt`). This CRDT is used for both tracking membership of the cluster and implementing the registry functionality itself. Local changes to the registry will automatically be synced to other nodes in the cluster.
 
   Cluster membership is managed with `Horde.Cluster`. Joining a cluster can be done with `Horde.Cluster.set_members/2`. To take a node out of the cluster, call `Horde.Cluster.set_members/2` without that node in the list.
 
   Horde.Registry supports the common "via tuple", described in the [documentation](https://hexdocs.pm/elixir/GenServer.html#module-name-registration) for `GenServer`.
+
+  Horde.Registry is API-compatible with `Registry`, with the following exceptions:
+  - Horde.Registry does not support `keys: :duplicate`.
+  - Horde.Registry does not support partitions.
+  - Horde.Registry sends an exit signal to a process when it has lost a naming conflict. See `Horde.Registry.register/3` for details.
 
   ## Module-based Registry
 
@@ -81,7 +84,11 @@ defmodule Horde.Registry do
     }
   end
 
-  @doc "Starts the registry as a supervised process"
+  @doc """
+  See `Registry.start_link/1`.
+
+  Does not accept `[partitions: x]`, nor `[keys: :unique]` as options.
+  """
   def start_link(options) do
     root_name = Keyword.get(options, :name)
 
@@ -109,14 +116,14 @@ defmodule Horde.Registry do
   ### Public API
 
   @doc """
-  Register a process under the given name
+  Register a process under the given name. See `Registry.register/3`.
 
   When 2 clustered registries register the same name at exactly the
   same time, it will seem like name registration succeeds for both
   registries. The function returns `{:ok, pid}` for both of these
   calls.
 
-  However, due to the eventual consistent nature of the CRDT, a
+  However, due to the eventually consistent nature of the CRDT,
   conflict resolution will take place, and the CRDT will pick one of
   the two processes as the "winner" of the name. The losing process
   will be sent an exit signal (using `Process.exit/2`) with the
@@ -126,6 +133,9 @@ defmodule Horde.Registry do
 
   When two registries are joined using `Horde.Cluster.set_members/2`,
   this name conflict message can also occur.
+
+  When a cluster is recovering from a netsplit, this name conflict
+  message can also occur.
   """
   @spec register(
           registry :: Registry.registry(),
@@ -142,7 +152,7 @@ defmodule Horde.Registry do
     end
   end
 
-  @doc "unregister the process under the given name"
+  @doc "See `Registry.unregister/2`."
   @spec unregister(registry :: Registry.registry(), name :: Registry.key()) :: :ok
   def unregister(registry, name) when is_atom(registry) do
     GenServer.call(registry, {:unregister, name, self()})
@@ -151,10 +161,9 @@ defmodule Horde.Registry do
   @doc false
   def whereis(search), do: lookup(search)
 
-  @doc false
+  @doc "See `Registry.lookup/2`."
   def lookup({:via, _, {registry, name}}), do: lookup(registry, name)
 
-  @doc "Finds the `{pid, value}` for the given `key` in `registry`"
   def lookup(registry, key) when is_atom(registry) do
     with [{^key, member, {pid, value}}] <- :ets.lookup(keys_ets_table(registry), key),
          true <- member_in_cluster?(registry, member),
@@ -167,7 +176,7 @@ defmodule Horde.Registry do
 
   @spec meta(registry :: Registry.registry(), key :: Registry.meta_key()) ::
           {:ok, Registry.meta_value()} | :error
-  @doc "Reads registry metadata given on `start_link/3`"
+  @doc "See `Registry.meta/2`."
   def meta(registry, key) when is_atom(registry) do
     case :ets.lookup(registry_ets_table(registry), key) do
       [{^key, value}] -> {:ok, value}
@@ -180,17 +189,18 @@ defmodule Horde.Registry do
           key :: Registry.meta_key(),
           value :: Registry.meta_value()
         ) :: :ok
+  @doc "See `Registry.put_meta/3`."
   def put_meta(registry, key, value) when is_atom(registry) do
     GenServer.call(registry, {:put_meta, key, value})
   end
 
   @spec count(registry :: Registry.registry()) :: non_neg_integer()
-  @doc "Returns the number of keys in a registry. It runs in constant time."
+  @doc "See `Registry.count/1`."
   def count(registry) when is_atom(registry) do
     :ets.info(keys_ets_table(registry), :size)
   end
 
-  @doc "See `Registry.match/4` for details."
+  @doc "See `Registry.match/4`."
   def match(registry, key, pattern, guards \\ [])
       when is_atom(registry) and is_list(guards) do
     underscore_guard = {:"=:=", {:element, 1, :"$_"}, {:const, key}}
@@ -199,6 +209,7 @@ defmodule Horde.Registry do
     :ets.select(keys_ets_table(registry), spec)
   end
 
+  @doc "See `Registry.count_match/4`."
   def count_match(registry, key, pattern, guards \\ [])
       when is_atom(registry) and is_list(guards) do
     underscore_guard = {:"=:=", {:element, 1, :"$_"}, {:const, key}}
@@ -207,6 +218,7 @@ defmodule Horde.Registry do
     :ets.select_count(keys_ets_table(registry), spec)
   end
 
+  @doc "See `Registry.unregister_match/4`."
   def unregister_match(registry, key, pattern, guards \\ [])
       when is_atom(registry) and is_list(guards) do
     pid = self()
@@ -222,7 +234,7 @@ defmodule Horde.Registry do
   end
 
   @spec keys(registry :: Registry.registry(), pid()) :: [Registry.key()]
-  @doc "Returns registered keys for `pid`"
+  @doc "See `Registry.keys/2`."
   def keys(registry, pid) when is_atom(registry) do
     case :ets.lookup(pids_ets_table(registry), pid) do
       [] -> []
@@ -230,6 +242,7 @@ defmodule Horde.Registry do
     end
   end
 
+  @doc "See `Registry.dispatch/4`."
   def dispatch(registry, key, mfa_or_fun, _opts \\ []) when is_atom(registry) do
     case :ets.lookup(keys_ets_table(registry), key) do
       [] ->
@@ -244,6 +257,7 @@ defmodule Horde.Registry do
   defp do_dispatch({m, f, a}, entries), do: apply(m, f, [entries | a])
   defp do_dispatch(fun, entries), do: fun.(entries)
 
+  @doc "See `Registry.update_value/3`."
   def update_value(registry, key, callback) when is_atom(registry) do
     case :ets.lookup(keys_ets_table(registry), key) do
       [{key, _member, {pid, value}}] when pid == self() ->
@@ -256,17 +270,13 @@ defmodule Horde.Registry do
     end
   end
 
-  @doc """
-  Get the process registry of the horde
-  """
+  @doc false
   @deprecated "Use `select/2` instead."
   def processes(registry) when is_atom(registry) do
     :ets.match(keys_ets_table(registry), :"$1") |> Map.new(fn [{k, _m, v}] -> {k, v} end)
   end
 
-  @doc """
-  Select key, pid, and values from the process registry of the horde
-  """
+  @doc "See `Registry.select/2`."
   def select(registry, spec) when is_atom(registry) and is_list(spec) do
     spec =
       for part <- spec do
