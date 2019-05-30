@@ -329,6 +329,27 @@ defmodule SupervisorTest do
     end
   end
 
+  defmodule IgnoringGenServer do
+    use GenServer
+
+    def start_link() do
+      GenServer.start_link(__MODULE__, [])
+    end
+
+    def init(_) do
+      :ignore
+    end
+  end
+
+  test "can handle :ignore", context do
+    spec = %{
+      id: :test,
+      start: {IgnoringGenServer, :start_link, []}
+    }
+
+    assert :ignore = Horde.Supervisor.start_child(context.horde_1, spec)
+  end
+
   test "wait_for_quorum/2" do
     {:ok, _} =
       Horde.Supervisor.start_link(

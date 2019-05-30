@@ -652,6 +652,9 @@ defmodule Horde.SupervisorImpl do
 
         {:error, error} ->
           {:error, error}
+
+        :ignore ->
+          :ignore
       end
     end)
     |> Enum.reduce({[], state}, fn
@@ -663,6 +666,9 @@ defmodule Horde.SupervisorImpl do
 
       {:error, error}, {responses, state} ->
         {[{:error, error} | responses], state}
+
+      :ignore, {responses, state} ->
+        {[:ignore | responses], state}
     end)
   end
 
