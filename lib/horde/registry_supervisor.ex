@@ -14,7 +14,7 @@ defmodule Horde.RegistrySupervisor do
     children = [
       {DeltaCrdt,
        crdt: DeltaCrdt.AWLWWMap,
-       on_diffs: fn diffs -> send(root_name, {:crdt_update, diffs}) end,
+       on_diffs: fn diffs -> on_diffs(diffs, root_name) end,
        name: crdt_name(root_name),
        sync_interval: 100},
       {Horde.RegistryImpl,
@@ -35,6 +35,16 @@ defmodule Horde.RegistrySupervisor do
     end
 
     root_name
+  end
+
+  defp on_diffs(diffs, root_name) do
+    try do
+      send(root_name, {:crdt_update, diffs})
+    rescue
+      ArgumentError ->
+        # the process might already been stopped
+        :ok
+    end
   end
 
   def crdt_name(name), do: :"#{name}.Crdt"
