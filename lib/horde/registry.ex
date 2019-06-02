@@ -143,11 +143,11 @@ defmodule Horde.Registry do
           value :: Registry.value()
         ) :: {:ok, pid()} | {:error, :already_registered, pid()}
   def register(registry, name, value) when is_atom(registry) do
-    case :ets.lookup(keys_ets_table(registry), name) do
-      [] ->
+    case lookup(registry, name) do
+      :undefined ->
         GenServer.call(registry, {:register, name, value, self()})
 
-      [{^name, _member, {pid, _value}}] ->
+      [{pid, _value}] ->
         {:error, {:already_registered, pid}}
     end
   end
