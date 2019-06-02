@@ -493,7 +493,8 @@ defmodule Horde.SupervisorImpl do
          {_result, state} <- add_child(child, state) do
       state
     else
-      _ -> state
+      _ ->
+        state
     end
     |> check_processes(procs, not_dead_members)
   end
