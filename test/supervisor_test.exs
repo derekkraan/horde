@@ -105,18 +105,34 @@ defmodule SupervisorTest do
     end
 
     test "processes are started on different nodes", context do
-      1..10
-      |> Enum.each(fn x ->
+      pid = self()
+
+      make_task = fn x ->
+        %{
+          id: "proc_1",
+          start:
+            {Task, :start_link,
+             [
+               fn ->
+                 send(pid, {:process_started, x, self()})
+                 Process.sleep(100_000)
+               end
+             ]},
+          type: :worker,
+          shutdown: 10
+        }
+      end
+
+      Enum.each(1..10, fn x ->
         Horde.Supervisor.start_child(
           context.horde_1,
-          Map.put(context.task_def, :id, :"proc_#{x}")
+          make_task.(x)
         )
       end)
 
       supervisor_pids =
-        1..10
-        |> Enum.map(fn _ ->
-          assert_receive {:process_started, task_pid}
+        Enum.map(1..10, fn x ->
+          assert_receive {:process_started, x, task_pid}
           {:links, [supervisor_pid]} = task_pid |> Process.info(:links)
           supervisor_pid
         end)
