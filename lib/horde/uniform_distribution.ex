@@ -19,10 +19,13 @@ defmodule Horde.UniformDistribution do
         {:error, :no_alive_nodes}
 
       count ->
-        index = XXHash.xxh32(term_to_string_identifier(identifier)) |> rem(count)
+        index = hash(term_to_string_identifier(identifier)) |> rem(count)
         {:ok, Enum.at(members, index)}
     end
   end
+
+  defp hash(identifier) when is_integer(identifier), do: identifier
+  defp hash(identifier), do: :erlang.phash2(identifier)
 
   def has_quorum?(_members), do: true
 

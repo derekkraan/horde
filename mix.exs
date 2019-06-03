@@ -26,7 +26,6 @@ defmodule Horde.MixProject do
   defp deps do
     [
       {:delta_crdt, "== 0.5.1"},
-      {:xxhash, "~> 0.1"},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
       {:benchee, "> 0.0.1", only: :dev, runtime: false},
       {:stream_data, "~> 0.4", only: :test},

@@ -141,8 +141,10 @@ defmodule Horde.SupervisorImpl do
 
     child_spec = Map.put(child_spec, :id, :rand.uniform(@big_number))
 
+    distribution_id = :erlang.phash2(Map.drop(child_spec, [:id]))
+
     case state.distribution_strategy.choose_node(
-           child_spec.id,
+           distribution_id,
            Map.values(members(state))
          ) do
       {:ok, %{name: ^this_name}} ->
