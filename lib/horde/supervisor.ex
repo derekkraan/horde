@@ -145,7 +145,8 @@ defmodule Horde.Supervisor do
   Works like `DynamicSupervisor.terminate_child/2`.
   """
   @spec terminate_child(Supervisor.supervisor(), child_pid :: pid()) :: :ok | {:error, :not_found}
-  def terminate_child(supervisor, child_pid), do: call(supervisor, {:terminate_child, child_pid})
+  def terminate_child(supervisor, child_pid) when is_pid(child_pid),
+    do: call(supervisor, {:terminate_child, child_pid})
 
   @doc """
   Works like `DynamicSupervisor.which_children/1`.
