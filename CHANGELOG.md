@@ -1,4 +1,6 @@
 ## master
+
+## 0.6.0
 - `Horde.Supervisor` now behaves more like `DynamicSupervisor`. [#122](https://github.com/derekkraan/horde/pull/122)
 - `Horde.Registry` sends an exit signal to the process that "loses" when a conflict is resolved. [#118](https://github.com/derekkraan/horde/pull/118)
 - `Horde.Registry.register/3` returns `{:error, {:already_registered, pid}}` when applicable. This improves compatability with `Elixir.Registry`. [#115](https://github.com/derekkraan/horde/pull/115)
