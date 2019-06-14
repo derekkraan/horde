@@ -46,7 +46,7 @@ defmodule Horde.RegistrySupervisor do
   defp delta_crdt_options(options) do
     root_name = get_root_name(options)
     crdt_options = Keyword.get(options, :delta_crdt_options, [])
-    mutable = [sync_interval: 100, max_sync_size: :infinite, shutdown: 30_000]
+    mutable = [sync_interval: 300, max_sync_size: :infinite, shutdown: 30_000]
 
     immutable = [
       crdt: DeltaCrdt.AWLWWMap,
