@@ -1,6 +1,6 @@
 defmodule SupervisorTest do
   require Logger
-  use ExUnit.Case, async: false
+  use ExUnit.Case
 
   setup do
     n1 = :"horde_#{:rand.uniform(100_000_000)}"
@@ -162,7 +162,7 @@ defmodule SupervisorTest do
         )
       end)
 
-      Process.sleep(100)
+      Process.sleep(200)
 
       assert %{workers: 10} = Horde.Supervisor.count_children(context.horde_1)
     end
@@ -176,7 +176,7 @@ defmodule SupervisorTest do
           Map.put(context.task_def, :id, "kill_me")
         )
 
-      Process.sleep(100)
+      Process.sleep(200)
 
       :ok = Horde.Supervisor.terminate_child(context.horde_1, pid)
     end
