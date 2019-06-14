@@ -1,5 +1,5 @@
 defmodule RegistryTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case
   doctest Horde.Registry
 
   describe ".start_link/1" do
@@ -262,7 +262,7 @@ defmodule RegistryTest do
       Horde.Cluster.set_members(horde1, [horde1, horde2])
 
       {:ok, _} = Horde.Registry.register(horde1, "a", :value)
-      Process.sleep(100)
+      Process.sleep(200)
 
       assert ["a"] = Horde.Registry.select(horde1, [{{:"$1", :_, :_}, [], [:"$1"]}])
       assert ["a"] = Horde.Registry.select(horde2, [{{:"$1", :_, :_}, [], [:"$1"]}])
@@ -342,8 +342,7 @@ defmodule RegistryTest do
           "doesn't match"
         )
 
-      assert [{self(), "match_unregister"}] ==
-               Horde.Registry.lookup(horde, "to_unregister")
+      assert [{self(), "match_unregister"}] == Horde.Registry.lookup(horde, "to_unregister")
 
       assert ["to_unregister"] = Horde.Registry.keys(horde, self())
 
