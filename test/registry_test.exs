@@ -5,7 +5,11 @@ defmodule RegistryTest do
   describe ".start_link/1" do
     test "only keys: :unique is allowed" do
       assert_raise ArgumentError, fn ->
-        Horde.Registry.start_link(name: :horde_not_unique, keys: :duplicate)
+        Horde.Registry.start_link(
+          name: :horde_not_unique,
+          keys: :duplicate,
+          delta_crdt_options: [sync_interval: 20]
+        )
       end
     end
   end
@@ -257,8 +261,21 @@ defmodule RegistryTest do
     test "select works with clustered registries" do
       horde1 = :select_clustered_a
       horde2 = :select_clustered_b
-      {:ok, _} = Horde.Registry.start_link(name: horde1, keys: :unique)
-      {:ok, _} = Horde.Registry.start_link(name: horde2, keys: :unique)
+
+      {:ok, _} =
+        Horde.Registry.start_link(
+          name: horde1,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
+      {:ok, _} =
+        Horde.Registry.start_link(
+          name: horde2,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
       Horde.Cluster.set_members(horde1, [horde1, horde2])
 
       {:ok, _} = Horde.Registry.register(horde1, "a", :value)
@@ -419,7 +436,12 @@ defmodule RegistryTest do
 
   describe ".match/4" do
     test "returns correct pids / values" do
-      {:ok, _} = Horde.Registry.start_link(name: :match_horde, keys: :unique)
+      {:ok, _} =
+        Horde.Registry.start_link(
+          name: :match_horde,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
 
       Horde.Registry.register(:match_horde, "foo", "foo")
       Horde.Registry.register(:match_horde, "bar", bar: 33)
@@ -443,7 +465,13 @@ defmodule RegistryTest do
 
   describe ".update_value/3" do
     test "updates value" do
-      {:ok, _} = Horde.Registry.start_link(name: :update_value_horde, keys: :unique)
+      {:ok, _} =
+        Horde.Registry.start_link(
+          name: :update_value_horde,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
       Horde.Registry.register(:update_value_horde, "foo", "foo")
 
       assert {"bar", "foo"} =
@@ -457,7 +485,12 @@ defmodule RegistryTest do
     end
 
     test "can only update own values" do
-      {:ok, _} = Horde.Registry.start_link(name: :update_value_horde2, keys: :unique)
+      {:ok, _} =
+        Horde.Registry.start_link(
+          name: :update_value_horde2,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
 
       Task.start_link(fn ->
         Horde.Registry.register(:update_value_horde2, "foo", "bar")
@@ -474,7 +507,13 @@ defmodule RegistryTest do
   describe "lookup" do
     test "existing process with lookup/2" do
       horde = Horde.Registry.ClusterB
-      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: horde,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
 
       Horde.Registry.register(horde, :carmen, "foo")
 
@@ -483,7 +522,13 @@ defmodule RegistryTest do
 
     test "existing processes with via tuple" do
       horde = Horde.Registry.ClusterC
-      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: horde,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
 
       Horde.Registry.register(horde, :carmen, "bar")
 
@@ -495,7 +540,14 @@ defmodule RegistryTest do
   describe "sending messages" do
     test "sending message to non-existing process" do
       horde = Horde.Registry.ClusterD
-      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: horde,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
       Horde.Registry.register(horde, :carmen, "carmen")
 
       assert_raise ArgumentError, fn ->
@@ -505,7 +557,13 @@ defmodule RegistryTest do
 
     test "sending message to non-existing horde" do
       horde = Horde.Registry.ClusterE
-      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: horde,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
 
       spawn(fn ->
         Horde.Registry.register(horde, :carmen, "carmen")
@@ -521,7 +579,13 @@ defmodule RegistryTest do
 
     test "sending message to existing process" do
       horde = Horde.Registry.ClusterF
-      {:ok, _horde} = Horde.Registry.start_link(name: horde, keys: :unique)
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: horde,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
 
       spawn(fn ->
         Horde.Registry.register(horde, :carmen, "carmen")
@@ -539,14 +603,26 @@ defmodule RegistryTest do
       registry = Horde.Registry.ClusterH
 
       {:ok, _horde} =
-        Horde.Registry.start_link(name: registry, keys: :unique, meta: [meta_key: :meta_value])
+        Horde.Registry.start_link(
+          name: registry,
+          keys: :unique,
+          meta: [meta_key: :meta_value],
+          delta_crdt_options: [sync_interval: 20]
+        )
 
       assert {:ok, :meta_value} = Horde.Registry.meta(registry, :meta_key)
     end
 
     test "can put and get metadata" do
       registry = Horde.Registry.ClusterG
-      {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: registry,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
       :ok = Horde.Registry.put_meta(registry, :custom_key, "custom_value")
 
       assert {:ok, "custom_value"} = Horde.Registry.meta(registry, :custom_key)
@@ -554,7 +630,14 @@ defmodule RegistryTest do
 
     test "meta/2 returns :error when no entry present" do
       registry = Horde.Registry.ClusterI
-      {:ok, _horde} = Horde.Registry.start_link(name: registry, keys: :unique)
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: registry,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
       :ok = Horde.Registry.put_meta(registry, :custom_key, "custom_value")
 
       assert :error = Horde.Registry.meta(registry, :non_existant)
@@ -563,8 +646,21 @@ defmodule RegistryTest do
     test "meta is propagated" do
       r1 = Horde.Registry.PropagateMeta1
       r2 = Horde.Registry.PropagateMeta2
-      {:ok, _horde} = Horde.Registry.start_link(name: r1, keys: :unique)
-      {:ok, _horde} = Horde.Registry.start_link(name: r2, keys: :unique)
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: r1,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: r2,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
       Horde.Cluster.set_members(r1, [r1, r2])
       Horde.Registry.put_meta(r1, :a_key, "a_value")
       Process.sleep(200)
@@ -575,7 +671,13 @@ defmodule RegistryTest do
   describe "failure scenarios" do
     test "a process exits and is cleaned up" do
       registry = Horde.Registry.ClusterJ
-      {:ok, _} = Horde.Registry.start_link(name: registry, keys: :unique)
+
+      {:ok, _} =
+        Horde.Registry.start_link(
+          name: registry,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
 
       %{pid: pid} =
         Task.async(fn ->
@@ -596,8 +698,21 @@ defmodule RegistryTest do
     test "a node is removed from the cluster and its processes are cleaned up" do
       reg1 = Horde.Registry.ClusterK
       reg2 = Horde.Registry.ClusterL
-      {:ok, _} = Horde.Registry.start_link(name: reg1, keys: :unique, members: [reg1, reg2])
-      {:ok, _} = Horde.Registry.start_link(name: reg2, keys: :unique)
+
+      {:ok, _} =
+        Horde.Registry.start_link(
+          name: reg1,
+          keys: :unique,
+          members: [reg1, reg2],
+          delta_crdt_options: [sync_interval: 20]
+        )
+
+      {:ok, _} =
+        Horde.Registry.start_link(
+          name: reg2,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
 
       %{pid: pid} =
         Task.async(fn ->
@@ -631,7 +746,9 @@ defmodule RegistryTest do
 
   defp start_registry(opts \\ [keys: :unique]) do
     horde = :"h#{-:erlang.monotonic_time()}"
-    {:ok, _pid} = Horde.Registry.start_link([name: horde] ++ opts)
+
+    {:ok, _pid} =
+      Horde.Registry.start_link([name: horde, delta_crdt_options: [sync_interval: 20]] ++ opts)
 
     horde
   end

@@ -6,9 +6,27 @@ defmodule SupervisorTest do
     n1 = :"horde_#{:rand.uniform(100_000_000)}"
     n2 = :"horde_#{:rand.uniform(100_000_000)}"
     n3 = :"horde_#{:rand.uniform(100_000_000)}"
-    {:ok, horde_1_sup_pid} = Horde.Supervisor.start_link(name: n1, strategy: :one_for_one)
-    {:ok, _} = Horde.Supervisor.start_link(name: n2, strategy: :one_for_one)
-    {:ok, _} = Horde.Supervisor.start_link(name: n3, strategy: :one_for_one)
+
+    {:ok, horde_1_sup_pid} =
+      Horde.Supervisor.start_link(
+        name: n1,
+        strategy: :one_for_one,
+        delta_crdt_options: [sync_interval: 20]
+      )
+
+    {:ok, _} =
+      Horde.Supervisor.start_link(
+        name: n2,
+        strategy: :one_for_one,
+        delta_crdt_options: [sync_interval: 20]
+      )
+
+    {:ok, _} =
+      Horde.Supervisor.start_link(
+        name: n3,
+        strategy: :one_for_one,
+        delta_crdt_options: [sync_interval: 20]
+      )
 
     Horde.Cluster.set_members(n1, [n1, n2, n3])
 
@@ -236,8 +254,19 @@ defmodule SupervisorTest do
 
   describe "graceful shutdown" do
     test "stopping a node moves processes over when they are ready" do
-      {:ok, _} = Horde.Supervisor.start_link(name: :horde_1_graceful, strategy: :one_for_one)
-      {:ok, _} = Horde.Supervisor.start_link(name: :horde_2_graceful, strategy: :one_for_one)
+      {:ok, _} =
+        Horde.Supervisor.start_link(
+          name: :horde_1_graceful,
+          strategy: :one_for_one,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
+      {:ok, _} =
+        Horde.Supervisor.start_link(
+          name: :horde_2_graceful,
+          strategy: :one_for_one,
+          delta_crdt_options: [sync_interval: 20]
+        )
 
       defmodule TerminationDelay do
         use GenServer
@@ -297,7 +326,14 @@ defmodule SupervisorTest do
       test_function = fn -> Process.exit(self(), :kill) end
 
       child_spec = Task.child_spec(test_function)
-      {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
+
+      {:ok, _} =
+        Horde.Supervisor.start_link(
+          name: :horde_transient,
+          strategy: :one_for_one,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
       Horde.Supervisor.start_child(:horde_transient, child_spec)
 
       Process.sleep(50)
@@ -309,7 +345,14 @@ defmodule SupervisorTest do
       test_function = fn -> Process.exit(self(), :normal) end
 
       child_spec = %{Task.child_spec(test_function) | restart: :transient}
-      {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
+
+      {:ok, _} =
+        Horde.Supervisor.start_link(
+          name: :horde_transient,
+          strategy: :one_for_one,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
       Horde.Supervisor.start_child(:horde_transient, child_spec)
 
       Process.sleep(200)
@@ -321,7 +364,14 @@ defmodule SupervisorTest do
       test_function = fn -> Process.exit(self(), :error) end
 
       child_spec = %{Task.child_spec(test_function) | restart: :transient}
-      {:ok, _} = Horde.Supervisor.start_link(name: :horde_transient, strategy: :one_for_one)
+
+      {:ok, _} =
+        Horde.Supervisor.start_link(
+          name: :horde_transient,
+          strategy: :one_for_one,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
       Horde.Supervisor.start_child(:horde_transient, child_spec)
 
       processes = :sys.get_state(:horde_transient).processes_by_id
@@ -372,7 +422,8 @@ defmodule SupervisorTest do
         name: :horde_quorum_1,
         strategy: :one_for_one,
         distribution_strategy: Horde.UniformQuorumDistribution,
-        members: [:horde_quorum_1, :horde_quorum_2, :horde_quorum_3]
+        members: [:horde_quorum_1, :horde_quorum_2, :horde_quorum_3],
+        delta_crdt_options: [sync_interval: 20]
       )
 
     catch_exit(Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 100))
@@ -382,7 +433,8 @@ defmodule SupervisorTest do
         name: :horde_quorum_2,
         strategy: :one_for_one,
         distribution_strategy: Horde.UniformQuorumDistribution,
-        members: [:horde_quorum_1, :horde_quorum_2, :horde_quorum_3]
+        members: [:horde_quorum_1, :horde_quorum_2, :horde_quorum_3],
+        delta_crdt_options: [sync_interval: 20]
       )
 
     assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 1000)
