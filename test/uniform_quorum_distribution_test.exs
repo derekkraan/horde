@@ -8,7 +8,7 @@ defmodule UniformQuorumDistributionTest do
                                status <- StreamData.member_of([:alive, :dead, :shutting_down]),
                                name <- binary(),
                                pid <- atom(:alias) do
-        %{node_id: node_id, status: status, pid: pid, name: name}
+        %{node_id: node_id, status: status, pid: pid, name: "A#{name}"}
       end
 
     check all members <-
