@@ -59,8 +59,6 @@ defmodule Horde.SupervisorImpl do
 
     state = set_own_node_status(state)
 
-    execute_telemetry(state)
-
     {:ok, state, {:continue, {:set_members, Keyword.get(options, :members)}}}
   end
 
@@ -301,24 +299,13 @@ defmodule Horde.SupervisorImpl do
     state
   end
 
-  defp execute_telemetry(state) do
-    :telemetry.execute(
-      [:horde, :supervisor, :supervised_process_count],
-      %{
-        global_supervised_process_count: map_size(state.processes_by_id),
-        local_supervised_process_count: state.local_process_count
-      },
-      %{
-        member: state.name
-      }
-    )
+  def handle_call(:get_telemetry, _from, state) do
+    telemetry = %{
+      global_supervised_process_count: map_size(state.processes_by_id),
+      local_supervised_process_count: state.local_process_count
+    }
 
-    Process.send_after(self(), :execute_telemetry, 1000)
-  end
-
-  def handle_info(:execute_telemetry, state) do
-    execute_telemetry(state)
-    {:noreply, state}
+    {:reply, telemetry, state}
   end
 
   def handle_info({:set_members, members}, state) do
