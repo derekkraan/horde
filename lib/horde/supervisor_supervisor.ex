@@ -17,7 +17,8 @@ defmodule Horde.SupervisorSupervisor do
        |> Keyword.put(:root_name, root_name)
        |> Keyword.put(:graceful_shutdown_manager, graceful_shutdown_manager_name(root_name))
        |> Keyword.put(:shutdown, :infinity)},
-      {Horde.SignalShutdown, signal_to: [graceful_shutdown_manager_name(root_name), root_name]}
+      {Horde.SignalShutdown, signal_to: [graceful_shutdown_manager_name(root_name), root_name]},
+      {Horde.SupervisorTelemetryPoller, root_name}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)
