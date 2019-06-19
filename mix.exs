@@ -27,6 +27,7 @@ defmodule Horde.MixProject do
     [
       {:delta_crdt, "~> 0.5.4"},
       {:libring, "~> 1.4"},
+      {:telemetry, "~> 0.4.0"},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
       {:benchee, "> 0.0.1", only: :dev, runtime: false},
       {:stream_data, "~> 0.4", only: :test},
