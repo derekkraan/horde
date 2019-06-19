@@ -10,8 +10,6 @@ defmodule Horde.RegistryImpl do
     defstruct name: nil,
               nodes: MapSet.new(),
               members: MapSet.new(),
-              processes_updated_counter: 0,
-              processes_updated_at: 0,
               registry_ets_table: nil,
               pids_ets_table: nil,
               keys_ets_table: nil,
