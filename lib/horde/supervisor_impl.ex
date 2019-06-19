@@ -17,9 +17,8 @@ defmodule Horde.SupervisorImpl do
             members_info: %{},
             processes_by_id: %{},
             process_pid_to_id: %{},
+            local_process_count: 0,
             waiting_for_quorum: [],
-            processes_updated_counter: 0,
-            processes_updated_at: 0,
             supervisor_ref_to_name: %{},
             name_to_supervisor_ref: %{},
             shutting_down: false,
@@ -59,6 +58,8 @@ defmodule Horde.SupervisorImpl do
       |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
 
     state = set_own_node_status(state)
+
+    execute_telemetry(state)
 
     {:ok, state, {:continue, {:set_members, Keyword.get(options, :members)}}}
   end
@@ -117,7 +118,9 @@ defmodule Horde.SupervisorImpl do
           child_id
         )
 
-      new_state = %{state | processes_by_id: Map.delete(state.processes_by_id, child_id)}
+      new_state =
+        Map.put(state, :processes_by_id, Map.delete(state.processes_by_id, child_id))
+        |> Map.put(:local_process_count, state.local_process_count - 1)
 
       :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
 
@@ -240,7 +243,8 @@ defmodule Horde.SupervisorImpl do
     new_state = %{
       state
       | processes_by_id: new_processes_by_id,
-        process_pid_to_id: Map.delete(state.process_pid_to_id, child_pid)
+        process_pid_to_id: Map.delete(state.process_pid_to_id, child_pid),
+        local_process_count: state.local_process_count - 1
     }
 
     :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
@@ -295,6 +299,26 @@ defmodule Horde.SupervisorImpl do
     )
 
     state
+  end
+
+  defp execute_telemetry(state) do
+    :telemetry.execute(
+      [:horde, :supervisor, :supervised_process_count],
+      %{
+        global_supervised_process_count: map_size(state.processes_by_id),
+        local_supervised_process_count: state.local_process_count
+      },
+      %{
+        member: state.name
+      }
+    )
+
+    Process.send_after(self(), :execute_telemetry, 1000)
+  end
+
+  def handle_info(:execute_telemetry, state) do
+    execute_telemetry(state)
+    {:noreply, state}
   end
 
   def handle_info({:set_members, members}, state) do
@@ -634,9 +658,11 @@ defmodule Horde.SupervisorImpl do
       )
 
     new_process_pid_to_id = Map.put(state.process_pid_to_id, child_pid, child.id)
+    new_local_process_count = state.local_process_count + 1
 
     Map.put(state, :processes_by_id, new_processes_by_id)
     |> Map.put(:process_pid_to_id, new_process_pid_to_id)
+    |> Map.put(:local_process_count, new_local_process_count)
   end
 
   defp add_child(child, state) do
