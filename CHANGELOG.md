@@ -1,4 +1,6 @@
 ## master
+- `Horde.Supervisor` now uses libring to distribute processes over nodes. [#130](https://github.com/derekkraan/horde/pull/130)
+- `Horde.Supervisor` publishes metrics with `:telemetry` (`[:horde, :supervisor, :supervised_process_count]`). [#132](https://github.com/derekkraan/horde/pull/132)
 - `Horde.Supervisor` and `Horde.Registry` now support option `delta_crdt_options`, which you can use to tune your cluster. Also updated to the most recent DeltaCRDT. [#100](https://github.com/derekkraan/horde/pull/100)
 
 ## 0.6.0
