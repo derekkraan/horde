@@ -82,7 +82,12 @@ defmodule ClusterTest do
     end
 
     test "can join and unjoin registry with set_members" do
-      {:ok, _} = Horde.Registry.start_link(name: :reg6, keys: :unique)
+      {:ok, _} =
+        Horde.Registry.start_link(
+          name: :reg6,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 10]
+        )
 
       {:ok, _} = Horde.Registry.start_link(name: :reg7, keys: :unique)
 
