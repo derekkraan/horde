@@ -89,6 +89,15 @@ defmodule Horde.SupervisorImpl do
     {:reply, :ok, state}
   end
 
+  def handle_call(:get_telemetry, _from, state) do
+    telemetry = %{
+      global_supervised_process_count: map_size(state.processes_by_id),
+      local_supervised_process_count: state.local_process_count
+    }
+
+    {:reply, telemetry, state}
+  end
+
   def handle_call(:wait_for_quorum, from, state) do
     if state.distribution_strategy.has_quorum?(Map.values(members(state))) do
       {:reply, :ok, state}
@@ -297,15 +306,6 @@ defmodule Horde.SupervisorImpl do
     )
 
     state
-  end
-
-  def handle_call(:get_telemetry, _from, state) do
-    telemetry = %{
-      global_supervised_process_count: map_size(state.processes_by_id),
-      local_supervised_process_count: state.local_process_count
-    }
-
-    {:reply, telemetry, state}
   end
 
   def handle_info({:set_members, members}, state) do

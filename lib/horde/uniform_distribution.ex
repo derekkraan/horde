@@ -14,7 +14,7 @@ defmodule Horde.UniformDistribution do
       0 ->
         {:error, :no_alive_nodes}
 
-      count ->
+      _not_zero ->
         chosen_member =
           HashRing.new()
           |> HashRing.add_nodes(Map.keys(members))
@@ -30,9 +30,6 @@ defmodule Horde.UniformDistribution do
       _ -> false
     end)
   end
-
-  defp hash(identifier) when is_integer(identifier), do: identifier
-  defp hash(identifier), do: :erlang.phash2(identifier)
 
   def has_quorum?(_members), do: true
 end

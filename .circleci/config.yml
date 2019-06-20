@@ -8,6 +8,8 @@ jobs:
       - image: circleci/elixir:1.8
 
     working_directory: ~/repo
+    environment:
+      MIX_ENV: test
     steps:
       - checkout
       - run: mix local.hex --force
