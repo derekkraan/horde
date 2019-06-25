@@ -9,6 +9,7 @@ defmodule Horde.MixProject do
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
+      docs: docs(),
       package: package(),
       name: "Horde",
       source_url: "https://github.com/derekkraan/horde"
@@ -37,12 +38,22 @@ defmodule Horde.MixProject do
     ]
   end
 
-  def package do
+  defp package do
     [
       description: "Distributed supervisor & process registry built with δ-CRDTs",
       licenses: ["MIT"],
       maintainers: ["Derek Kraan"],
       links: %{GitHub: "https://github.com/derekkraan/horde"}
+    ]
+  end
+
+  defp docs do
+    [extras: extras()]
+  end
+
+  defp extras do
+    [
+      "guides/state_handoff.md"
     ]
   end
 
