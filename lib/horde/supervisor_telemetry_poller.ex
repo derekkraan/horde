@@ -1,4 +1,5 @@
 defmodule Horde.SupervisorTelemetryPoller do
+  @moduledoc false
   def child_spec(supervisor_impl_name) do
     %{
       id: :"#{supervisor_impl_name}_telemetry_poller",
