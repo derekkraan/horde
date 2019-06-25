@@ -9,12 +9,19 @@ defmodule HelloWorld.SayHello do
       id: "#{__MODULE__}_#{name}",
       start: {__MODULE__, :start_link, [name]},
       shutdown: 10_000,
-      restart: :permanent
+      restart: :transient
     }
   end
 
   def start_link(name) do
-    GenServer.start_link(__MODULE__, [], name: via_tuple(name))
+    case GenServer.start_link(__MODULE__, [], name: via_tuple(name)) do
+      {:ok, pid} ->
+        {:ok, pid}
+
+      {:error, {:already_started, pid}} ->
+        Logger.info("already started at #{inspect(pid)}, returning :ignore")
+        :ignore
+    end
   end
 
   def how_many?(name \\ __MODULE__) do
