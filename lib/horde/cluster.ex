@@ -16,7 +16,8 @@ defmodule Horde.Cluster do
 
   @type member :: {name :: atom(), node :: atom()} | (name :: atom())
 
-  @spec set_members(horde :: GenServer.server(), members :: [member()]) :: :ok | {:error, term()}
+  @spec set_members(horde :: GenServer.server(), members :: [member()], timeout :: timeout()) ::
+          :ok | {:error, term()}
   def set_members(horde, members, timeout \\ 5000) do
     GenServer.call(horde, {:set_members, members}, timeout)
   end
