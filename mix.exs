@@ -48,15 +48,13 @@ defmodule Horde.MixProject do
   end
 
   defp docs do
-    [extras: extras()]
+    [main: "readme", extras: extras()]
   end
 
   defp extras do
     # getting started
-    # custom distribution strategy
-    # tuning delta_crdt
-    # using with kubernetes
     [
+      "README.md",
       "guides/eventual_consistency.md",
       "guides/state_handoff.md",
       "guides/libcluster.md"
