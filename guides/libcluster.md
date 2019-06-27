@@ -53,7 +53,7 @@ defmodule NodeListener do
   use GenServer
 
   def init(_) do
-    :net_kernel.monitor_nodes(true)
+    :net_kernel.monitor_nodes(true, node_type: :visible)
     {:ok, nil}
   end
 
