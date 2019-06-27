@@ -5,7 +5,7 @@ During deployment, when a server is restarted, its processes are restarted on ot
 Horde does not offer a specialized state handoff feature, but OTP has all the tools you need.
 
 
-### Trapping exits
+## Trapping exits
 
 ```elixir
 def init(arg) do
@@ -16,7 +16,7 @@ end
 
 When `Horde.Supervisor` is shutting down, it will send an exit signal to its child processes. We need to trap this signal to ensure that our `terminate/2` callback gets called.
 
-### Saving state
+## Saving state
 
 ```elixir
 def terminate(reason, state) do
@@ -26,7 +26,7 @@ end
 
 We can then save the state in the terminate function.
 
-### Shutdown timeout
+## Shutdown timeout
 
 ```elixir
 children = [{Horde.Supervisor, [name: :my_supervisor, shutdown: 1000, strategy: :one_for_one]}]
@@ -34,7 +34,7 @@ children = [{Horde.Supervisor, [name: :my_supervisor, shutdown: 1000, strategy: 
 
 The default shutdown timeout is 0, which of course does not leave enough time to save our state. Increase the value of `shutdown` to make sure that your process has enough time to save its data. Be aware: `shutdown` must be set at all levels of your application to apply. A more restrictive shutdown timeout at a higher level in the supervision tree will override less restrictive values.
 
-### Restoring state
+## Restoring state
 
 ```elixir
 def init(arg) do

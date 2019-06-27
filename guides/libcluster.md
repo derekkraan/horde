@@ -4,7 +4,7 @@ Horde doesn't provide functionality to set up your cluster, we recommend you use
 
 There are two strategies you can use to integrate libcluster with Horde:
 
-### Static Cluster Membership
+## Static Cluster Membership
 
 If you will not be adding or removing members from the cluster dynamically, then you can set up libcluster and tell Horde about the members of your cluster. For example, if you run your cluster on bare metal hardware and have a fixed number of servers.
 
@@ -24,7 +24,7 @@ children = [
 
 This is the simplest approach. You tell Horde which members are supposed to be in the cluster, and if they are available, Horde will include them in the cluster.
 
-### Dynamic Cluster Membership
+## Dynamic Cluster Membership
 
 If you will be adding and removing nodes from your cluster constantly, and don't want to repackage your application every time you do this, then you will need to perform a couple of extra steps.
 

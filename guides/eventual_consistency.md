@@ -2,11 +2,11 @@
 
 Horde uses a CRDT to sync data between nodes. This means that two nodes in your cluster can have a different view of the data, with differences being merged as the nodes sync with each other. We call this "eventually consistent", and the result is that we have to deal with merge conflicts and race conditions. Horde's CRDT automatically resolves conflicts, but we still have to deal with the after-effects.
 
-### Horde.Supervisor merge conflict
+## Horde.Supervisor merge conflict
 
 It is unlikely, but possible, that Horde.Supervisor will start the same process on two separate nodes. This can happen if using a custom distribution strategy or when a node dies and not all nodes have the same view of the cluster). This can also happen if there is a network partition. Once the network partition has healed, Horde will automatically terminate any duplicate processes.
 
-### Horde.Registry merge conflict
+## Horde.Registry merge conflict
 
 When processes on two different nodes have claimed the same name, this will generate a conflict in Horde.Registry. The CRDT resolves the conflict and Horde.Registry sends an exit signal to the process that lost the conflict. This can be a common occurrence.
 
