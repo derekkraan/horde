@@ -53,6 +53,7 @@ defmodule Horde.MixProject do
 
   defp extras do
     [
+      "guides/eventual_consistency.md",
       "guides/state_handoff.md"
     ]
   end
