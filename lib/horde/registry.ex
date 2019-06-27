@@ -146,7 +146,7 @@ defmodule Horde.Registry do
           registry :: Registry.registry(),
           name :: Registry.key(),
           value :: Registry.value()
-        ) :: {:ok, pid()} | {:error, :already_registered, pid()}
+        ) :: {:ok, pid()} | {:error, {:already_registered, pid()}}
   def register(registry, name, value) when is_atom(registry) do
     case lookup(registry, name) do
       :undefined ->
