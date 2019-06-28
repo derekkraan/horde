@@ -1,4 +1,4 @@
-# Integrating with libcluster
+# Setting up a Cluster
 
 Horde doesn't provide functionality to set up your cluster, we recommend you use [`libcluster`](https://hexdocs.pm/libcluster/readme.html) for this purpose.
 
