@@ -45,23 +45,27 @@ defmodule Horde.Supervisor do
   Then you can use `MySupervisor.child_spec/1` and `MySupervisor.start_link/1` in the same way as you'd use `Horde.Supervisor.child_spec/1` and `Horde.Supervisor.start_link/1`.
   """
 
-  defmacro __using__(_opts) do
+  defmacro __using__(opts) do
     quote do
       @behaviour Horde.Supervisor
 
       def child_spec(options) do
         options = Keyword.put_new(options, :id, __MODULE__)
 
-        %{
+        default = %{
           id: Keyword.get(options, :id, __MODULE__),
           start: {__MODULE__, :start_link, [options]},
           type: :supervisor
         }
+
+        Supervisor.child_spec(default, unquote(Macro.escape(opts)))
       end
 
       def start_link(options) do
         Horde.Supervisor.start_link(Keyword.put(options, :init_module, __MODULE__))
       end
+
+      defoverridable child_spec: 1
     end
   end
 

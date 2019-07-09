@@ -89,6 +89,28 @@ defmodule SupervisorTest do
       {:ok, members} = Horde.Cluster.members(:init_sup_test_1)
       assert 2 = Enum.count(members)
     end
+
+    test "can use `child_spec` function to override defaults from Horde.Supervisor" do
+      spec = %{
+        id: 123,
+        start:
+          {TestSupervisor3, :start_link,
+           [
+             custom_id: 123,
+             name: :init_sup_test_3,
+             strategy: :one_for_one
+           ]},
+        restart: :transient,
+        type: :supervisor
+      }
+
+      assert spec =
+               TestSupervisor3.child_spec(
+                 custom_id: 123,
+                 name: :init_sup_test_3,
+                 strategy: :one_for_one
+               )
+    end
   end
 
   describe ".start_child/2" do
