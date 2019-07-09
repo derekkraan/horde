@@ -91,20 +91,22 @@ defmodule SupervisorTest do
     end
 
     test "can use `child_spec` function to override defaults from Horde.Supervisor" do
-      spec = %{
+      child_spec = %{
         id: 123,
         start:
           {TestSupervisor3, :start_link,
            [
-             custom_id: 123,
-             name: :init_sup_test_3,
-             strategy: :one_for_one
+             [
+               custom_id: 123,
+               name: :init_sup_test_3,
+               strategy: :one_for_one
+             ]
            ]},
         restart: :transient,
         type: :supervisor
       }
 
-      assert spec =
+      assert ^child_spec =
                TestSupervisor3.child_spec(
                  custom_id: 123,
                  name: :init_sup_test_3,
