@@ -58,8 +58,11 @@ defmodule Horde.Registry do
 
   @type option ::
           {:keys, :unique}
+          | {:name, registry()}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
-          | {:name, term()}
+          | {:members, [Horde.Cluster.member()]}
+
+  @type registry :: atom()
 
   @doc """
   Child spec to enable easy inclusion into a supervisor.
@@ -92,7 +95,7 @@ defmodule Horde.Registry do
   @doc """
   See `Registry.start_link/1`.
 
-  Does not accept `[partitions: x]`, nor `[keys: :unique]` as options.
+  Does not accept `[partitions: x]`, nor `[keys: :duplicate]` as options.
   """
   def start_link(options) do
     root_name = Keyword.get(options, :name)
