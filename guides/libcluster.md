@@ -10,10 +10,10 @@ If you will not be adding or removing members from the cluster dynamically, then
 
 ```elixir
 members = [
-  {:node1, MyHordeSupervisor},
-  {:node2, MyHordeSupervisor},
-  {:node3, MyHordeSupervisor},
-  {:node4, MyHordeSupervisor}
+  {MyHordeSupervisor, :node1},
+  {MyHordeSupervisor, :node2},
+  {MyHordeSupervisor, :node3},
+  {MyHordeSupervisor, :node4}
 ]
 
 children = [
@@ -39,7 +39,8 @@ defmodule MyHordeSupervisor do
   end
 
   defp get_members() do
-    Enum.map(Node.list(), fn node -> {node, MyHordeSupervisor} end)
+    [Node.self() | Node.list()]
+    |> Enum.map(fn node -> {MyHordeSupervisor, node} end)
   end
 end
 ```
@@ -68,7 +69,9 @@ defmodule NodeListener do
   end
 
   defp set_members(name) do
-    members = Enum.map(Node.list(), fn node -> {node, name} end)
+    members = 
+    [Node.self() | Node.list()]
+    |> Enum.map(fn node -> {name, node} end)
     :ok = Horde.Cluster.set_members(name, members)
   end
 end
