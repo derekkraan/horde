@@ -14,7 +14,8 @@ defmodule Horde.Cluster do
   ```
   """
 
-  @type member :: {name :: atom(), node :: atom()} | (name :: atom())
+  @type name :: atom()
+  @type member :: name() | {name(), node()}
 
   @spec set_members(horde :: GenServer.server(), members :: [member()], timeout :: timeout()) ::
           :ok | {:error, term()}
