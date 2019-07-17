@@ -10,10 +10,10 @@ If you will not be adding or removing members from the cluster dynamically, then
 
 ```elixir
 members = [
-  {:node1, MyHordeSupervisor},
-  {:node2, MyHordeSupervisor},
-  {:node3, MyHordeSupervisor},
-  {:node4, MyHordeSupervisor}
+  {MyHordeSupervisor, :node1},
+  {MyHordeSupervisor, :node2},
+  {MyHordeSupervisor, :node3},
+  {MyHordeSupervisor, :node4}
 ]
 
 children = [
