@@ -39,7 +39,7 @@ defmodule MyHordeSupervisor do
   end
 
   defp get_members() do
-    Enum.map(Node.list(), fn node -> {node, MyHordeSupervisor} end)
+    Enum.map(Node.list(), fn node -> {MyHordeSupervisor, node} end)
   end
 end
 ```
