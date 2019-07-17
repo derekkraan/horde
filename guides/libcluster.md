@@ -68,7 +68,7 @@ defmodule NodeListener do
   end
 
   defp set_members(name) do
-    members = Enum.map(Node.list(), fn node -> {node, name} end)
+    members = Enum.map(Node.list(), fn node -> {name, node} end)
     :ok = Horde.Cluster.set_members(name, members)
   end
 end
