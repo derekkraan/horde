@@ -3,6 +3,8 @@ defmodule Horde.Cluster do
 
   @moduledoc """
   Public functions to join and leave hordes.
+  It will also send a :set_members call to every member of the horde Cluster,
+  with content members [{member_one_name, member_one_node}, {member...}]
 
   Calling `Horde.Cluster.set_members/2` will join the given members in a cluster. Cluster membership is propagated via a CRDT, so setting it once on a single node is sufficient.
   ```elixir
