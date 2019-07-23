@@ -129,6 +129,30 @@ defmodule RegistryTest do
       assert [{:other, _}, "name"] = Map.keys(Horde.Registry.processes(horde1)) |> Enum.sort()
       assert [{:other, _}, "name"] = Map.keys(Horde.Registry.processes(horde2)) |> Enum.sort()
     end
+
+    test "via callbacks" do
+      horde = start_registry()
+
+      name = {:via, Horde.Registry, {horde, "foo"}}
+
+      {:ok, pid} = Agent.start_link(fn -> 0 end, name: name)
+
+      assert Agent.update(name, &(&1 + 1)) == :ok
+
+      assert Agent.get(name, & &1) == 1
+
+      assert {:error, _} = Agent.start(fn -> raise "oops" end)
+
+      assert {:error, {:already_started, ^pid}} = Agent.start(fn -> 0 end, name: name)
+    end
+
+    test "uses value provided in via" do
+      horde = start_registry()
+
+      name = {:via, Horde.Registry, {horde, "foo", :value}}
+      {:ok, pid} = Agent.start_link(fn -> 0 end, name: name)
+      assert Horde.Registry.lookup(horde, "foo") == [{pid, :value}]
+    end
   end
 
   describe ".keys/2" do

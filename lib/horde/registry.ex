@@ -305,9 +305,10 @@ defmodule Horde.Registry do
 
   @doc false
   # @spec register_name({pid, term}, pid) :: :yes | :no
-  def register_name({registry, key}, pid), do: register_name({registry, key, nil}, pid)
+  def register_name({registry, key}, pid), do: register_name(registry, key, nil, pid)
+  def register_name({registry, key, value}, pid), do: register_name(registry, key, value, pid)
 
-  def register_name({registry, key, value}, pid) when is_atom(registry) do
+  defp register_name(registry, key, value, pid) when is_atom(registry) do
     case GenServer.call(registry, {:register, key, value, pid}) do
       {:ok, _pid} -> :yes
       {:error, _} -> :no
@@ -316,7 +317,10 @@ defmodule Horde.Registry do
 
   @doc false
   # @spec whereis_name({pid, term}) :: pid | :undefined
-  def whereis_name({registry, name}) when is_atom(registry) do
+  def whereis_name({registry, key}), do: whereis_name(registry, key)
+  def whereis_name({registry, key, _value}), do: whereis_name(registry, key)
+
+  defp whereis_name(registry, name) when is_atom(registry) do
     case lookup(registry, name) do
       :undefined -> :undefined
       [{pid, _val}] -> pid
