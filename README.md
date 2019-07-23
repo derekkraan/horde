@@ -89,9 +89,9 @@ And so on. The public API should be the same as `Supervisor` (and please open an
 Joining supervisors into a single distributed supervisor can be done using `Horde.Cluster`:
 
 ```elixir
-{:ok, supervisor_1} = Horde.Supervisor.start_link([], name: :distributed_supervisor_1, strategy: :one_for_one)
-{:ok, supervisor_2} = Horde.Supervisor.start_link([], name: :distributed_supervisor_2, strategy: :one_for_one)
-{:ok, supervisor_3} = Horde.Supervisor.start_link([], name: :distributed_supervisor_3, strategy: :one_for_one)
+{:ok, supervisor_1} = Horde.Supervisor.start_link(name: :distributed_supervisor_1, strategy: :one_for_one)
+{:ok, supervisor_2} = Horde.Supervisor.start_link(name: :distributed_supervisor_2, strategy: :one_for_one)
+{:ok, supervisor_3} = Horde.Supervisor.start_link(name: :distributed_supervisor_3, strategy: :one_for_one)
 
 Horde.Cluster.set_members(:distributed_supervisor_1, [:distributed_supervisor_1, :distributed_supervisor_2, :distributed_supervisor_3])
 # supervisor_1, supervisor_2 and supervisor_3 will be joined in a single cluster.
