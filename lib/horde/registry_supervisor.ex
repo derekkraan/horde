@@ -14,10 +14,7 @@ defmodule Horde.RegistrySupervisor do
     children = [
       {DeltaCrdt, delta_crdt_options(options)},
       {Horde.RegistryImpl,
-       name: root_name,
-       meta: Keyword.get(options, :meta),
-       members: Keyword.get(options, :members),
-       init_module: Keyword.get(options, :init_module)}
+       [name: root_name] ++ Keyword.take(options, [:meta, :members, :listeners, :init_module])}
     ]
 
     Supervisor.init(children, strategy: :one_for_all)
