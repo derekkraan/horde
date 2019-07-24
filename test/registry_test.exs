@@ -755,6 +755,73 @@ defmodule RegistryTest do
     end
   end
 
+  describe "listeners" do
+    test "receives :register and :unregister events" do
+      Process.register(self(), :test_process)
+      reg = start_registry(listeners: [:test_process], keys: :unique)
+
+      %{pid: task_pid} =
+        task =
+        Task.async(fn ->
+          Horde.Registry.register(reg, :task, :task_value)
+          Process.sleep(200)
+        end)
+
+      Task.await(task)
+      assert_receive {:register, ^reg, :task, ^task_pid, :task_value}, 200
+      assert_receive {:unregister, ^reg, :task, ^task_pid}, 200
+    end
+
+    test "recieves :register and :unregister from another node" do
+      Process.register(self(), :test_process)
+      reg = start_registry(listeners: [:test_process], keys: :unique)
+      reg2 = start_registry(keys: :unique)
+      Horde.Cluster.set_members(reg, [reg, reg2])
+
+      %{pid: task_pid} =
+        task =
+        Task.async(fn ->
+          Horde.Registry.register(reg2, :task, :task_value)
+          Process.sleep(200)
+        end)
+
+      Task.await(task)
+
+      assert_receive {:register, ^reg, :task, ^task_pid, :task_value}, 200
+      assert_receive {:unregister, ^reg, :task, ^task_pid}, 200
+    end
+
+    test "receives :unregister and :register for conflicting processes" do
+      Process.register(self(), :test_process)
+      reg = start_registry(listeners: [:test_process], keys: :unique)
+      reg2 = start_registry(keys: :unique)
+
+      t1 =
+        Task.async(fn ->
+          Horde.Registry.register(reg, :task, :task_value)
+          Process.sleep(1000)
+        end)
+
+      Process.sleep(100)
+
+      t2 =
+        Task.async(fn ->
+          Horde.Registry.register(reg2, :task, :task_value)
+          Process.sleep(1000)
+        end)
+
+      %{pid: t1_pid} = t1
+
+      assert_receive {:register, ^reg, :task, ^t1_pid, :task_value}, 200
+
+      Horde.Cluster.set_members(reg, [reg, reg2])
+
+      %{pid: t2_pid} = t2
+      assert_receive {:unregister, ^reg, :task, ^t1_pid}, 200
+      assert_receive {:register, ^reg, :task, ^t2_pid, :task_value}, 200
+    end
+  end
+
   defp register_task(registry, key, value) do
     parent = self()
 

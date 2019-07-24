@@ -13,7 +13,8 @@ defmodule Horde.RegistryImpl do
               registry_ets_table: nil,
               pids_ets_table: nil,
               keys_ets_table: nil,
-              members_ets_table: nil
+              members_ets_table: nil,
+              listeners: []
   end
 
   @spec child_spec(options :: list()) :: Supervisor.child_spec()
@@ -50,6 +51,12 @@ defmodule Horde.RegistryImpl do
     pids_name = :"pids_#{name}"
     keys_name = :"keys_#{name}"
     members_name = :"members_#{name}"
+    listeners = Keyword.get(opts, :listeners, [])
+
+    unless is_list(listeners) and Enum.all?(listeners, &is_atom/1) do
+      raise ArgumentError,
+            "expected :listeners to be a list of named processes, got: #{inspect(listeners)}"
+    end
 
     Logger.info("Starting #{inspect(__MODULE__)} with name #{inspect(name)}")
 
@@ -67,7 +74,8 @@ defmodule Horde.RegistryImpl do
       registry_ets_table: name,
       pids_ets_table: pids_name,
       keys_ets_table: keys_name,
-      members_ets_table: members_name
+      members_ets_table: members_name,
+      listeners: listeners
     }
 
     state =
@@ -114,6 +122,10 @@ defmodule Horde.RegistryImpl do
         Enum.each(keys, fn key ->
           DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
           :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
+
+          for listener <- state.listeners do
+            send(listener, {:unregister, state.name, key, pid})
+          end
         end)
 
       _ ->
@@ -164,11 +176,22 @@ defmodule Horde.RegistryImpl do
            :ets.lookup(state.keys_ets_table, key) do
       # There was a conflict in the name registry, send the  losing PID
       # an exit signal indicating it has lost the name registration.
+
       remove_key_from_pids_table(state, other_pid, key)
+
+      for listener <- state.listeners do
+        send(listener, {:unregister, state.name, key, other_pid})
+      end
+
       Process.exit(other_pid, {:name_conflict, {key, other_value}, state.name, pid})
     end
 
     :ets.insert(state.keys_ets_table, {key, member, {pid, value}})
+
+    for listener <- state.listeners do
+      send(listener, {:register, state.name, key, pid, value})
+    end
+
     state
   end
 
@@ -179,9 +202,14 @@ defmodule Horde.RegistryImpl do
 
       [{key, _member, {pid, _val}}] ->
         remove_key_from_pids_table(state, pid, key)
+
+        for listener <- state.listeners do
+          send(listener, {:unregister, state.name, key, pid})
+        end
     end
 
     :ets.match_delete(state.keys_ets_table, {key, :_, :_})
+
     state
   end
 
@@ -276,6 +304,10 @@ defmodule Horde.RegistryImpl do
     DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
 
     remove_key_from_pids_table(state, pid, key)
+
+    for listener <- state.listeners do
+      send(listener, {:unregister, state.name, key, pid})
+    end
 
     :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
 

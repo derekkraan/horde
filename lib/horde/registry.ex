@@ -61,6 +61,7 @@ defmodule Horde.Registry do
           | {:name, registry()}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
           | {:members, [Horde.Cluster.member()]}
+          | {:listeners, [atom()]}
 
   @type registry :: atom()
 
