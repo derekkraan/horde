@@ -153,7 +153,7 @@ defmodule Horde.Registry do
         ) :: {:ok, pid()} | {:error, {:already_registered, pid()}}
   def register(registry, name, value) when is_atom(registry) do
     case lookup(registry, name) do
-      :undefined ->
+      [] ->
         GenServer.call(registry, {:register, name, value, self()})
 
       [{pid, _value}] ->
@@ -179,7 +179,7 @@ defmodule Horde.Registry do
          true <- process_alive?(pid) do
       [{pid, value}]
     else
-      _ -> :undefined
+      _ -> []
     end
   end
 
@@ -323,7 +323,7 @@ defmodule Horde.Registry do
 
   defp whereis_name(registry, name) when is_atom(registry) do
     case lookup(registry, name) do
-      :undefined -> :undefined
+      [] -> :undefined
       [{pid, _val}] -> pid
     end
   end
@@ -334,7 +334,7 @@ defmodule Horde.Registry do
   @doc false
   def send({registry, name}, msg) when is_atom(registry) do
     case lookup(registry, name) do
-      :undefined -> :erlang.error(:badarg, [{registry, name}, msg])
+      [] -> :erlang.error(:badarg, [{registry, name}, msg])
       [{pid, _value}] -> Kernel.send(pid, msg)
     end
   end
