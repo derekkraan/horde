@@ -4,16 +4,20 @@ defmodule UniformDistributionTest do
 
   property "chooses one of the members" do
     member =
-      ExUnitProperties.gen all node_id <- integer(1..100_000),
-                               status <- StreamData.member_of([:alive, :dead, :shutting_down]),
-                               name <- binary(),
-                               pid <- atom(:alias) do
+      ExUnitProperties.gen all(
+                             node_id <- integer(1..100_000),
+                             status <- StreamData.member_of([:alive, :dead, :shutting_down]),
+                             name <- binary(),
+                             pid <- atom(:alias)
+                           ) do
         %{node_id: node_id, status: status, pid: pid, name: "A#{name}"}
       end
 
-    check all members <- list_of(member),
-              own_node_id <- integer(),
-              identifier <- string(:alphanumeric) do
+    check all(
+            members <- list_of(member),
+            own_node_id <- integer(),
+            identifier <- string(:alphanumeric)
+          ) do
       members = [%{node_id: own_node_id, status: :alive, name: :name, pid: :pid} | members]
       choice = Horde.UniformDistribution.choose_node(identifier, members)
 
@@ -29,15 +33,19 @@ defmodule UniformDistributionTest do
 
   property "returns error if no alive nodes are available" do
     member =
-      ExUnitProperties.gen all node_id <- integer(1..100_000),
-                               status <- StreamData.member_of([:dead, :shutting_down]),
-                               name <- binary(),
-                               pid <- atom(:alias) do
+      ExUnitProperties.gen all(
+                             node_id <- integer(1..100_000),
+                             status <- StreamData.member_of([:dead, :shutting_down]),
+                             name <- binary(),
+                             pid <- atom(:alias)
+                           ) do
         %{node_id: node_id, status: status, pid: pid, name: name}
       end
 
-    check all members <- list_of(member),
-              identifier <- string(:alphanumeric) do
+    check all(
+            members <- list_of(member),
+            identifier <- string(:alphanumeric)
+          ) do
       choice = Horde.UniformDistribution.choose_node(identifier, members)
 
       assert {:error, :no_alive_nodes} = choice
