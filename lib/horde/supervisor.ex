@@ -45,10 +45,26 @@ defmodule Horde.Supervisor do
   Then you can use `MySupervisor.child_spec/1` and `MySupervisor.start_link/1` in the same way as you'd use `Horde.Supervisor.child_spec/1` and `Horde.Supervisor.start_link/1`.
   """
 
+  @type options() :: [option()]
+  @type option ::
+          {:name, name :: atom()}
+          | {:strategy, Supervisor.strategy()}
+          | {:max_restarts, integer()}
+          | {:max_seconds, integer()}
+          | {:extra_arguments, [term()]}
+          | {:distribution_strategy, Horde.DistributionStrategy.t()}
+          | {:shutdown, integer()}
+          | {:members, [Horde.Cluster.member()]}
+          | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
+
+  @callback init(options()) :: {:ok, options()}
+  @callback child_spec(options :: options()) :: Supervisor.child_spec()
+
   defmacro __using__(opts) do
     quote do
       @behaviour Horde.Supervisor
 
+      @impl true
       def child_spec(options) do
         options = Keyword.put_new(options, :id, __MODULE__)
 
@@ -58,7 +74,7 @@ defmodule Horde.Supervisor do
           type: :supervisor
         }
 
-        Supervisor.child_spec(default, unquote(Macro.escape(opts)))
+        Supervisor.child_spec(default, unquote(opts))
       end
 
       def start_link(options) do
@@ -69,12 +85,9 @@ defmodule Horde.Supervisor do
     end
   end
 
-  @callback init(options()) :: {:ok, options()}
-
   @doc """
   See `start_link/2` for options.
   """
-  @spec child_spec(options :: options()) :: Supervisor.child_spec()
   def child_spec(options \\ []) do
     supervisor_options =
       Keyword.take(options, [
@@ -100,18 +113,6 @@ defmodule Horde.Supervisor do
     }
     |> Supervisor.child_spec(options)
   end
-
-  @type options() :: [option()]
-  @type option ::
-          {:name, name :: atom()}
-          | {:strategy, Supervisor.strategy()}
-          | {:max_restarts, integer()}
-          | {:max_seconds, integer()}
-          | {:extra_arguments, [term()]}
-          | {:distribution_strategy, Horde.DistributionStrategy.t()}
-          | {:shutdown, integer()}
-          | {:members, [Horde.Cluster.member()]}
-          | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
 
   @doc """
   Works like `DynamicSupervisor.start_link/1`. Extra options are documented here:
