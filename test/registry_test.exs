@@ -396,7 +396,7 @@ defmodule RegistryTest do
 
       Process.sleep(200)
 
-      assert :undefined = Horde.Registry.lookup(horde, "to_unregister")
+      assert [] = Horde.Registry.lookup(horde, "to_unregister")
       assert [] = Horde.Registry.keys(horde, self())
     end
   end
@@ -751,7 +751,7 @@ defmodule RegistryTest do
 
       Horde.Cluster.set_members(reg2, [reg2])
 
-      assert :undefined = Horde.Registry.lookup(reg2, "key")
+      assert [] = Horde.Registry.lookup(reg2, "key")
     end
   end
 
