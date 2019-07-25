@@ -47,6 +47,7 @@ defmodule Horde.Registry do
     quote location: :keep, bind_quoted: [opts: opts] do
       @behaviour Horde.Registry
 
+      @impl true
       def child_spec(options) do
         options = Keyword.put_new(options, :id, __MODULE__)
 
@@ -56,7 +57,7 @@ defmodule Horde.Registry do
           type: :supervisor
         }
 
-        Supervisor.child_spec(default, unquote(Macro.escape(opts)))
+        Supervisor.child_spec(default, unquote(opts))
       end
 
       def start_link(options) do
@@ -86,7 +87,6 @@ defmodule Horde.Registry do
   ])
   ```
   """
-  @spec child_spec(options :: [option()]) :: Supervisor.child_spec()
   def child_spec(options \\ []) do
     options = Keyword.put_new(options, :id, __MODULE__)
 
