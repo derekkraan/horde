@@ -4,19 +4,23 @@ defmodule UniformQuorumDistributionTest do
 
   property "chooses one of the members" do
     member =
-      ExUnitProperties.gen all node_id <- integer(1..100_000),
-                               status <- StreamData.member_of([:alive, :dead, :shutting_down]),
-                               name <- binary(),
-                               pid <- atom(:alias) do
+      ExUnitProperties.gen all(
+                             node_id <- integer(1..100_000),
+                             status <- StreamData.member_of([:alive, :dead, :shutting_down]),
+                             name <- binary(),
+                             pid <- atom(:alias)
+                           ) do
         %{node_id: node_id, status: status, pid: pid, name: "A#{name}"}
       end
 
-    check all members <-
-                uniq_list_of(member,
-                  min_length: 2,
-                  uniq_fun: fn %{node_id: node_id} -> node_id end
-                ),
-              identifier <- string(:alphanumeric) do
+    check all(
+            members <-
+              uniq_list_of(member,
+                min_length: 2,
+                uniq_fun: fn %{node_id: node_id} -> node_id end
+              ),
+            identifier <- string(:alphanumeric)
+          ) do
       partition_a = members
 
       partition_b =

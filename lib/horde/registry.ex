@@ -34,34 +34,38 @@ defmodule Horde.Registry do
   Then you can use `MyRegistry.child_spec/1` and `MyRegistry.start_link/1` in the same way as you'd use `Horde.Registry.child_spec/1` and `Horde.Registry.start_link/1`.
   """
 
-  @callback init(options :: Keyword.t()) :: {:ok, options :: Keyword.t()}
-
-  defmacro __using__(_opts) do
-    quote do
-      @behaviour Horde.Registry
-
-      def child_spec(options) do
-        options = Keyword.put_new(options, :id, __MODULE__)
-
-        %{
-          id: Keyword.get(options, :id, __MODULE__),
-          start: {__MODULE__, :start_link, [options]},
-          type: :supervisor
-        }
-      end
-
-      def start_link(options) do
-        Horde.Registry.start_link(Keyword.put(options, :init_module, __MODULE__))
-      end
-    end
-  end
-
   @type option ::
           {:keys, :unique}
           | {:name, registry()}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
           | {:members, [Horde.Cluster.member()]}
-          | {:listeners, [atom()]}
+
+  @callback init(options :: Keyword.t()) :: {:ok, options :: Keyword.t()}
+  @callback child_spec(options :: [option()]) :: Supervisor.child_spec()
+
+  defmacro __using__(opts) do
+    quote location: :keep, bind_quoted: [opts: opts] do
+      @behaviour Horde.Registry
+
+      def child_spec(options) do
+        options = Keyword.put_new(options, :id, __MODULE__)
+
+        default = %{
+          id: Keyword.get(options, :id, __MODULE__),
+          start: {__MODULE__, :start_link, [options]},
+          type: :supervisor
+        }
+
+        Supervisor.child_spec(default, unquote(Macro.escape(opts)))
+      end
+
+      def start_link(options) do
+        Horde.Registry.start_link(Keyword.put(options, :init_module, __MODULE__))
+      end
+
+      defoverridable child_spec: 1
+    end
+  end
 
   @type registry :: atom()
 

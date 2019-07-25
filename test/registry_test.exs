@@ -2,6 +2,55 @@ defmodule RegistryTest do
   use ExUnit.Case
   doctest Horde.Registry
 
+  describe "`use Horde.Registry, inline_options`" do
+    test "accepts inline options" do
+      assert {:ok, _} = Supervisor.start_link([TestRegistry4], strategy: :one_for_one)
+    end
+
+    test "inline options override defaults of Horde.Registry.child_spec/1" do
+      child_spec_defaults = TestRegistry1.child_spec([])
+
+      assert child_spec_defaults[:type] == :supervisor
+      assert child_spec_defaults[:restart] == nil
+
+      assert %{
+               id: _,
+               start: _,
+               restart: :transient,
+               type: :worker
+             } = TestRegistry4.child_spec([])
+    end
+  end
+
+  describe ".child_spec/1" do
+    test "overrides defaults from Horde.Registry.child_spec/1" do
+      child_spec = %{
+        id: 123,
+        start:
+          {TestRegistry3, :start_link,
+           [
+             [
+               keys: :unique,
+               custom_id: 123,
+               name: :init_test_1,
+               strategy: :one_for_one
+             ]
+           ]},
+        restart: :transient,
+        type: :supervisor
+      }
+
+      assert ^child_spec =
+               TestRegistry3.child_spec(
+                 custom_id: 123,
+                 name: :init_test_1,
+                 strategy: :one_for_one
+               )
+
+      assert {:ok, _} = Supervisor.start_link([TestRegistry3], strategy: :one_for_one)
+    end
+  end
+
   describe ".start_link/1" do
     test "only keys: :unique is allowed" do
       assert_raise ArgumentError, fn ->
