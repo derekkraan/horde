@@ -1,3 +1,9 @@
+## master
+- `Horde.Registry.lookup/2` returns `[]` instead of `:undefined` when no match. [#145](https://github.com/derekkraan/horde/pull/145)
+- `child_spec/1` can be overridden in `Horde.Registry` and `Horde.Supervisor` [#135](https://github.com/derekkraan/horde/pull/135) [#143](https://github.com/derekkraan/horde/pull/143)
+- Implement `:listeners` option for Horde.Registry. [#142](https://github.com/derekkraan/horde/pull/142)
+- Fix via tuple usage with meta. [#139](https://github.com/derekkraan/horde/pull/139)
+
 ## 0.6.1
 - Module-based `Horde.Supervisor` can override `child_spec/1`. [#135](https://github.com/derekkraan/horde/pull/135)
 - Added guides for handling clustering, process state handoff (during deploys), and special considerations for eventual consistency to the [documentation](https://hexdocs.pm/horde).
