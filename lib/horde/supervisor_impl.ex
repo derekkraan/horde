@@ -111,7 +111,7 @@ defmodule Horde.SupervisorImpl do
   end
 
   def handle_call(:members, _from, state) do
-    {:reply, {:ok, Map.keys(state.members)}, state}
+    {:reply, Map.keys(state.members), state}
   end
 
   def handle_call({:terminate_child, child_pid} = msg, from, state) do
