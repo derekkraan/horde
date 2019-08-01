@@ -321,7 +321,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_call(:members, _from, state) do
-    {:reply, {:ok, MapSet.to_list(state.members)}, state}
+    {:reply, MapSet.to_list(state.members), state}
   end
 
   defp member_names(names) do

@@ -86,7 +86,7 @@ defmodule SupervisorTest do
     test "can use `init` function to dynamically fetch configuration" do
       {:ok, _} = TestSupervisor1.start_link(name: :init_sup_test_1, strategy: :one_for_one)
       {:ok, _} = TestSupervisor2.start_link(name: :init_sup_test_2, strategy: :one_for_one)
-      {:ok, members} = Horde.Cluster.members(:init_sup_test_1)
+      members = Horde.Cluster.members(:init_sup_test_1)
       assert 2 = Enum.count(members)
     end
 

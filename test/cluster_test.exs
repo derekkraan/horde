@@ -19,7 +19,7 @@ defmodule ClusterTest do
           delta_crdt_options: [sync_interval: 10]
         )
 
-      {:ok, members} = Horde.Cluster.members(:reg4)
+      members = Horde.Cluster.members(:reg4)
       assert 2 = Enum.count(members)
     end
 
@@ -40,7 +40,7 @@ defmodule ClusterTest do
           delta_crdt_options: [sync_interval: 10]
         )
 
-      {:ok, members} = Horde.Cluster.members(:sup4)
+      members = Horde.Cluster.members(:sup4)
       assert 2 = Enum.count(members)
     end
   end
@@ -55,9 +55,9 @@ defmodule ClusterTest do
         )
 
       assert :ok = Horde.Cluster.set_members(:reg0, [:reg00, :reg0])
-      assert {:ok, [{:reg0, node()}, {:reg00, node()}]} == Horde.Cluster.members(:reg0)
+      assert [{:reg0, node()}, {:reg00, node()}] == Horde.Cluster.members(:reg0)
       assert :ok = Horde.Cluster.set_members(:reg0, [:reg00, :reg0])
-      assert {:ok, [{:reg0, node()}, {:reg00, node()}]} == Horde.Cluster.members(:reg0)
+      assert [{:reg0, node()}, {:reg00, node()}] == Horde.Cluster.members(:reg0)
     end
 
     test "Supervisor returns same thing after setting members twice" do
@@ -69,9 +69,9 @@ defmodule ClusterTest do
         )
 
       assert :ok = Horde.Cluster.set_members(:sup0, [:sup00, :sup0])
-      assert {:ok, [{:sup0, node()}, {:sup00, node()}]} == Horde.Cluster.members(:sup0)
+      assert [{:sup0, node()}, {:sup00, node()}] == Horde.Cluster.members(:sup0)
       assert :ok = Horde.Cluster.set_members(:sup0, [:sup00, :sup0])
-      assert {:ok, [{:sup0, node()}, {:sup00, node()}]} == Horde.Cluster.members(:sup0)
+      assert [{:sup0, node()}, {:sup00, node()}] == Horde.Cluster.members(:sup0)
     end
   end
 
@@ -151,14 +151,14 @@ defmodule ClusterTest do
 
       assert :ok = Horde.Cluster.set_members(:sup6, [:sup6, :sup7])
 
-      {:ok, members} = Horde.Cluster.members(:sup6)
+      members = Horde.Cluster.members(:sup6)
       assert 2 = Enum.count(members)
 
       Process.sleep(50)
 
       assert :ok = Horde.Cluster.set_members(:sup6, [:sup6])
 
-      {:ok, [sup6: _nonode]} = Horde.Cluster.members(:sup6)
+      [sup6: _nonode] = Horde.Cluster.members(:sup6)
     end
 
     test "can join and unjoin registry with set_members" do
@@ -180,14 +180,14 @@ defmodule ClusterTest do
 
       Process.sleep(200)
 
-      {:ok, members} = Horde.Cluster.members(:reg6)
+      members = Horde.Cluster.members(:reg6)
       assert 2 = Enum.count(members)
 
       assert :ok = Horde.Cluster.set_members(:reg6, [:reg4])
 
       Process.sleep(200)
 
-      {:ok, members} = Horde.Cluster.members(:reg6)
+      members = Horde.Cluster.members(:reg6)
 
       assert 1 = Enum.count(members)
     end
