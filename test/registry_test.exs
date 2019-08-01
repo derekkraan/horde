@@ -67,7 +67,7 @@ defmodule RegistryTest do
     test "can use `init` function to dynamically fetch configuration" do
       {:ok, _} = TestRegistry1.start_link(name: :init_test_1, keys: :unique)
       {:ok, _} = TestRegistry2.start_link(name: :init_test_2, keys: :unique)
-      {:ok, members} = Horde.Cluster.members(:init_test_1)
+      members = Horde.Cluster.members(:init_test_1)
       assert 2 = Enum.count(members)
     end
   end
@@ -79,7 +79,7 @@ defmodule RegistryTest do
 
       Horde.Cluster.set_members(horde1, [horde1, horde2])
       Process.sleep(50)
-      {:ok, members} = Horde.Cluster.members(horde2)
+      members = Horde.Cluster.members(horde2)
       assert 2 = Enum.count(members)
     end
 
@@ -90,7 +90,7 @@ defmodule RegistryTest do
 
       Horde.Cluster.set_members(horde1, [horde1, horde2, horde3])
       Process.sleep(100)
-      {:ok, members} = Horde.Cluster.members(horde2)
+      members = Horde.Cluster.members(horde2)
       assert 3 = Enum.count(members)
     end
   end
