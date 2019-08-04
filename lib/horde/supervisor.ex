@@ -32,18 +32,25 @@ defmodule Horde.Supervisor do
   defmodule MySupervisor do
     use Horde.Supervisor
 
-    def init(options) do
-      {:ok, Keyword.put(options, :members, get_members())}
+    def start_link(init_arg, options \\ []) do
+      Horde.Supervisor.start_link(__MODULE__, init_arg, options)
     end
 
-    defp get_members() do
-      # ...
+    def init(init_arg) do
+      [strategy: :one_for_one, members: members()]
+      |> Keyword.merge(init_arg)
+      |> Horde.Supervisor.init()
+    end
+
+    defp members() do
+      []
     end
   end
   ```
 
   Then you can use `MySupervisor.child_spec/1` and `MySupervisor.start_link/1` in the same way as you'd use `Horde.Supervisor.child_spec/1` and `Horde.Supervisor.start_link/1`.
   """
+  use Supervisor
 
   @type options() :: [option()]
   @type option ::
@@ -60,25 +67,25 @@ defmodule Horde.Supervisor do
   @callback init(options()) :: {:ok, options()}
   @callback child_spec(options :: options()) :: Supervisor.child_spec()
 
-  defmacro __using__(opts) do
-    quote do
+  defmacro __using__(options) do
+    quote location: :keep, bind_quoted: [options: options] do
       @behaviour Horde.Supervisor
+      if Module.get_attribute(__MODULE__, :doc) == nil do
+        @doc """
+        Returns a specification to start this module under a supervisor.
+        See `Supervisor`.
+        """
+      end
 
       @impl true
-      def child_spec(options) do
-        options = Keyword.put_new(options, :id, __MODULE__)
-
+      def child_spec(arg) do
         default = %{
-          id: Keyword.get(options, :id, __MODULE__),
-          start: {__MODULE__, :start_link, [options]},
+          id: __MODULE__,
+          start: {__MODULE__, :start_link, [arg]},
           type: :supervisor
         }
 
-        Supervisor.child_spec(default, unquote(opts))
-      end
-
-      def start_link(options) do
-        Horde.Supervisor.start_link(Keyword.put(options, :init_module, __MODULE__))
+        Supervisor.child_spec(default, unquote(Macro.escape(options)))
       end
 
       defoverridable child_spec: 1
@@ -88,48 +95,132 @@ defmodule Horde.Supervisor do
   @doc """
   See `start_link/2` for options.
   """
-  def child_spec(options \\ []) do
-    supervisor_options =
-      Keyword.take(options, [
-        :name,
-        :strategy,
-        :max_restarts,
-        :max_seconds,
-        :max_children,
-        :extra_arguments,
-        :distribution_strategy,
-        :shutdown,
-        :members,
-        :delta_crdt_options
-      ])
-
-    options = Keyword.take(options, [:id, :restart, :shutdown, :type])
+  def child_spec(options) when is_list(options) do
+    id = Keyword.get(options, :name, Horde.Supervisor)
 
     %{
-      id: Keyword.get(options, :id, __MODULE__),
-      start: {__MODULE__, :start_link, [supervisor_options]},
-      type: :supervisor,
-      shutdown: Keyword.get(options, :shutdown, :infinity)
+      id: id,
+      start: {Horde.Supervisor, :start_link, [options]},
+      type: :supervisor
     }
-    |> Supervisor.child_spec(options)
   end
 
   @doc """
   Works like `DynamicSupervisor.start_link/1`. Extra options are documented here:
   - `:distribution_strategy`, defaults to `Horde.UniformDistribution` but can also be set to `Horde.UniformQuorumDistribution`. `Horde.UniformQuorumDistribution` enforces a quorum and will shut down all processes on a node if it is split from the rest of the cluster.
   """
-  def start_link(options) do
-    root_name = Keyword.get(options, :name, nil)
+  def start_link(options) when is_list(options) do
+    keys = [
+      :extra_arguments,
+      :max_children,
+      :max_seconds,
+      :max_restarts,
+      :strategy,
+      :distribution_strategy,
+      :max_sync_size,
+      :crdt_sync_interval,
+      :crdt_max_sync_size,
+      :crdt_shutdown,
+      :members
+    ]
 
-    if is_nil(root_name) do
-      raise "must specify :name in options, got: #{inspect(options)}"
+    {sup_options, start_options} = Keyword.split(options, keys)
+    start_link(__MODULE__, init(sup_options), start_options)
+  end
+
+  def start_link(mod, init_arg, opts \\ []) do
+    name = Module.concat(opts[:name], "Supervisor")
+    start_options = Keyword.put(opts, :name, name)
+    Supervisor.start_link(__MODULE__, {mod, init_arg, opts[:name]}, start_options)
+end
+
+  @doc """
+  Works like `DynamicSupervisor.init/1`.
+  """
+  def init(options) when is_list(options) do
+    unless strategy = options[:strategy] do
+      raise ArgumentError, "expected :strategy option to be given"
     end
 
-    options = Keyword.put_new(options, :members, [root_name])
+    intensity = Keyword.get(options, :max_restarts, 3)
+    period = Keyword.get(options, :max_seconds, 5)
+    max_children = Keyword.get(options, :max_children, :infinity)
+    extra_arguments = Keyword.get(options, :extra_arguments, [])
+    distribution_strategy = Keyword.get(options, :distribution_strategy, Horde.UniformDistribution)
+    delta_crdt_options = Keyword.get(options, :delta_crdt_options, [])
+    crdt_sync_interval = Keyword.get(options, :crdt_sync_interval, 300)
+    crdt_max_sync_size = Keyword.get(options, :crdt_max_sync_size, :infinite)
+    crdt_shutdown = Keyword.get(options, :crdt_shutdown, 30_000)
+    members = Keyword.get(options, :members, [options[:name]])
 
-    options = Keyword.put(options, :root_name, root_name)
+    flags = [
+      strategy: strategy,
+      intensity: intensity,
+      period: period,
+      max_children: max_children,
+      extra_arguments: extra_arguments,
+      distribution_strategy: distribution_strategy,
+      delta_crdt_options: delta_crdt_options,
+      crdt_sync_interval: crdt_sync_interval,
+      crdt_max_sync_size: crdt_max_sync_size,
+      crdt_shutdown: crdt_shutdown,
+      members: members
+    ]
 
-    Supervisor.start_link(Horde.SupervisorSupervisor, options, name: :"#{root_name}.Supervisor")
+    {:ok, flags}
+  end
+
+  def init({mod, init_arg, name}) do
+    case mod.init(init_arg) do
+      {:ok, options} when is_list(options) ->
+        children = [
+          {DeltaCrdt,
+          [
+            sync_interval: options[:crdt_sync_interval],
+            max_sync_size: options[:crdt_max_sync_size],
+            shutdown: options[:crdt_shutdown],
+            crdt: DeltaCrdt.AWLWWMap,
+            on_diffs: &(on_diffs(&1, name)),
+            name: crdt_name(name)
+          ]},
+          {Horde.SupervisorImpl,
+          [
+            name: name,
+            root_name: name,
+            init_module: mod,
+            strategy: options[:strategy],
+            members: options[:members]
+          ]},
+          {Horde.GracefulShutdownManager,
+          [
+            processes_pid: crdt_name(name),
+            name: graceful_shutdown_manager_name(name)
+          ]},
+          {Horde.DynamicSupervisor,
+          [
+            shutdown: :infinity,
+            graceful_shutdown_manager: graceful_shutdown_manager_name(name),
+            root_name: name,
+            type: :supervisor,
+            name: supervisor_name(name),
+            init_module: mod,
+            strategy: options[:strategy]
+          ]},
+          {Horde.SignalShutdown, [
+            signal_to: [graceful_shutdown_manager_name(name), name]
+          ]},
+          {Horde.SupervisorTelemetryPoller, name}
+        ]
+        |> IO.inspect()
+
+        Supervisor.init(children, strategy: :one_for_all)
+
+      :ignore ->
+        :ignore
+
+      other ->
+        {:stop, {:bad_return, {mod, :init, other}}}
+    end
   end
 
   @doc """
@@ -178,4 +269,18 @@ defmodule Horde.Supervisor do
   end
 
   defp call(supervisor, msg), do: GenServer.call(supervisor, msg, :infinity)
+
+  defp on_diffs(diffs, name) do
+    try do
+      send(name, {:crdt_update, diffs})
+    rescue
+      ArgumentError ->
+        # the process might already been stopped
+        :ok
+    end
+  end
+
+  defp supervisor_name(name), do: Module.concat(name, "ProcessesSupervisor")
+  defp crdt_name(name), do: Module.concat(name, "Crdt")
+  defp graceful_shutdown_manager_name(name), do: Module.concat(name, "GracefulShutdownManager")
 end

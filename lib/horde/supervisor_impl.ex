@@ -38,12 +38,6 @@ defmodule Horde.SupervisorImpl do
 
   @doc false
   def init(options) do
-    {:ok, options} =
-      case Keyword.get(options, :init_module) do
-        nil -> {:ok, options}
-        module -> module.init(options)
-      end
-
     name = Keyword.get(options, :name)
 
     Logger.info("Starting #{inspect(__MODULE__)} with name #{inspect(name)}")
