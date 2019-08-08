@@ -25,7 +25,7 @@ def init(arg) do
   {:ok, state}
 end
 
-def handle_info({:name_conflict, {key, value}, registry, pid}, state) do
+def handle_info({:EXIT, _from, {:name_conflict, {key, value}, registry, pid}}, state) do
   # handle the message, add some logging perhaps, and probably stop the GenServer.
   {:stop, state}
 end
