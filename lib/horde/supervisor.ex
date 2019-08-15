@@ -117,9 +117,8 @@ defmodule Horde.Supervisor do
       :max_restarts,
       :strategy,
       :distribution_strategy,
-      :max_sync_size,
-      :delta_crdt,
-      :members
+      :members,
+      :delta_crdt
     ]
 
     {sup_options, start_options} = Keyword.split(options, keys)
