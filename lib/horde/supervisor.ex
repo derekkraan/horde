@@ -127,7 +127,7 @@ defmodule Horde.Supervisor do
   end
 
   def start_link(mod, init_arg, opts \\ []) do
-    name = Module.concat(opts[:name], "Supervisor")
+    name = :"#{opts[:name]}.Supervisor"
     start_options = Keyword.put(opts, :name, name)
     Supervisor.start_link(__MODULE__, {mod, init_arg, opts[:name]}, start_options)
 end
@@ -277,7 +277,7 @@ end
     end
   end
 
-  defp supervisor_name(name), do: Module.concat(name, "ProcessesSupervisor")
-  defp crdt_name(name), do: Module.concat(name, "Crdt")
-  defp graceful_shutdown_manager_name(name), do: Module.concat(name, "GracefulShutdownManager")
+  defp supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
+  defp crdt_name(name), do: :"#{name}.Crdt"
+  defp graceful_shutdown_manager_name(name), do: :"#{name}.GracefulShutdownManager"
 end
