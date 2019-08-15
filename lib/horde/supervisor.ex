@@ -186,7 +186,7 @@ end
              extra_arguments: flags.extra_arguments,
              strategy: flags.strategy,
              distribution_strategy: flags.distribution_strategy,
-             members: members(flags.members, name) |> IO.inspect()
+             members: members(flags.members, name)
            ]},
           {Horde.GracefulShutdownManager,
            [
