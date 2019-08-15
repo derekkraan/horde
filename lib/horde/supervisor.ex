@@ -145,62 +145,70 @@ end
     max_children = Keyword.get(options, :max_children, :infinity)
     extra_arguments = Keyword.get(options, :extra_arguments, [])
     distribution_strategy = Keyword.get(options, :distribution_strategy, Horde.UniformDistribution)
+    members = Keyword.get(options, :members, [])
     delta_crdt = Keyword.get(options, :delta_crdt, [])
 
-    flags = [
+    flags = %{
       strategy: strategy,
       intensity: intensity,
       period: period,
       max_children: max_children,
       extra_arguments: extra_arguments,
       distribution_strategy: distribution_strategy,
+      members: members,
       delta_crdt_config: delta_crdt_config(delta_crdt)
+    }
 
     {:ok, flags}
   end
 
   def init({mod, init_arg, name}) do
     case mod.init(init_arg) do
-      {:ok, options} when is_list(options) ->
+      {:ok, flags} when is_map(flags) ->
         children = [
           {DeltaCrdt,
-          [
-            sync_interval: options[:crdt_sync_interval],
-            max_sync_size: options[:crdt_max_sync_size],
-            shutdown: options[:crdt_shutdown],
-            crdt: DeltaCrdt.AWLWWMap,
-            on_diffs: &(on_diffs(&1, name)),
-            name: crdt_name(name)
-          ]},
+           [
+             sync_interval: flags.delta_crdt_config.sync_interval,
+             max_sync_size: flags.delta_crdt_config.max_sync_size,
+             shutdown: flags.delta_crdt_config.shutdown,
+             crdt: DeltaCrdt.AWLWWMap,
+             on_diffs: &on_diffs(&1, name),
+             name: crdt_name(name)
+           ]},
           {Horde.SupervisorImpl,
-          [
-            name: name,
-            root_name: name,
-            init_module: mod,
-            strategy: options[:strategy],
-            members: options[:members]
-          ]},
+           [
+             name: name,
+             root_name: name,
+             init_module: mod,
+             strategy: flags.strategy,
+             intensity: flags.intensity,
+             period: flags.period,
+             max_children: flags.max_children,
+             extra_arguments: flags.extra_arguments,
+             strategy: flags.strategy,
+             distribution_strategy: flags.distribution_strategy,
+             members: members(flags.members, name) |> IO.inspect()
+           ]},
           {Horde.GracefulShutdownManager,
-          [
-            processes_pid: crdt_name(name),
-            name: graceful_shutdown_manager_name(name)
-          ]},
+           [
+             processes_pid: crdt_name(name),
+             name: graceful_shutdown_manager_name(name)
+           ]},
           {Horde.ProcessesSupervisor,
-          [
-            shutdown: :infinity,
-            graceful_shutdown_manager: graceful_shutdown_manager_name(name),
-            root_name: name,
-            type: :supervisor,
-            name: supervisor_name(name),
-            init_module: mod,
-            strategy: options[:strategy]
-          ]},
-          {Horde.SignalShutdown, [
-            signal_to: [graceful_shutdown_manager_name(name), name]
-          ]},
+           [
+             shutdown: :infinity,
+             graceful_shutdown_manager: graceful_shutdown_manager_name(name),
+             root_name: name,
+             type: :supervisor,
+             name: supervisor_name(name),
+             strategy: flags.strategy
+           ]},
+          {Horde.SignalShutdown,
+           [
+             signal_to: [graceful_shutdown_manager_name(name), name]
+           ]},
           {Horde.SupervisorTelemetryPoller, name}
         ]
-        |> IO.inspect()
 
         Supervisor.init(children, strategy: :one_for_all)
 
@@ -265,6 +273,14 @@ end
       max_sync_size: Keyword.get(options, :max_sync_size, :infinite),
       shutdown: Keyword.get(options, :shutdown, 30_000)
     }
+  end
+
+  def members(options, name) do
+    if name in options do
+      options
+    else
+      [name | options]
+    end
   end
 
   defp on_diffs(diffs, name) do
