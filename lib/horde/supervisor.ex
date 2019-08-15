@@ -196,7 +196,7 @@ end
             processes_pid: crdt_name(name),
             name: graceful_shutdown_manager_name(name)
           ]},
-          {Horde.DynamicSupervisor,
+          {Horde.ProcessesSupervisor,
           [
             shutdown: :infinity,
             graceful_shutdown_manager: graceful_shutdown_manager_name(name),
