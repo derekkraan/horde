@@ -62,7 +62,7 @@ defmodule Horde.Supervisor do
           | {:distribution_strategy, Horde.DistributionStrategy.t()}
           | {:shutdown, integer()}
           | {:members, [Horde.Cluster.member()]}
-          | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
+          | {:delta_crdt, [DeltaCrdt.crdt_option()]}
 
   @callback init(options()) :: {:ok, options()}
   @callback child_spec(options :: options()) :: Supervisor.child_spec()
@@ -118,9 +118,7 @@ defmodule Horde.Supervisor do
       :strategy,
       :distribution_strategy,
       :max_sync_size,
-      :crdt_sync_interval,
-      :crdt_max_sync_size,
-      :crdt_shutdown,
+      :delta_crdt,
       :members
     ]
 
@@ -147,11 +145,7 @@ end
     max_children = Keyword.get(options, :max_children, :infinity)
     extra_arguments = Keyword.get(options, :extra_arguments, [])
     distribution_strategy = Keyword.get(options, :distribution_strategy, Horde.UniformDistribution)
-    delta_crdt_options = Keyword.get(options, :delta_crdt_options, [])
-    crdt_sync_interval = Keyword.get(options, :crdt_sync_interval, 300)
-    crdt_max_sync_size = Keyword.get(options, :crdt_max_sync_size, :infinite)
-    crdt_shutdown = Keyword.get(options, :crdt_shutdown, 30_000)
-    members = Keyword.get(options, :members, [options[:name]])
+    delta_crdt = Keyword.get(options, :delta_crdt, [])
 
     flags = [
       strategy: strategy,
@@ -160,12 +154,7 @@ end
       max_children: max_children,
       extra_arguments: extra_arguments,
       distribution_strategy: distribution_strategy,
-      delta_crdt_options: delta_crdt_options,
-      crdt_sync_interval: crdt_sync_interval,
-      crdt_max_sync_size: crdt_max_sync_size,
-      crdt_shutdown: crdt_shutdown,
-      members: members
-    ]
+      delta_crdt_config: delta_crdt_config(delta_crdt)
 
     {:ok, flags}
   end
@@ -269,6 +258,14 @@ end
   end
 
   defp call(supervisor, msg), do: GenServer.call(supervisor, msg, :infinity)
+
+  defp delta_crdt_config(options) do
+    %{
+      sync_interval: Keyword.get(options, :sync_interval, 300),
+      max_sync_size: Keyword.get(options, :max_sync_size, :infinite),
+      shutdown: Keyword.get(options, :shutdown, 30_000)
+    }
+  end
 
   defp on_diffs(diffs, name) do
     try do

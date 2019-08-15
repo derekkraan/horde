@@ -12,7 +12,7 @@ defmodule Horde.RegistrySupervisor do
     end
 
     children = [
-      {DeltaCrdt, delta_crdt_options(options)},
+      {DeltaCrdt, delta_crdt(options)},
       {Horde.RegistryImpl,
        [name: root_name] ++ Keyword.take(options, [:meta, :members, :listeners, :init_module])}
     ]
@@ -40,9 +40,9 @@ defmodule Horde.RegistrySupervisor do
     end
   end
 
-  defp delta_crdt_options(options) do
+  defp delta_crdt(options) do
     root_name = get_root_name(options)
-    crdt_options = Keyword.get(options, :delta_crdt_options, [])
+    crdt_options = Keyword.get(options, :delta_crdt, [])
     mutable = [sync_interval: 300, max_sync_size: :infinite, shutdown: 30_000]
 
     immutable = [

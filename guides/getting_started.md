@@ -44,7 +44,7 @@ end
 This is also where you can set additional options for Horde.Supervisor:
 - `:members`, a list of members (if your cluster will have static membership)
 - `:distribution_strategy`, the distribution strategy (`Horde.UniformDistribution` is default)
-- `:delta_crdt_options`, for tuning the delta CRDT that underpins Horde
+- `:delta_crdt`, for tuning the delta CRDT that underpins Horde
 
 See the documentation for `Horde.Supervisor` for more information.
 
@@ -72,7 +72,7 @@ end
 
 There are also some additional options for Horde.Registry:
 - `:members`, a list of members (if your cluster will have static membership)
-- `:delta_crdt_options`, for tuning the delta CRDT that underpins Horde
+- `:delta_crdt`, for tuning the delta CRDT that underpins Horde
 
 See the documentation for `Horde.Registry` for more information.
 

@@ -37,7 +37,7 @@ defmodule Horde.Registry do
   @type option ::
           {:keys, :unique}
           | {:name, registry()}
-          | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
+          | {:delta_crdt, [DeltaCrdt.crdt_option()]}
           | {:members, [Horde.Cluster.member()]}
 
   @callback init(options :: Keyword.t()) :: {:ok, options :: Keyword.t()}
