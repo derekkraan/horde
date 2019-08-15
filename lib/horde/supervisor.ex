@@ -123,7 +123,7 @@ defmodule Horde.Supervisor do
     ]
 
     {sup_options, start_options} = Keyword.split(options, keys)
-    start_link(__MODULE__, init(sup_options), start_options)
+    start_link(Supervisor.Default, init(sup_options), start_options)
   end
 
   def start_link(mod, init_arg, opts \\ []) do
