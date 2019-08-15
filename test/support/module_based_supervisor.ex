@@ -5,6 +5,7 @@ defmodule TestSupervisor1 do
     Horde.Supervisor.start_link(__MODULE__, init_arg, options)
   end
 
+  @impl true
   def init(init_arg) do
     [strategy: :one_for_one, members: [:init_sup_test_1, :init_sup_test_2]]
     |> Keyword.merge(init_arg)
@@ -19,6 +20,7 @@ defmodule TestSupervisor2 do
     Horde.Supervisor.start_link(__MODULE__, init_arg, options)
   end
 
+  @impl true
   def init(init_arg) do
     [strategy: :one_for_one, members: [:init_sup_test_1, :init_sup_test_2]]
     |> Keyword.merge(init_arg)
@@ -33,6 +35,7 @@ defmodule TestSupervisor3 do
     Horde.Supervisor.start_link(__MODULE__, init_arg, options)
   end
 
+  @impl true
   def init(init_arg) do
     [strategy: :one_for_one, members: [:init_sup_test_3, :init_sup_test_3]]
     |> Keyword.merge(init_arg)
