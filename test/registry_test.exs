@@ -22,35 +22,6 @@ defmodule RegistryTest do
     end
   end
 
-  describe ".child_spec/1" do
-    test "overrides defaults from Horde.Registry.child_spec/1" do
-      child_spec = %{
-        id: 123,
-        start:
-          {TestRegistry3, :start_link,
-           [
-             [
-               keys: :unique,
-               custom_id: 123,
-               name: :init_test_1,
-               strategy: :one_for_one
-             ]
-           ]},
-        restart: :transient,
-        type: :supervisor
-      }
-
-      assert ^child_spec =
-               TestRegistry3.child_spec(
-                 custom_id: 123,
-                 name: :init_test_1,
-                 strategy: :one_for_one
-               )
-
-      assert {:ok, _} = Supervisor.start_link([TestRegistry3], strategy: :one_for_one)
-    end
-  end
-
   describe ".start_link/1" do
     test "only keys: :unique is allowed" do
       assert_raise ArgumentError, fn ->
@@ -65,8 +36,8 @@ defmodule RegistryTest do
 
   describe "module-based Registry" do
     test "can use `init` function to dynamically fetch configuration" do
-      {:ok, _} = TestRegistry1.start_link(name: :init_test_1, keys: :unique)
-      {:ok, _} = TestRegistry2.start_link(name: :init_test_2, keys: :unique)
+      {:ok, _} = TestRegistry1.start_link([], name: :init_test_1)
+      {:ok, _} = TestRegistry2.start_link([], name: :init_test_2)
       members = Horde.Cluster.members(:init_test_1)
       assert 2 = Enum.count(members)
     end
