@@ -122,9 +122,15 @@ defmodule Horde.Registry do
 
     listeners = Keyword.get(options, :listeners, [])
     meta = Keyword.get(options, :meta, nil)
-    distribution_strategy = Keyword.get(options, :distribution_strategy, Horde.UniformDistribution)
     members = Keyword.get(options, :members, [])
     delta_crdt = Keyword.get(options, :delta_crdt, [])
+
+    distribution_strategy =
+      Keyword.get(
+        options,
+        :distribution_strategy,
+        Horde.UniformDistribution
+      )
 
     flags = %{
       listeners: listeners,
@@ -136,7 +142,7 @@ defmodule Horde.Registry do
     }
 
     {:ok, flags}
-    end
+  end
 
   def init({mod, init_arg, name}) do
     case mod.init(init_arg) do
@@ -168,7 +174,7 @@ defmodule Horde.Registry do
 
       other ->
         {:stop, {:bad_return, {mod, :init, other}}}
-  end
+    end
   end
 
   @spec stop(Supervisor.supervisor(), reason :: term(), timeout()) :: :ok

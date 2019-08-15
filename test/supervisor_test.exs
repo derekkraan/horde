@@ -396,7 +396,7 @@ defmodule SupervisorTest do
           delta_crdt: [sync_interval: 20]
         )
 
-        Horde.Supervisor.start_child(:horde_transient, child_spec)
+      Horde.Supervisor.start_child(:horde_transient, child_spec)
 
       processes = :sys.get_state(:horde_transient).processes_by_id
       assert Enum.count(processes) == 1

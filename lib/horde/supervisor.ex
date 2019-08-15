@@ -129,7 +129,7 @@ defmodule Horde.Supervisor do
     name = :"#{opts[:name]}.Supervisor"
     start_options = Keyword.put(opts, :name, name)
     Supervisor.start_link(__MODULE__, {mod, init_arg, opts[:name]}, start_options)
-end
+  end
 
   @doc """
   Works like `DynamicSupervisor.init/1`.
@@ -143,9 +143,15 @@ end
     period = Keyword.get(options, :max_seconds, 5)
     max_children = Keyword.get(options, :max_children, :infinity)
     extra_arguments = Keyword.get(options, :extra_arguments, [])
-    distribution_strategy = Keyword.get(options, :distribution_strategy, Horde.UniformDistribution)
     members = Keyword.get(options, :members, [])
     delta_crdt = Keyword.get(options, :delta_crdt, [])
+
+    distribution_strategy =
+      Keyword.get(
+        options,
+        :distribution_strategy,
+        Horde.UniformDistribution
+      )
 
     flags = %{
       strategy: strategy,
