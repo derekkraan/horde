@@ -6,7 +6,7 @@ Horde is comprised of `Horde.Supervisor`, a distributed supervisor, and `Horde.R
 
 Read the [full documentation](https://hexdocs.pm/horde) on hexdocs.pm.
 
-There is an [introductory blog post](https://medium.com/@derek.kraan2/introducing-horde-a-distributed-supervisor-in-elixir-4be3259cc142) and a [getting started guide](https://medium.com/@derek.kraan2/getting-started-with-hordes-distributed-supervisor-registry-f3017208e1ce). You can also find me in the Elixir slack channel #horde.
+There is an [introductory blog post](https://moosecode.nl/blog/introducing_horde) and a [getting started guide](https://moosecode.nl/blog/getting_started_horde). You can also find me in the Elixir slack channel #horde.
 
 Daniel Azuma gave [a great talk](https://www.youtube.com/watch?v=nLApFANtkHs) at ElixirConf US 2018 where he demonstrated Horde's Supervisor and Registry.
 
