@@ -22,11 +22,7 @@ defmodule Horde.UniformQuorumDistribution do
         nil
 
       members ->
-        alive_count =
-          Enum.count(members, fn
-            %{status: :alive} -> true
-            _ -> false
-          end)
+        alive_count = Enum.count(members, &match?(%{status: :alive}, &1))
 
         alive_count / Enum.count(members) > 0.5
     end
@@ -35,13 +31,8 @@ defmodule Horde.UniformQuorumDistribution do
   defp active_nodes(members) do
     nodes =
       members
-      |> Enum.reject(fn
-        %{status: :shutting_down} -> true
-        _ -> false
-      end)
-      |> Enum.sort_by(fn
-        %{name: name} -> name
-      end)
+      |> Enum.reject(&match?(%{status: :shutting_down}, &1))
+      |> Enum.sort_by(& &1.name)
 
     node_count = Enum.count(nodes)
 

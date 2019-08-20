@@ -4,7 +4,7 @@ defmodule Horde.SupervisorSupervisor do
   use Supervisor
 
   def init(options) do
-    root_name = get_root_name(options)
+    root_name = get_root_name!(options)
 
     children = [
       {DeltaCrdt, delta_crdt_options(options)},
@@ -25,7 +25,7 @@ defmodule Horde.SupervisorSupervisor do
   end
 
   defp delta_crdt_options(options) do
-    root_name = get_root_name(options)
+    root_name = get_root_name!(options)
     crdt_options = Keyword.get(options, :delta_crdt_options, [])
     mutable = [sync_interval: 300, max_sync_size: :infinite, shutdown: 30_000]
 
@@ -39,14 +39,14 @@ defmodule Horde.SupervisorSupervisor do
     |> Keyword.merge(immutable)
   end
 
-  defp get_root_name(options) do
-    root_name = Keyword.get(options, :root_name, nil)
+  defp get_root_name!(options) do
+    case Keyword.get(options, :root_name) do
+      nil ->
+        raise "root_name must be specified in options. got: #{inspect(options)}"
 
-    if is_nil(root_name) do
-      raise "root_name must be specified in options. got: #{inspect(options)}"
+      root_name ->
+        root_name
     end
-
-    root_name
   end
 
   defp on_diffs(diffs, root_name) do
