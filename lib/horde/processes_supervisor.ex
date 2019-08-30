@@ -178,7 +178,7 @@
 # From commit number 69cd698535eb4982c83f6bf89016b24902bfd1c2
 # This source has been modified from the original located https://github.com/elixir-lang/elixir/blob/master/lib/elixir/lib/dynamic_supervisor.ex
 
-defmodule Horde.DynamicSupervisor do
+defmodule Horde.ProcessesSupervisor do
   @moduledoc false
 
   @behaviour GenServer
@@ -256,7 +256,7 @@ defmodule Horde.DynamicSupervisor do
 
     %{
       id: id,
-      start: {Horde.DynamicSupervisor, :start_link, [opts]},
+      start: {Horde.ProcessesSupervisor, :start_link, [opts]},
       type: :supervisor
     }
   end
@@ -608,7 +608,7 @@ defmodule Horde.DynamicSupervisor do
             is_tuple(name) -> name
           end
 
-        state = %Horde.DynamicSupervisor{mod: mod, args: init_arg, name: name}
+        state = %Horde.ProcessesSupervisor{mod: mod, args: init_arg, name: name}
 
         case init(state, flags) do
           {:ok, state} -> {:ok, state}
@@ -821,7 +821,7 @@ defmodule Horde.DynamicSupervisor do
   end
 
   def handle_info(msg, state) do
-    :error_logger.error_msg('Horde.DynamicSupervisor received unexpected message: ~p~n', [msg])
+    :error_logger.error_msg('Horde.ProcessesSupervisor received unexpected message: ~p~n', [msg])
     {:noreply, state}
   end
 

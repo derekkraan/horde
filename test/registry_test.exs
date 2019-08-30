@@ -22,42 +22,13 @@ defmodule RegistryTest do
     end
   end
 
-  describe ".child_spec/1" do
-    test "overrides defaults from Horde.Registry.child_spec/1" do
-      child_spec = %{
-        id: 123,
-        start:
-          {TestRegistry3, :start_link,
-           [
-             [
-               keys: :unique,
-               custom_id: 123,
-               name: :init_test_1,
-               strategy: :one_for_one
-             ]
-           ]},
-        restart: :transient,
-        type: :supervisor
-      }
-
-      assert ^child_spec =
-               TestRegistry3.child_spec(
-                 custom_id: 123,
-                 name: :init_test_1,
-                 strategy: :one_for_one
-               )
-
-      assert {:ok, _} = Supervisor.start_link([TestRegistry3], strategy: :one_for_one)
-    end
-  end
-
   describe ".start_link/1" do
     test "only keys: :unique is allowed" do
       assert_raise ArgumentError, fn ->
         Horde.Registry.start_link(
           name: :horde_not_unique,
           keys: :duplicate,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
       end
     end
@@ -65,8 +36,8 @@ defmodule RegistryTest do
 
   describe "module-based Registry" do
     test "can use `init` function to dynamically fetch configuration" do
-      {:ok, _} = TestRegistry1.start_link(name: :init_test_1, keys: :unique)
-      {:ok, _} = TestRegistry2.start_link(name: :init_test_2, keys: :unique)
+      {:ok, _} = TestRegistry1.start_link([], name: :init_test_1)
+      {:ok, _} = TestRegistry2.start_link([], name: :init_test_2)
       members = Horde.Cluster.members(:init_test_1)
       assert 2 = Enum.count(members)
     end
@@ -339,14 +310,14 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: horde1,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       {:ok, _} =
         Horde.Registry.start_link(
           name: horde2,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       Horde.Cluster.set_members(horde1, [horde1, horde2])
@@ -513,7 +484,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: :match_horde,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       Horde.Registry.register(:match_horde, "foo", "foo")
@@ -542,7 +513,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: :update_value_horde,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       Horde.Registry.register(:update_value_horde, "foo", "foo")
@@ -562,7 +533,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: :update_value_horde2,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       Task.start_link(fn ->
@@ -585,7 +556,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: horde,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       Horde.Registry.register(horde, :carmen, "foo")
@@ -600,7 +571,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: horde,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       Horde.Registry.register(horde, :carmen, "bar")
@@ -618,7 +589,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: horde,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       Horde.Registry.register(horde, :carmen, "carmen")
@@ -635,7 +606,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: horde,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       spawn(fn ->
@@ -657,7 +628,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: horde,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       spawn(fn ->
@@ -680,7 +651,7 @@ defmodule RegistryTest do
           name: registry,
           keys: :unique,
           meta: [meta_key: :meta_value],
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       assert {:ok, :meta_value} = Horde.Registry.meta(registry, :meta_key)
@@ -693,7 +664,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: registry,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       :ok = Horde.Registry.put_meta(registry, :custom_key, "custom_value")
@@ -708,7 +679,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: registry,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       :ok = Horde.Registry.put_meta(registry, :custom_key, "custom_value")
@@ -724,14 +695,14 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: r1,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       {:ok, _horde} =
         Horde.Registry.start_link(
           name: r2,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       Horde.Cluster.set_members(r1, [r1, r2])
@@ -749,7 +720,7 @@ defmodule RegistryTest do
         Horde.Registry.start_link(
           name: registry,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       %{pid: pid} =
@@ -777,14 +748,14 @@ defmodule RegistryTest do
           name: reg1,
           keys: :unique,
           members: [reg1, reg2],
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       {:ok, _} =
         Horde.Registry.start_link(
           name: reg2,
           keys: :unique,
-          delta_crdt_options: [sync_interval: 20]
+          delta_crdt: [sync_interval: 20]
         )
 
       %{pid: pid} =
@@ -888,7 +859,7 @@ defmodule RegistryTest do
     horde = :"h#{-:erlang.monotonic_time()}"
 
     {:ok, _pid} =
-      Horde.Registry.start_link([name: horde, delta_crdt_options: [sync_interval: 20]] ++ opts)
+      Horde.Registry.start_link([name: horde, delta_crdt: [sync_interval: 20]] ++ opts)
 
     horde
   end

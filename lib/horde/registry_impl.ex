@@ -39,12 +39,6 @@ defmodule Horde.RegistryImpl do
   ### GenServer callbacks
 
   def init(opts) do
-    {:ok, opts} =
-      case Keyword.get(opts, :init_module) do
-        nil -> {:ok, opts}
-        module -> module.init(opts)
-      end
-
     Process.flag(:trap_exit, true)
 
     name = Keyword.get(opts, :name)

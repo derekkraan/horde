@@ -33,66 +33,51 @@ defmodule Horde.Registry do
 
   Then you can use `MyRegistry.child_spec/1` and `MyRegistry.start_link/1` in the same way as you'd use `Horde.Registry.child_spec/1` and `Horde.Registry.start_link/1`.
   """
+  use Supervisor
 
   @type option ::
           {:keys, :unique}
-          | {:name, registry()}
-          | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
+          | {:name, atom()}
+          | {:delta_crdt, [DeltaCrdt.crdt_option()]}
           | {:members, [Horde.Cluster.member()]}
 
   @callback init(options :: Keyword.t()) :: {:ok, options :: Keyword.t()}
   @callback child_spec(options :: [option()]) :: Supervisor.child_spec()
 
-  defmacro __using__(opts) do
-    quote location: :keep, bind_quoted: [opts: opts] do
+  defmacro __using__(options) do
+    quote location: :keep, bind_quoted: [options: options] do
       @behaviour Horde.Registry
+      if Module.get_attribute(__MODULE__, :doc) == nil do
+        @doc """
+        Returns a specification to start this module under a supervisor.
+        See `Supervisor`.
+        """
+      end
 
       @impl true
-      def child_spec(options) do
-        options = Keyword.put_new(options, :id, __MODULE__)
-
+      def child_spec(arg) do
         default = %{
-          id: Keyword.get(options, :id, __MODULE__),
-          start: {__MODULE__, :start_link, [options]},
+          id: __MODULE__,
+          start: {__MODULE__, :start_link, [arg]},
           type: :supervisor
         }
 
-        Supervisor.child_spec(default, unquote(opts))
-      end
-
-      def start_link(options) do
-        Horde.Registry.start_link(Keyword.put(options, :init_module, __MODULE__))
+        Supervisor.child_spec(default, unquote(Macro.escape(options)))
       end
 
       defoverridable child_spec: 1
     end
   end
 
-  @type registry :: atom()
-
   @doc """
-  Child spec to enable easy inclusion into a supervisor.
-
-  Example:
-  ```elixir
-  supervise([
-    Horde.Registry
-  ])
-  ```
-
-  Example:
-  ```elixir
-  supervise([
-    {Horde.Registry, [name: MyApp.GlobalRegistry]}
-  ])
-  ```
+  See `start_link/2` for options.
   """
-  def child_spec(options \\ []) do
-    options = Keyword.put_new(options, :id, __MODULE__)
+  def child_spec(options) when is_list(options) do
+    id = Keyword.get(options, :name, Horde.Registry)
 
     %{
-      id: Keyword.get(options, :id, __MODULE__),
-      start: {__MODULE__, :start_link, [options]},
+      id: id,
+      start: {Horde.Registry, :start_link, [options]},
       type: :supervisor
     }
   end
@@ -102,23 +87,94 @@ defmodule Horde.Registry do
 
   Does not accept `[partitions: x]`, nor `[keys: :duplicate]` as options.
   """
-  def start_link(options) do
-    root_name = Keyword.get(options, :name)
+  def start_link(options) when is_list(options) do
+    keys = [
+      :listeners,
+      :meta,
+      :keys,
+      :distribution_strategy,
+      :members,
+      :delta_crdt
+    ]
+
+    {sup_options, start_options} = Keyword.split(options, keys)
+    start_link(Supervisor.Default, init(sup_options), start_options)
+  end
+
+  def start_link(mod, init_arg, opts \\ []) do
+    name = :"#{opts[:name]}.Supervisor"
+    start_options = Keyword.put(opts, :name, name)
+    Supervisor.start_link(__MODULE__, {mod, init_arg, opts[:name]}, start_options)
+  end
+
+  @doc """
+  Works like `Registry.init/1`.
+  """
+  def init(options) when is_list(options) do
+    unless keys = options[:keys] do
+      raise ArgumentError, "expected :keys option to be given"
+    end
 
     case Keyword.get(options, :keys) do
-      :unique -> nil
-      _other -> raise ArgumentError, "Only `keys: :unique` is supported."
+      :unique -> :ok
+      _ -> raise ArgumentError, "Only `keys: :unique` is supported."
     end
 
-    if is_nil(root_name) do
-      raise "must specify :name in options, got: #{inspect(options)}"
+    listeners = Keyword.get(options, :listeners, [])
+    meta = Keyword.get(options, :meta, nil)
+    members = Keyword.get(options, :members, [])
+    delta_crdt = Keyword.get(options, :delta_crdt, [])
+
+    distribution_strategy =
+      Keyword.get(
+        options,
+        :distribution_strategy,
+        Horde.UniformDistribution
+      )
+
+    flags = %{
+      listeners: listeners,
+      meta: meta,
+      keys: keys,
+      distribution_strategy: distribution_strategy,
+      members: members,
+      delta_crdt_config: delta_crdt_config(delta_crdt)
+    }
+
+    {:ok, flags}
+  end
+
+  def init({mod, init_arg, name}) do
+    case mod.init(init_arg) do
+      {:ok, flags} when is_map(flags) ->
+        children = [
+          {DeltaCrdt,
+           [
+             sync_interval: flags.delta_crdt_config.sync_interval,
+             max_sync_size: flags.delta_crdt_config.max_sync_size,
+             shutdown: flags.delta_crdt_config.shutdown,
+             crdt: DeltaCrdt.AWLWWMap,
+             on_diffs: &on_diffs(&1, name),
+             name: crdt_name(name)
+           ]},
+          {Horde.RegistryImpl,
+           [
+             name: name,
+             listeners: flags.listeners,
+             meta: flags.meta,
+             keys: flags.keys,
+             members: members(flags.members, name)
+           ]}
+        ]
+
+        Supervisor.init(children, strategy: :one_for_all)
+
+      :ignore ->
+        :ignore
+
+      other ->
+        {:stop, {:bad_return, {mod, :init, other}}}
     end
-
-    options = Keyword.put(options, :root_name, root_name)
-
-    options = Keyword.put_new(options, :members, [root_name])
-
-    Supervisor.start_link(Horde.RegistrySupervisor, options, name: :"#{root_name}.Supervisor")
   end
 
   @spec stop(Supervisor.supervisor(), reason :: term(), timeout()) :: :ok
@@ -356,6 +412,34 @@ defmodule Horde.Registry do
       _ -> true
     end
   end
+
+  defp delta_crdt_config(options) do
+    %{
+      sync_interval: Keyword.get(options, :sync_interval, 300),
+      max_sync_size: Keyword.get(options, :max_sync_size, :infinite),
+      shutdown: Keyword.get(options, :shutdown, 30_000)
+    }
+  end
+
+  def members(options, name) do
+    if name in options do
+      options
+    else
+      [name | options]
+    end
+  end
+
+  defp on_diffs(diffs, name) do
+    try do
+      Kernel.send(name, {:crdt_update, diffs})
+    rescue
+      ArgumentError ->
+        # the process might already been stopped
+        :ok
+    end
+  end
+
+  defp crdt_name(name), do: :"#{name}.Crdt"
 
   defp registry_ets_table(registry), do: registry
   defp pids_ets_table(registry), do: :"pids_#{registry}"
