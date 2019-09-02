@@ -6,15 +6,14 @@ defmodule Horde.UniformDistribution do
   """
 
   def choose_node(identifier, members) do
-    members =
-      filter_members(members)
-      |> Map.new(fn member -> {member.name, member} end)
-
-    case Enum.count(members) do
-      0 ->
+    members
+    |> Enum.filter(&match?(%{status: :alive}, &1))
+    |> Map.new(fn member -> {member.name, member} end)
+    |> case do
+      members when map_size(members) == 0 ->
         {:error, :no_alive_nodes}
 
-      _not_zero ->
+      members ->
         chosen_member =
           HashRing.new()
           |> HashRing.add_nodes(Map.keys(members))
@@ -22,13 +21,6 @@ defmodule Horde.UniformDistribution do
 
         {:ok, Map.get(members, chosen_member)}
     end
-  end
-
-  defp filter_members(members) do
-    Enum.filter(members, fn
-      %{status: :alive} -> true
-      _ -> false
-    end)
   end
 
   def has_quorum?(_members), do: true
