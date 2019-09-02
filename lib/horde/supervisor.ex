@@ -32,18 +32,25 @@ defmodule Horde.Supervisor do
   defmodule MySupervisor do
     use Horde.Supervisor
 
-    def init(options) do
-      {:ok, Keyword.put(options, :members, get_members())}
+    def start_link(init_arg, options \\ []) do
+      Horde.Supervisor.start_link(__MODULE__, init_arg, options)
     end
 
-    defp get_members() do
-      # ...
+    def init(init_arg) do
+      [strategy: :one_for_one, members: members()]
+      |> Keyword.merge(init_arg)
+      |> Horde.Supervisor.init()
+    end
+
+    defp members() do
+      []
     end
   end
   ```
 
   Then you can use `MySupervisor.child_spec/1` and `MySupervisor.start_link/1` in the same way as you'd use `Horde.Supervisor.child_spec/1` and `Horde.Supervisor.start_link/1`.
   """
+  use Supervisor
 
   @type options() :: [option()]
   @type option ::
@@ -55,30 +62,30 @@ defmodule Horde.Supervisor do
           | {:distribution_strategy, Horde.DistributionStrategy.t()}
           | {:shutdown, integer()}
           | {:members, [Horde.Cluster.member()]}
-          | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
+          | {:delta_crdt, [DeltaCrdt.crdt_option()]}
 
   @callback init(options()) :: {:ok, options()}
   @callback child_spec(options :: options()) :: Supervisor.child_spec()
 
-  defmacro __using__(opts) do
-    quote do
+  defmacro __using__(options) do
+    quote location: :keep, bind_quoted: [options: options] do
       @behaviour Horde.Supervisor
+      if Module.get_attribute(__MODULE__, :doc) == nil do
+        @doc """
+        Returns a specification to start this module under a supervisor.
+        See `Supervisor`.
+        """
+      end
 
       @impl true
-      def child_spec(options) do
-        options = Keyword.put_new(options, :id, __MODULE__)
-
+      def child_spec(arg) do
         default = %{
-          id: Keyword.get(options, :id, __MODULE__),
-          start: {__MODULE__, :start_link, [options]},
+          id: __MODULE__,
+          start: {__MODULE__, :start_link, [arg]},
           type: :supervisor
         }
 
-        Supervisor.child_spec(default, unquote(opts))
-      end
-
-      def start_link(options) do
-        Horde.Supervisor.start_link(Keyword.put(options, :init_module, __MODULE__))
+        Supervisor.child_spec(default, unquote(Macro.escape(options)))
       end
 
       defoverridable child_spec: 1
@@ -88,48 +95,134 @@ defmodule Horde.Supervisor do
   @doc """
   See `start_link/2` for options.
   """
-  def child_spec(options \\ []) do
-    supervisor_options =
-      Keyword.take(options, [
-        :name,
-        :strategy,
-        :max_restarts,
-        :max_seconds,
-        :max_children,
-        :extra_arguments,
-        :distribution_strategy,
-        :shutdown,
-        :members,
-        :delta_crdt_options
-      ])
-
-    options = Keyword.take(options, [:id, :restart, :shutdown, :type])
+  def child_spec(options) when is_list(options) do
+    id = Keyword.get(options, :name, Horde.Supervisor)
 
     %{
-      id: Keyword.get(options, :id, __MODULE__),
-      start: {__MODULE__, :start_link, [supervisor_options]},
-      type: :supervisor,
-      shutdown: Keyword.get(options, :shutdown, :infinity)
+      id: id,
+      start: {Horde.Supervisor, :start_link, [options]},
+      type: :supervisor
     }
-    |> Supervisor.child_spec(options)
   end
 
   @doc """
   Works like `DynamicSupervisor.start_link/1`. Extra options are documented here:
   - `:distribution_strategy`, defaults to `Horde.UniformDistribution` but can also be set to `Horde.UniformQuorumDistribution`. `Horde.UniformQuorumDistribution` enforces a quorum and will shut down all processes on a node if it is split from the rest of the cluster.
   """
-  def start_link(options) do
-    root_name = Keyword.get(options, :name, nil)
+  def start_link(options) when is_list(options) do
+    keys = [
+      :extra_arguments,
+      :max_children,
+      :max_seconds,
+      :max_restarts,
+      :strategy,
+      :distribution_strategy,
+      :members,
+      :delta_crdt
+    ]
 
-    if is_nil(root_name) do
-      raise "must specify :name in options, got: #{inspect(options)}"
+    {sup_options, start_options} = Keyword.split(options, keys)
+    start_link(Supervisor.Default, init(sup_options), start_options)
+  end
+
+  def start_link(mod, init_arg, opts \\ []) do
+    name = :"#{opts[:name]}.Supervisor"
+    start_options = Keyword.put(opts, :name, name)
+    Supervisor.start_link(__MODULE__, {mod, init_arg, opts[:name]}, start_options)
+  end
+
+  @doc """
+  Works like `DynamicSupervisor.init/1`.
+  """
+  def init(options) when is_list(options) do
+    unless strategy = options[:strategy] do
+      raise ArgumentError, "expected :strategy option to be given"
     end
 
-    options = Keyword.put_new(options, :members, [root_name])
+    intensity = Keyword.get(options, :max_restarts, 3)
+    period = Keyword.get(options, :max_seconds, 5)
+    max_children = Keyword.get(options, :max_children, :infinity)
+    extra_arguments = Keyword.get(options, :extra_arguments, [])
+    members = Keyword.get(options, :members, [])
+    delta_crdt = Keyword.get(options, :delta_crdt, [])
 
-    options = Keyword.put(options, :root_name, root_name)
+    distribution_strategy =
+      Keyword.get(
+        options,
+        :distribution_strategy,
+        Horde.UniformDistribution
+      )
 
-    Supervisor.start_link(Horde.SupervisorSupervisor, options, name: :"#{root_name}.Supervisor")
+    flags = %{
+      strategy: strategy,
+      intensity: intensity,
+      period: period,
+      max_children: max_children,
+      extra_arguments: extra_arguments,
+      distribution_strategy: distribution_strategy,
+      members: members,
+      delta_crdt_config: delta_crdt_config(delta_crdt)
+    }
+
+    {:ok, flags}
+  end
+
+  def init({mod, init_arg, name}) do
+    case mod.init(init_arg) do
+      {:ok, flags} when is_map(flags) ->
+        children = [
+          {DeltaCrdt,
+           [
+             sync_interval: flags.delta_crdt_config.sync_interval,
+             max_sync_size: flags.delta_crdt_config.max_sync_size,
+             shutdown: flags.delta_crdt_config.shutdown,
+             crdt: DeltaCrdt.AWLWWMap,
+             on_diffs: &on_diffs(&1, name),
+             name: crdt_name(name)
+           ]},
+          {Horde.SupervisorImpl,
+           [
+             name: name,
+             root_name: name,
+             init_module: mod,
+             strategy: flags.strategy,
+             intensity: flags.intensity,
+             period: flags.period,
+             max_children: flags.max_children,
+             extra_arguments: flags.extra_arguments,
+             strategy: flags.strategy,
+             distribution_strategy: flags.distribution_strategy,
+             members: members(flags.members, name)
+           ]},
+          {Horde.GracefulShutdownManager,
+           [
+             processes_pid: crdt_name(name),
+             name: graceful_shutdown_manager_name(name)
+           ]},
+          {Horde.ProcessesSupervisor,
+           [
+             shutdown: :infinity,
+             graceful_shutdown_manager: graceful_shutdown_manager_name(name),
+             root_name: name,
+             type: :supervisor,
+             name: supervisor_name(name),
+             strategy: flags.strategy
+           ]},
+          {Horde.SignalShutdown,
+           [
+             signal_to: [graceful_shutdown_manager_name(name), name]
+           ]},
+          {Horde.SupervisorTelemetryPoller, name}
+        ]
+
+        Supervisor.init(children, strategy: :one_for_all)
+
+      :ignore ->
+        :ignore
+
+      other ->
+        {:stop, {:bad_return, {mod, :init, other}}}
+    end
   end
 
   @doc """
@@ -178,4 +271,34 @@ defmodule Horde.Supervisor do
   end
 
   defp call(supervisor, msg), do: GenServer.call(supervisor, msg, :infinity)
+
+  defp delta_crdt_config(options) do
+    %{
+      sync_interval: Keyword.get(options, :sync_interval, 300),
+      max_sync_size: Keyword.get(options, :max_sync_size, :infinite),
+      shutdown: Keyword.get(options, :shutdown, 30_000)
+    }
+  end
+
+  def members(options, name) do
+    if name in options do
+      options
+    else
+      [name | options]
+    end
+  end
+
+  defp on_diffs(diffs, name) do
+    try do
+      send(name, {:crdt_update, diffs})
+    rescue
+      ArgumentError ->
+        # the process might already been stopped
+        :ok
+    end
+  end
+
+  defp supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
+  defp crdt_name(name), do: :"#{name}.Crdt"
+  defp graceful_shutdown_manager_name(name), do: :"#{name}.GracefulShutdownManager"
 end
