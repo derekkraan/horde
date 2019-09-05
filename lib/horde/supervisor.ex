@@ -62,7 +62,7 @@ defmodule Horde.Supervisor do
           | {:distribution_strategy, Horde.DistributionStrategy.t()}
           | {:shutdown, integer()}
           | {:members, [Horde.Cluster.member()]}
-          | {:delta_crdt, [DeltaCrdt.crdt_option()]}
+          | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
 
   @callback init(options()) :: {:ok, options()}
   @callback child_spec(options :: options()) :: Supervisor.child_spec()
@@ -118,7 +118,7 @@ defmodule Horde.Supervisor do
       :strategy,
       :distribution_strategy,
       :members,
-      :delta_crdt
+      :delta_crdt_options
     ]
 
     {sup_options, start_options} = Keyword.split(options, keys)
@@ -144,7 +144,7 @@ defmodule Horde.Supervisor do
     max_children = Keyword.get(options, :max_children, :infinity)
     extra_arguments = Keyword.get(options, :extra_arguments, [])
     members = Keyword.get(options, :members, [])
-    delta_crdt = Keyword.get(options, :delta_crdt, [])
+    delta_crdt_options = Keyword.get(options, :delta_crdt_options, [])
 
     distribution_strategy =
       Keyword.get(
@@ -161,7 +161,7 @@ defmodule Horde.Supervisor do
       extra_arguments: extra_arguments,
       distribution_strategy: distribution_strategy,
       members: members,
-      delta_crdt_config: delta_crdt_config(delta_crdt)
+      delta_crdt_options: delta_crdt_options(delta_crdt_options)
     }
 
     {:ok, flags}
@@ -173,9 +173,9 @@ defmodule Horde.Supervisor do
         children = [
           {DeltaCrdt,
            [
-             sync_interval: flags.delta_crdt_config.sync_interval,
-             max_sync_size: flags.delta_crdt_config.max_sync_size,
-             shutdown: flags.delta_crdt_config.shutdown,
+             sync_interval: flags.delta_crdt_options.sync_interval,
+             max_sync_size: flags.delta_crdt_options.max_sync_size,
+             shutdown: flags.delta_crdt_options.shutdown,
              crdt: DeltaCrdt.AWLWWMap,
              on_diffs: &on_diffs(&1, name),
              name: crdt_name(name)
@@ -272,7 +272,7 @@ defmodule Horde.Supervisor do
 
   defp call(supervisor, msg), do: GenServer.call(supervisor, msg, :infinity)
 
-  defp delta_crdt_config(options) do
+  defp delta_crdt_options(options) do
     %{
       sync_interval: Keyword.get(options, :sync_interval, 300),
       max_sync_size: Keyword.get(options, :max_sync_size, :infinite),
