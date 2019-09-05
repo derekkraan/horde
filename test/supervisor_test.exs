@@ -11,21 +11,21 @@ defmodule SupervisorTest do
       Horde.Supervisor.start_link(
         name: n1,
         strategy: :one_for_one,
-        delta_crdt: [sync_interval: 20]
+        delta_crdt_options: [sync_interval: 20]
       )
 
     {:ok, _} =
       Horde.Supervisor.start_link(
         name: n2,
         strategy: :one_for_one,
-        delta_crdt: [sync_interval: 20]
+        delta_crdt_options: [sync_interval: 20]
       )
 
     {:ok, _} =
       Horde.Supervisor.start_link(
         name: n3,
         strategy: :one_for_one,
-        delta_crdt: [sync_interval: 20]
+        delta_crdt_options: [sync_interval: 20]
       )
 
     Horde.Cluster.set_members(n1, [n1, n2, n3])
@@ -282,14 +282,14 @@ defmodule SupervisorTest do
         Horde.Supervisor.start_link(
           name: :horde_1_graceful,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 20]
+          delta_crdt_options: [sync_interval: 20]
         )
 
       {:ok, _} =
         Horde.Supervisor.start_link(
           name: :horde_2_graceful,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 20]
+          delta_crdt_options: [sync_interval: 20]
         )
 
       defmodule TerminationDelay do
@@ -355,7 +355,7 @@ defmodule SupervisorTest do
         Horde.Supervisor.start_link(
           name: :horde_transient,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 20]
+          delta_crdt_options: [sync_interval: 20]
         )
 
       Horde.Supervisor.start_child(:horde_transient, child_spec)
@@ -374,7 +374,7 @@ defmodule SupervisorTest do
         Horde.Supervisor.start_link(
           name: :horde_transient,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 20]
+          delta_crdt_options: [sync_interval: 20]
         )
 
       Horde.Supervisor.start_child(:horde_transient, child_spec)
@@ -393,7 +393,7 @@ defmodule SupervisorTest do
         Horde.Supervisor.start_link(
           name: :horde_transient,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 20]
+          delta_crdt_options: [sync_interval: 20]
         )
 
       Horde.Supervisor.start_child(:horde_transient, child_spec)
@@ -447,7 +447,7 @@ defmodule SupervisorTest do
         strategy: :one_for_one,
         distribution_strategy: Horde.UniformQuorumDistribution,
         members: [:horde_quorum_1, :horde_quorum_2, :horde_quorum_3],
-        delta_crdt: [sync_interval: 20]
+        delta_crdt_options: [sync_interval: 20]
       )
 
     catch_exit(Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 100))
@@ -458,7 +458,7 @@ defmodule SupervisorTest do
         strategy: :one_for_one,
         distribution_strategy: Horde.UniformQuorumDistribution,
         members: [:horde_quorum_1, :horde_quorum_2, :horde_quorum_3],
-        delta_crdt: [sync_interval: 20]
+        delta_crdt_options: [sync_interval: 20]
       )
 
     assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 1000)
