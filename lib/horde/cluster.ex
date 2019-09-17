@@ -26,7 +26,7 @@ defmodule Horde.Cluster do
   @doc """
   Get the members (nodes) of the horde
   """
-  @spec members(horde :: GenServer.server()) :: [member()]
+  @spec members(horde :: GenServer.server()) :: {:ok, [member()]}
   def members(horde) do
     GenServer.call(horde, :members)
   end
