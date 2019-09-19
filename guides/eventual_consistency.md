@@ -2,9 +2,9 @@
 
 Horde uses a CRDT to sync data between nodes. This means that two nodes in your cluster can have a different view of the data, with differences being merged as the nodes sync with each other. We call this "eventually consistent", and the result is that we have to deal with merge conflicts and race conditions. Horde's CRDT automatically resolves conflicts, but we still have to deal with the after-effects.
 
-## Horde.Supervisor merge conflict
+## Horde.DynamicSupervisor merge conflict
 
-It is unlikely, but possible, that Horde.Supervisor will start the same process on two separate nodes.
+It is unlikely, but possible, that Horde.DynamicSupervisor will start the same process on two separate nodes.
 
 This can happen:
 - if using a custom distribution strategy, or

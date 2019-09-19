@@ -8,7 +8,7 @@ defmodule HelloWorld.Application do
     children = [
       {Horde.Registry,
        [name: HelloWorld.HelloRegistry, keys: :unique, members: registry_members()]},
-      {Horde.Supervisor,
+      {Horde.DynamicSupervisor,
        [
          name: HelloWorld.HelloSupervisor,
          strategy: :one_for_one,
@@ -25,8 +25,8 @@ defmodule HelloWorld.Application do
           {Task, :start_link,
            [
              fn ->
-               Horde.Supervisor.wait_for_quorum(HelloWorld.HelloSupervisor, 30_000)
-               Horde.Supervisor.start_child(HelloWorld.HelloSupervisor, HelloWorld.SayHello)
+               Horde.DynamicSupervisor.wait_for_quorum(HelloWorld.HelloSupervisor, 30_000)
+               Horde.DynamicSupervisor.start_child(HelloWorld.HelloSupervisor, HelloWorld.SayHello)
              end
            ]}
       }

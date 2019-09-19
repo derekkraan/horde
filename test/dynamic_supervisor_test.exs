@@ -1,4 +1,4 @@
-defmodule SupervisorTest do
+defmodule DynamicSupervisorTest do
   require Logger
   use ExUnit.Case
 
@@ -8,21 +8,21 @@ defmodule SupervisorTest do
     n3 = :"horde_#{:rand.uniform(100_000_000)}"
 
     {:ok, horde_1_sup_pid} =
-      Horde.Supervisor.start_link(
+      Horde.DynamicSupervisor.start_link(
         name: n1,
         strategy: :one_for_one,
         delta_crdt_options: [sync_interval: 20]
       )
 
     {:ok, _} =
-      Horde.Supervisor.start_link(
+      Horde.DynamicSupervisor.start_link(
         name: n2,
         strategy: :one_for_one,
         delta_crdt_options: [sync_interval: 20]
       )
 
     {:ok, _} =
-      Horde.Supervisor.start_link(
+      Horde.DynamicSupervisor.start_link(
         name: n3,
         strategy: :one_for_one,
         delta_crdt_options: [sync_interval: 20]
@@ -66,7 +66,7 @@ defmodule SupervisorTest do
 
     Enum.each(1..number, fn x ->
       Enum.random([context.horde_1, context.horde_2, context.horde_3])
-      |> Horde.Supervisor.start_child(%{
+      |> Horde.DynamicSupervisor.start_child(%{
         id: x,
         restart: :transient,
         start: {Task, :start_link, [fn -> send(test_pid, x) end]}
@@ -82,7 +82,7 @@ defmodule SupervisorTest do
     end)
   end
 
-  describe "module-based Supervisor" do
+  describe "module-based DynamicSupervisor" do
     test "can use `init` function to dynamically fetch configuration" do
       {:ok, _} = TestSupervisor1.start_link([], name: :init_sup_test_1)
       {:ok, _} = TestSupervisor2.start_link([], name: :init_sup_test_2)
@@ -90,7 +90,7 @@ defmodule SupervisorTest do
       assert 2 = Enum.count(members)
     end
 
-    test "can use `child_spec` function to override defaults from Horde.Supervisor" do
+    test "can use `child_spec` function to override defaults from Horde.DynamicSupervisor" do
       child_spec = %{
         id: 123,
         start:
@@ -117,30 +117,32 @@ defmodule SupervisorTest do
 
   describe ".start_child/2" do
     test "starts a process", context do
-      assert {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      assert {:ok, pid} = Horde.DynamicSupervisor.start_child(context.horde_1, context.task_def)
 
       assert_receive {:process_started, ^pid}
     end
 
     test "does not return error when starting same process twice", context do
-      assert {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      assert {:ok, pid} = Horde.DynamicSupervisor.start_child(context.horde_1, context.task_def)
 
       assert is_pid(pid)
 
-      assert {:ok, other_pid} = Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      assert {:ok, other_pid} =
+               Horde.DynamicSupervisor.start_child(context.horde_1, context.task_def)
+
       assert pid != other_pid
     end
 
     test "starts a process with id that doesn't implement String.Chars", context do
       task_def = %{context.task_def | id: {:proc2, "string"}}
 
-      assert {:ok, pid} = Horde.Supervisor.start_child(context.horde_1, task_def)
+      assert {:ok, pid} = Horde.DynamicSupervisor.start_child(context.horde_1, task_def)
 
       assert_receive {:process_started, ^pid}
     end
 
     test "failed process is restarted", context do
-      Horde.Supervisor.start_child(context.horde_1, context.task_def)
+      Horde.DynamicSupervisor.start_child(context.horde_1, context.task_def)
       assert_receive {:process_started, pid}
       Process.exit(pid, :kill)
       assert_receive {:process_started, _pid}
@@ -166,7 +168,7 @@ defmodule SupervisorTest do
       end
 
       Enum.each(1..10, fn x ->
-        Horde.Supervisor.start_child(
+        Horde.DynamicSupervisor.start_child(
           context.horde_1,
           make_task.(x)
         )
@@ -186,11 +188,11 @@ defmodule SupervisorTest do
 
   describe ".which_children/1" do
     test "collects results from all horde nodes", context do
-      Horde.Supervisor.start_child(context.horde_1, %{context.task_def | id: :proc_1})
-      Horde.Supervisor.start_child(context.horde_1, %{context.task_def | id: :proc_2})
+      Horde.DynamicSupervisor.start_child(context.horde_1, %{context.task_def | id: :proc_1})
+      Horde.DynamicSupervisor.start_child(context.horde_1, %{context.task_def | id: :proc_2})
 
       assert [{:undefined, _, _, _}, {:undefined, _, _, _}] =
-               Horde.Supervisor.which_children(context.horde_1)
+               Horde.DynamicSupervisor.which_children(context.horde_1)
     end
   end
 
@@ -198,7 +200,7 @@ defmodule SupervisorTest do
     test "counts children", context do
       1..10
       |> Enum.each(fn x ->
-        Horde.Supervisor.start_child(
+        Horde.DynamicSupervisor.start_child(
           context.horde_1,
           Map.put(context.task_def, :id, :"proc_#{x}")
         )
@@ -206,21 +208,21 @@ defmodule SupervisorTest do
 
       Process.sleep(200)
 
-      assert %{workers: 10} = Horde.Supervisor.count_children(context.horde_1)
+      assert %{workers: 10} = Horde.DynamicSupervisor.count_children(context.horde_1)
     end
   end
 
   describe ".terminate_child/2" do
     test "terminates the child", context do
       {:ok, pid} =
-        Horde.Supervisor.start_child(
+        Horde.DynamicSupervisor.start_child(
           context.horde_1,
           Map.put(context.task_def, :id, "kill_me")
         )
 
       Process.sleep(200)
 
-      :ok = Horde.Supervisor.terminate_child(context.horde_1, pid)
+      :ok = Horde.DynamicSupervisor.terminate_child(context.horde_1, pid)
     end
   end
 
@@ -230,27 +232,27 @@ defmodule SupervisorTest do
 
       1..max
       |> Enum.each(fn x ->
-        Horde.Supervisor.start_child(
+        Horde.DynamicSupervisor.start_child(
           context.horde_1,
           Map.put(context.task_def, :id, :"proc_#{x}")
         )
       end)
 
-      assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1)
+      assert %{workers: ^max} = Horde.DynamicSupervisor.count_children(context.horde_1)
 
       Process.sleep(1000)
 
-      assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
+      assert %{workers: ^max} = Horde.DynamicSupervisor.count_children(context.horde_2)
 
       Process.unlink(context.horde_1_sup_pid)
       Process.exit(context.horde_1_sup_pid, :kill)
 
-      %{workers: workers} = Horde.Supervisor.count_children(context.horde_2)
+      %{workers: workers} = Horde.DynamicSupervisor.count_children(context.horde_2)
       assert workers <= max
 
       Process.sleep(2000)
 
-      assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_2)
+      assert %{workers: ^max} = Horde.DynamicSupervisor.count_children(context.horde_2)
     end
   end
 
@@ -260,7 +262,7 @@ defmodule SupervisorTest do
 
       1..max
       |> Enum.each(fn x ->
-        Horde.Supervisor.start_child(
+        Horde.DynamicSupervisor.start_child(
           context.horde_1,
           Map.put(context.task_def, :id, :"proc_#{x}")
         )
@@ -268,25 +270,25 @@ defmodule SupervisorTest do
 
       Process.sleep(1000)
 
-      assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1)
+      assert %{workers: ^max} = Horde.DynamicSupervisor.count_children(context.horde_1)
 
-      :ok = Horde.Supervisor.stop(context.horde_1)
+      :ok = Horde.DynamicSupervisor.stop(context.horde_1)
 
-      assert Horde.Supervisor.count_children(context.horde_2).workers <= max
+      assert Horde.DynamicSupervisor.count_children(context.horde_2).workers <= max
     end
   end
 
   describe "graceful shutdown" do
     test "stopping a node moves processes over when they are ready" do
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :horde_1_graceful,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 20]
         )
 
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :horde_2_graceful,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 20]
@@ -309,13 +311,13 @@ defmodule SupervisorTest do
 
       pid = self()
 
-      Horde.Supervisor.start_child(:horde_1_graceful, %{
+      Horde.DynamicSupervisor.start_child(:horde_1_graceful, %{
         id: :fast,
         start: {GenServer, :start_link, [TerminationDelay, {500, pid}]},
         shutdown: 2000
       })
 
-      Horde.Supervisor.start_child(:horde_1_graceful, %{
+      Horde.DynamicSupervisor.start_child(:horde_1_graceful, %{
         id: :slow,
         start: {GenServer, :start_link, [TerminationDelay, {5000, pid}]},
         shutdown: 10000
@@ -329,7 +331,7 @@ defmodule SupervisorTest do
       assert_receive {:starting, 5000}, 200
 
       Task.start_link(fn ->
-        Horde.Supervisor.stop(:horde_1_graceful)
+        Horde.DynamicSupervisor.stop(:horde_1_graceful)
       end)
 
       assert_receive {:stopping, 500}, 100
@@ -352,13 +354,13 @@ defmodule SupervisorTest do
       child_spec = Task.child_spec(test_function)
 
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :horde_transient,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 20]
         )
 
-      Horde.Supervisor.start_child(:horde_transient, child_spec)
+      Horde.DynamicSupervisor.start_child(:horde_transient, child_spec)
 
       Process.sleep(50)
 
@@ -371,13 +373,13 @@ defmodule SupervisorTest do
       child_spec = %{Task.child_spec(test_function) | restart: :transient}
 
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :horde_transient,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 20]
         )
 
-      Horde.Supervisor.start_child(:horde_transient, child_spec)
+      Horde.DynamicSupervisor.start_child(:horde_transient, child_spec)
 
       Process.sleep(200)
 
@@ -390,13 +392,13 @@ defmodule SupervisorTest do
       child_spec = %{Task.child_spec(test_function) | restart: :transient}
 
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :horde_transient,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 20]
         )
 
-      Horde.Supervisor.start_child(:horde_transient, child_spec)
+      Horde.DynamicSupervisor.start_child(:horde_transient, child_spec)
 
       processes = :sys.get_state(:horde_transient).processes_by_id
       assert Enum.count(processes) == 1
@@ -409,13 +411,13 @@ defmodule SupervisorTest do
 
       1..max
       |> Enum.each(fn x ->
-        Horde.Supervisor.start_child(
+        Horde.DynamicSupervisor.start_child(
           context.horde_1,
           Map.put(context.task_def, :id, :"proc_#{x}")
         )
       end)
 
-      assert %{workers: ^max} = Horde.Supervisor.count_children(context.horde_1)
+      assert %{workers: ^max} = Horde.DynamicSupervisor.count_children(context.horde_1)
     end
   end
 
@@ -437,12 +439,12 @@ defmodule SupervisorTest do
       start: {IgnoringGenServer, :start_link, []}
     }
 
-    assert :ignore = Horde.Supervisor.start_child(context.horde_1, spec)
+    assert :ignore = Horde.DynamicSupervisor.start_child(context.horde_1, spec)
   end
 
   test "wait_for_quorum/2" do
     {:ok, _} =
-      Horde.Supervisor.start_link(
+      Horde.DynamicSupervisor.start_link(
         name: :horde_quorum_1,
         strategy: :one_for_one,
         distribution_strategy: Horde.UniformQuorumDistribution,
@@ -450,10 +452,10 @@ defmodule SupervisorTest do
         delta_crdt_options: [sync_interval: 20]
       )
 
-    catch_exit(Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 100))
+    catch_exit(Horde.DynamicSupervisor.wait_for_quorum(:horde_quorum_1, 100))
 
     {:ok, _} =
-      Horde.Supervisor.start_link(
+      Horde.DynamicSupervisor.start_link(
         name: :horde_quorum_2,
         strategy: :one_for_one,
         distribution_strategy: Horde.UniformQuorumDistribution,
@@ -461,7 +463,7 @@ defmodule SupervisorTest do
         delta_crdt_options: [sync_interval: 20]
       )
 
-    assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_1, 1000)
-    assert :ok == Horde.Supervisor.wait_for_quorum(:horde_quorum_2, 1000)
+    assert :ok == Horde.DynamicSupervisor.wait_for_quorum(:horde_quorum_1, 1000)
+    assert :ok == Horde.DynamicSupervisor.wait_for_quorum(:horde_quorum_2, 1000)
   end
 end

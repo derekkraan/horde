@@ -25,7 +25,7 @@ registry_members = [
 
 children = [
   {Horde.Registry, name: MyHordeRegistry, keys: :unique, members: registry_members},
-  {Horde.Supervisor, name: MyHordeSupervisor, strategy: :one_for_one, members: supervisor_members},
+  {Horde.DynamicSupervisor, name: MyHordeSupervisor, strategy: :one_for_one, members: supervisor_members},
   ...
 ]
 ```
@@ -36,11 +36,11 @@ This is the simplest approach. You tell Horde which members are supposed to be i
 
 If you will be adding and removing nodes from your cluster constantly, and don't want to repackage your application every time you do this, then you will need to perform a couple of extra steps.
 
-In this scenario, you will need to implement a [module-based Supervisor](https://hexdocs.pm/horde/Horde.Supervisor.html#module-module-based-supervisor)
+In this scenario, you will need to implement a [module-based Supervisor](https://hexdocs.pm/horde/Horde.DynamicSupervisor.html#module-module-based-supervisor)
 
 ```elixir
 defmodule MyHordeSupervisor do
-  use Horde.Supervisor
+  use Horde.DynamicSupervisor
 
   def init(options) do
     {:ok, Keyword.put(options, :members, get_members())}

@@ -25,7 +25,7 @@ defmodule ClusterTest do
 
     test "can join supervisor by specifying members in init" do
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup4,
           strategy: :one_for_one,
           members: [:sup4, :sup5],
@@ -33,7 +33,7 @@ defmodule ClusterTest do
         )
 
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup5,
           strategy: :one_for_one,
           members: [:sup4, :sup5],
@@ -62,7 +62,7 @@ defmodule ClusterTest do
 
     test "Supervisor returns same thing after setting members twice" do
       {:ok, _reg1} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup0,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 10]
@@ -96,14 +96,14 @@ defmodule ClusterTest do
 
     test "returns true when supervisors joined" do
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup1,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 10]
         )
 
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup2,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 10]
@@ -125,7 +125,7 @@ defmodule ClusterTest do
 
     test "returns true when other supervisor doesn't exist" do
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup3,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 10]
@@ -136,14 +136,14 @@ defmodule ClusterTest do
 
     test "can join and unjoin supervisor with set_members" do
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup6,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 10]
         )
 
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup7,
           strategy: :one_for_one,
           delta_crdt_options: [sync_interval: 10]
@@ -193,9 +193,9 @@ defmodule ClusterTest do
     end
 
     test "supervisor can start child" do
-      {:ok, _} = start_supervised({Horde.Supervisor, [name: :sup, strategy: :one_for_one]})
+      {:ok, _} = start_supervised({Horde.DynamicSupervisor, [name: :sup, strategy: :one_for_one]})
       assert :ok = Horde.Cluster.set_members(:sup, [:sup])
-      {:ok, child_pid} = Supervisor.start_child(:sup, {Task, fn -> :ok end})
+      {:ok, child_pid} = Horde.DynamicSupervisor.start_child(:sup, {Task, fn -> :ok end})
       assert is_pid(child_pid)
     end
   end

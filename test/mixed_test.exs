@@ -29,7 +29,7 @@ defmodule MixedTest do
 
     Enum.each(1..test_count, fn x ->
       {:ok, _pid} =
-        Horde.Supervisor.start_child(
+        Horde.DynamicSupervisor.start_child(
           s1,
           {TestGenServer,
            fn ->
@@ -43,21 +43,21 @@ defmodule MixedTest do
         )
     end)
 
-    assert %{workers: ^test_count} = Horde.Supervisor.count_children(s1)
-    assert %{workers: ^test_count} = Horde.Supervisor.count_children(s2)
+    assert %{workers: ^test_count} = Horde.DynamicSupervisor.count_children(s1)
+    assert %{workers: ^test_count} = Horde.DynamicSupervisor.count_children(s2)
 
     Process.sleep(500)
 
-    :ok = Horde.Supervisor.stop(s1)
+    :ok = Horde.DynamicSupervisor.stop(s1)
 
     Process.sleep(500)
 
-    assert %{workers: ^test_count} = Horde.Supervisor.count_children(s2)
+    assert %{workers: ^test_count} = Horde.DynamicSupervisor.count_children(s2)
   end
 
   defp start_supervisor(opts \\ [strategy: :one_for_one]) do
     name = :"h#{:erlang.monotonic_time()}"
-    {:ok, _pid} = Horde.Supervisor.start_link(Keyword.put(opts, :name, name))
+    {:ok, _pid} = Horde.DynamicSupervisor.start_link(Keyword.put(opts, :name, name))
 
     name
   end

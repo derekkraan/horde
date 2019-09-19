@@ -1,14 +1,14 @@
-defmodule Horde.Supervisor do
+defmodule Horde.DynamicSupervisor do
   @moduledoc """
   A distributed supervisor.
 
-  Horde.Supervisor implements a distributed DynamicSupervisor backed by a add-wins last-write-wins δ-CRDT (provided by `DeltaCrdt.AWLWWMap`). This CRDT is used for both tracking membership of the cluster and tracking supervised processes.
+  Horde.DynamicSupervisor implements a distributed DynamicSupervisor backed by a add-wins last-write-wins δ-CRDT (provided by `DeltaCrdt.AWLWWMap`). This CRDT is used for both tracking membership of the cluster and tracking supervised processes.
 
-  Using CRDTs guarantees that the distributed, shared state will eventually converge. It also means that Horde.Supervisor is eventually-consistent, and is optimized for availability and partition tolerance. This can result in temporary inconsistencies under certain conditions (when cluster membership is changing, for example).
+  Using CRDTs guarantees that the distributed, shared state will eventually converge. It also means that Horde.DynamicSupervisor is eventually-consistent, and is optimized for availability and partition tolerance. This can result in temporary inconsistencies under certain conditions (when cluster membership is changing, for example).
 
   Cluster membership is managed with `Horde.Cluster`. Joining a cluster can be done with `Horde.Cluster.set_members/2`. To take a node out of the cluster, call `Horde.Cluster.set_members/2` without that node in the list.
 
-  Each Horde.Supervisor node wraps its own local instance of `DynamicSupervisor`. `Horde.Supervisor.start_child/2` (for example) delegates to the local instance of DynamicSupervisor to actually start and monitor the child. The child spec is also written into the processes CRDT, along with a reference to the node on which it is running. When there is an update to the processes CRDT, Horde makes a comparison and corrects any inconsistencies (for example, if a conflict has been resolved and there is a process that no longer should be running on its node, it will kill that process and remove it from the local supervisor). So while most functions map 1:1 to the equivalent DynamicSupervisor functions, the eventually consistent nature of Horde requires extra behaviour not present in DynamicSupervisor.
+  Each Horde.DynamicSupervisor node wraps its own local instance of `DynamicSupervisor`. `Horde.Supervisor.start_child/2` (for example) delegates to the local instance of DynamicSupervisor to actually start and monitor the child. The child spec is also written into the processes CRDT, along with a reference to the node on which it is running. When there is an update to the processes CRDT, Horde makes a comparison and corrects any inconsistencies (for example, if a conflict has been resolved and there is a process that no longer should be running on its node, it will kill that process and remove it from the local supervisor). So while most functions map 1:1 to the equivalent DynamicSupervisor functions, the eventually consistent nature of Horde requires extra behaviour not present in DynamicSupervisor.
 
   ## Divergence from standard DynamicSupervisor behaviour
 
@@ -30,16 +30,16 @@ defmodule Horde.Supervisor do
 
   ```elixir
   defmodule MySupervisor do
-    use Horde.Supervisor
+    use Horde.DynamicSupervisor
 
     def start_link(init_arg, options \\ []) do
-      Horde.Supervisor.start_link(__MODULE__, init_arg, options)
+      Horde.DynamicSupervisor.start_link(__MODULE__, init_arg, options)
     end
 
     def init(init_arg) do
       [strategy: :one_for_one, members: members()]
       |> Keyword.merge(init_arg)
-      |> Horde.Supervisor.init()
+      |> Horde.DynamicSupervisor.init()
     end
 
     defp members() do
@@ -48,7 +48,7 @@ defmodule Horde.Supervisor do
   end
   ```
 
-  Then you can use `MySupervisor.child_spec/1` and `MySupervisor.start_link/1` in the same way as you'd use `Horde.Supervisor.child_spec/1` and `Horde.Supervisor.start_link/1`.
+  Then you can use `MySupervisor.child_spec/1` and `MySupervisor.start_link/1` in the same way as you'd use `Horde.DynamicSupervisor.child_spec/1` and `Horde.Supervisor.start_link/1`.
   """
   use Supervisor
 
@@ -69,7 +69,7 @@ defmodule Horde.Supervisor do
 
   defmacro __using__(options) do
     quote location: :keep, bind_quoted: [options: options] do
-      @behaviour Horde.Supervisor
+      @behaviour Horde.DynamicSupervisor
       if Module.get_attribute(__MODULE__, :doc) == nil do
         @doc """
         Returns a specification to start this module under a supervisor.
@@ -96,11 +96,11 @@ defmodule Horde.Supervisor do
   See `start_link/2` for options.
   """
   def child_spec(options) when is_list(options) do
-    id = Keyword.get(options, :name, Horde.Supervisor)
+    id = Keyword.get(options, :name, Horde.DynamicSupervisor)
 
     %{
       id: id,
-      start: {Horde.Supervisor, :start_link, [options]},
+      start: {Horde.DynamicSupervisor, :start_link, [options]},
       type: :supervisor
     }
   end
@@ -180,7 +180,7 @@ defmodule Horde.Supervisor do
              on_diffs: &on_diffs(&1, name),
              name: crdt_name(name)
            ]},
-          {Horde.SupervisorImpl,
+          {Horde.DynamicSupervisorImpl,
            [
              name: name,
              root_name: name,
@@ -212,7 +212,7 @@ defmodule Horde.Supervisor do
            [
              signal_to: [graceful_shutdown_manager_name(name), name]
            ]},
-          {Horde.SupervisorTelemetryPoller, name}
+          {Horde.DynamicSupervisorTelemetryPoller, name}
         ]
 
         Supervisor.init(children, strategy: :one_for_all)
@@ -251,7 +251,7 @@ defmodule Horde.Supervisor do
   @doc """
   Works like `DynamicSupervisor.which_children/1`.
 
-  This function delegates to all supervisors in the cluster and returns the aggregated output. Where memory warnings apply to `DynamicSupervisor.which_children`, these count double for `Horde.Supervisor.which_children`.
+  This function delegates to all supervisors in the cluster and returns the aggregated output. Where memory warnings apply to `DynamicSupervisor.which_children`, these count double for `Horde.DynamicSupervisor.which_children`.
   """
   def which_children(supervisor), do: call(supervisor, :which_children)
 
@@ -263,7 +263,7 @@ defmodule Horde.Supervisor do
   def count_children(supervisor), do: call(supervisor, :count_children)
 
   @doc """
-  Waits for Horde.Supervisor to have quorum.
+  Waits for Horde.DynamicSupervisor to have quorum.
   """
   @spec wait_for_quorum(horde :: GenServer.server(), timeout :: timeout()) :: :ok
   def wait_for_quorum(horde, timeout) do

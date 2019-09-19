@@ -13,7 +13,7 @@ defmodule NetsplitTest do
 
     Enum.each(supervisors, fn {name, node} ->
       Node.spawn(node, LocalClusterHelper, :start, [
-        Horde.Supervisor,
+        Horde.DynamicSupervisor,
         :start_link,
         [[strategy: :one_for_one, name: name, members: supervisors]]
       ])
@@ -21,7 +21,7 @@ defmodule NetsplitTest do
 
     Process.sleep(1000)
 
-    Horde.Supervisor.start_child(sup, %{
+    Horde.DynamicSupervisor.start_child(sup, %{
       id: :first_child,
       start: {EchoServer, :start_link, [self()]}
     })

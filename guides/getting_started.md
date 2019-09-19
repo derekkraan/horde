@@ -22,9 +22,9 @@ Run `Node.list()` to confirm that the nodes are connected.
 
 Horde assumes that you will manage Erlang clustering yourself. There are libraries that will help you do this. Continue reading the getting started guide and when you are getting ready to deploy your application, read about [how to set up a cluster](libcluster.html).
 
-## Starting Horde.Supervisor
+## Starting Horde.DynamicSupervisor
 
-Horde.Supervisor is API-compatible with Elixir's DynamicSupervisor. There are extra arguments that you can provide, but the basic recipe stays the same:
+Horde.DynamicSupervisor is API-compatible with Elixir's DynamicSupervisor. There are extra arguments that you can provide, but the basic recipe stays the same:
 
 ```elixir
 defmodule HelloWorld.Application do
@@ -32,7 +32,7 @@ defmodule HelloWorld.Application do
 
   def start(_type, _args) do
     children = [
-      {Horde.Supervisor, [name: HelloWorld.HelloSupervisor, strategy: :one_for_one]},
+      {Horde.DynamicSupervisor, [name: HelloWorld.HelloSupervisor, strategy: :one_for_one]},
     ]
 
     opts = [strategy: :one_for_one, name: HelloWorld.Supervisor]
@@ -41,16 +41,16 @@ defmodule HelloWorld.Application do
 end
 ```
 
-This is also where you can set additional options for Horde.Supervisor:
+This is also where you can set additional options for Horde.DynamicSupervisor:
 - `:members`, a list of members (if your cluster will have static membership)
 - `:distribution_strategy`, the distribution strategy (`Horde.UniformDistribution` is default)
 - `:delta_crdt_options`, for tuning the delta CRDT that underpins Horde
 
-See the documentation for `Horde.Supervisor` for more information.
+See the documentation for `Horde.DynamicSupervisor` for more information.
 
 ## Starting Horde.Registry
 
-Horde.Supervisor is spreading your processes out over the cluster, but how do you know where all these processes are? Horde.Registry is the answer. We want Horde.Registry to be above Horde.Supervisor in the start-up order. 
+Horde.DynamicSupervisor is spreading your processes out over the cluster, but how do you know where all these processes are? Horde.Registry is the answer. We want Horde.Registry to be above Horde.Supervisor in the start-up order. 
 
 This is what our example above looks like with Horde.Registry added in:
 
@@ -61,7 +61,7 @@ defmodule HelloWorld.Application do
   def start(_type, _args) do
     children = [
       {Horde.Registry, [name: HelloWorld.HelloRegistry, keys: :unique]},
-      {Horde.Supervisor, [name: HelloWorld.HelloSupervisor, strategy: :one_for_one]},
+      {Horde.DynamicSupervisor, [name: HelloWorld.HelloSupervisor, strategy: :one_for_one]},
     ]
 
     opts = [strategy: :one_for_one, name: HelloWorld.Supervisor]
@@ -115,7 +115,7 @@ defmodule HelloWorld.SayHello do
 end
 ```
 
-This GenServer can be started by running the following line of code: `Horde.Supervisor.start_child(HelloWorld.HelloSupervisor, HelloWorld.SayHello)`.
+This GenServer can be started by running the following line of code: `Horde.DynamicSupervisor.start_child(HelloWorld.HelloSupervisor, HelloWorld.SayHello)`.
 
 Once running, you can address this GenServer with the following line of code: `GenServer.call(via_tuple(HelloWorld.SayHello), msg)`.
 

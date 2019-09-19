@@ -6,7 +6,7 @@ Horde does not offer a specialized state handoff feature, instead we will be usi
 
 ## Trapping exits
 
-When `Horde.Supervisor` is shutting down, it will send an exit signal to its child processes. We need to trap this signal to ensure that our `terminate/2` callback gets called.
+When `Horde.DynamicSupervisor` is shutting down, it will send an exit signal to its child processes. We need to trap this signal to ensure that our `terminate/2` callback gets called.
 
 ```elixir
 def init(arg) do
@@ -30,7 +30,7 @@ end
 The default shutdown timeout is 0, which of course does not leave enough time to save our state. Increase the value of `shutdown` to make sure that your process has enough time to save its data. Be aware: `shutdown` must be set at all levels of your application to apply. A more restrictive shutdown timeout at a higher level in the supervision tree will override less restrictive values.
 
 ```elixir
-children = [{Horde.Supervisor, [name: :my_supervisor, shutdown: 1000, strategy: :one_for_one]}]
+children = [{Horde.DynamicSupervisor, [name: :my_supervisor, shutdown: 1000, strategy: :one_for_one]}]
 ```
 
 ## Restoring state
