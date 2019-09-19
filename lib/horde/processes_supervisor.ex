@@ -409,10 +409,6 @@ defmodule Horde.ProcessesSupervisor do
     validate_child(id, start, restart, shutdown, type, modules)
   end
 
-  defp validate_child(other) do
-    {:invalid_child_spec, other}
-  end
-
   defp validate_child(id, start, restart, shutdown, type, modules) do
     with :ok <- validate_start(start),
          :ok <- validate_restart(restart),
@@ -478,8 +474,9 @@ defmodule Horde.ProcessesSupervisor do
 
   """
   @spec which_children(Supervisor.supervisor()) :: [
-          {:undefined, pid | :restarting, :worker | :supervisor, :supervisor.modules()}
+          {:undefined, pid | :restarting, :worker | :supervisor, modules}
         ]
+        when modules: [module()] | :dynamic
   def which_children(supervisor) do
     call(supervisor, :which_children)
   end
@@ -566,7 +563,7 @@ defmodule Horde.ProcessesSupervisor do
       an empty list.
 
   """
-  @spec init([init_option]) :: {:ok, sup_flags()}
+  @spec init([init_option]) :: {:ok, sup_flags()} | :ignore | {:stop, reason :: term()}
   def init(options) when is_list(options) do
     unless strategy = options[:strategy] do
       raise ArgumentError, "expected :strategy option to be given"
