@@ -55,6 +55,7 @@ defmodule Horde.MixProject do
     # getting started
     [
       "README.md",
+      "CHANGELOG.md",
       "guides/getting_started.md",
       "guides/eventual_consistency.md",
       "guides/state_handoff.md",
