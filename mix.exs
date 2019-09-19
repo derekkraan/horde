@@ -34,7 +34,8 @@ defmodule Horde.MixProject do
       {:benchee, "> 0.0.1", only: :dev, runtime: false},
       {:stream_data, "~> 0.4", only: :test},
       {:local_cluster, "~> 1.0.4", only: :test},
-      {:schism, "~> 1.0.1", only: :test}
+      {:schism, "~> 1.0.1", only: :test},
+      {:dialyxir, "~> 1.0.0-rc.6", only: [:dev, :test], runtime: false}
     ]
   end
 
