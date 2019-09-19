@@ -26,7 +26,7 @@ defmodule Horde.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:delta_crdt, "~> 0.5.7"},
+      {:delta_crdt, "~> 0.5.9"},
       {:libring, "~> 1.4"},
       {:telemetry, "~> 0.4.0"},
       {:telemetry_poller, "~> 0.4.0"},
