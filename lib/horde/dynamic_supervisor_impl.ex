@@ -63,7 +63,10 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp node_info(state) do
-    %Horde.DynamicSupervisor.Member{status: node_status(state), name: fully_qualified_name(state.name)}
+    %Horde.DynamicSupervisor.Member{
+      status: node_status(state),
+      name: fully_qualified_name(state.name)
+    }
   end
 
   defp node_status(%{shutting_down: false}), do: :alive
