@@ -32,6 +32,7 @@ defmodule Horde.DynamicSupervisorImpl do
   ## GenServer callbacks
   defp crdt_name(name), do: :"#{name}.Crdt"
   defp supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
+  defp rebalancer_name(name), do: :"#{name}.Rebalancer"
 
   defp fully_qualified_name({name, node}) when is_atom(name) and is_atom(node), do: {name, node}
   defp fully_qualified_name(name) when is_atom(name), do: {name, node()}
@@ -71,6 +72,12 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp node_status(%{shutting_down: false}), do: :alive
   defp node_status(%{shutting_down: true}), do: :shutting_down
+
+  @doc false
+  def handle_call(:rebalance, from, state) do
+    Kernel.send(rebalancer_name(state.name), {:rebalance, state, from})
+    {:noreply, state}
+  end
 
   @doc false
   def handle_call(:horde_shutting_down, _f, state) do
