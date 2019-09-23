@@ -498,7 +498,7 @@ defmodule DynamicSupervisorTest do
 
 
     # Start 5 child processes with randomized names
-    cspecs = (0..4) |> Enum.map(fn(_) -> 
+    cspecs = (0..9) |> Enum.map(fn(_) -> 
       name = :"child_#{:rand.uniform(100_000_000)}"
       %{
         id: name,
@@ -554,7 +554,41 @@ defmodule DynamicSupervisorTest do
         end
       end)
 
-    #according to the result returned from rebalance/1, is everything ok?
+    # according to the result returned from rebalance/1, is everything ok?
     assert all_ok
+
+    # now wait a bit for the state to be updated in both supervisors, and verify 
+    # that the processes that should now be on n2 are actually there.
+
+    n2_pnames = rebalance_result |>
+      Map.to_list() |>
+      Enum.map(fn(res) ->
+        {_, [child_spec: cspec, from: _, to: {sup_name, _}]} = res
+        %{start: {_, _, [[name: pname]]}} = cspec
+        {sup_name, pname}
+      end) |>
+      Enum.filter(fn({sup_name, pname}) -> 
+        sup_name == n2
+      end) |> 
+      Enum.map(fn({sup_name, pname}) ->
+        pname
+      end)
+
+    :timer.sleep(100)
+    n2_state = :sys.get_state(Process.whereis(n2))
+
+    all_ok = n2_state.processes_by_id |> 
+      Enum.filter(fn({_, {{sup_name, _}, _, _}}) -> 
+        sup_name == n2
+      end) |>
+      Enum.map(fn({_, {_, %{start: {_, _, [[name: pname]]}}, _}}) ->
+        Enum.any?(n2_pnames, fn(n2pn) -> 
+          n2pn == pname 
+        end)
+      end) |>
+      Enum.all?()
+
+    assert all_ok
+
   end
 end
