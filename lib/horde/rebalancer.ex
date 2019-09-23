@@ -19,38 +19,44 @@ defmodule Horde.DynamicSupervisorImpl.Rebalancer do
         Map.put(acc, pid, cspec)
       end)
 
-    node_by_pid = Map.values(dsi_state.processes_by_id) |>
-      Enum.reduce(%{}, fn({{_, node_name}, _, pid}, acc) ->
-        Map.put(acc, pid, node_name)
+    member_by_pid = Map.values(dsi_state.processes_by_id) |>
+      Enum.reduce(%{}, fn({member, _, pid}, acc) ->
+        Map.put(acc, pid, member)
       end)
 
-    rebalanced = node_by_pid |> 
+    rebalanced = member_by_pid |> 
       Map.keys() |>
       Enum.map(fn(pid) ->
         child_spec = Map.get(cspec_by_pid, pid)
         identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
 
-        {:ok, %Horde.DynamicSupervisor.Member{name: {_, new_node_name}}} = dsi_state.distribution_strategy.choose_node(identifier, Map.values(dsi_state.members_info))
+        {:ok, %Horde.DynamicSupervisor.Member{name: new_member}} = dsi_state.distribution_strategy.choose_node(identifier, Map.values(dsi_state.members_info))
 
-        current_node_name = Map.get(node_by_pid, pid, nil)
+        current_member = Map.get(member_by_pid, pid, nil)
 
-        if (current_node_name != new_node_name) do
+        case (current_member == new_member) do
+          false ->
+            %{start: {_, _, [[{:name, name} | _]]}} = child_spec
 
-          %{start: {_, _, [[{:name, name} | _]]}} = child_spec
+            Logger.info("Redistributing node: #{Kernel.inspect(pid)} | #{Kernel.inspect(current_member)} -> #{Kernel.inspect(new_member)} | #{Kernel.inspect(name)}")
 
-          Logger.info("Redistributing node: #{Kernel.inspect(pid)} | #{current_node_name} -> #{new_node_name} | #{Kernel.inspect(name)}")
+            case Horde.DynamicSupervisor.terminate_child(dsi_state.name, pid) do
+              :ok ->
+                {:ok, _} = Horde.DynamicSupervisor.start_child(dsi_state.name, child_spec)
+              {:error, :not_found} ->
+                Logger.error("Error redistributing #{Kernel.inspect(pid)} to node #{Kernel.inspect(new_member)}: process not found (likely already terminated).")
+              {:error, {:node_dead_or_shutting_down, msg}} ->
+                Logger.error("Error redistributing #{Kernel.inspect(pid)} to node #{Kernel.inspect(new_member)}: #{msg}")
+            end
 
-          case Horde.DynamicSupervisor.terminate_child(dsi_state.name, pid) do
-            :ok ->
-              {:ok, _} = Horde.DynamicSupervisor.start_child(dsi_state.name, child_spec)
-            {:error, :not_found} ->
-              Logger.error("Error redistributing #{Kernel.inspect(pid)} to node #{new_node_name}: process not found (likely already terminated).")
-            {:error, {:node_dead_or_shutting_down, msg}} ->
-              Logger.error("Error redistributing #{Kernel.inspect(pid)} to node #{new_node_name}: #{msg}")
-          end
+            {pid, [{:child_spec, child_spec}, {:from, current_member}, {:to, new_member}]}
+          true ->
+            {pid, :unchanged}
         end
 
-        {pid, [{:from, current_node_name}, {:to, new_node_name}]}
+      end) |>
+      Enum.filter(fn({_, status}) ->
+        status != :unchanged
       end) |>
       Enum.into(%{})
 

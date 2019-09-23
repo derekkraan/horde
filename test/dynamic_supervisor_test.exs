@@ -466,4 +466,95 @@ defmodule DynamicSupervisorTest do
     assert :ok == Horde.DynamicSupervisor.wait_for_quorum(:horde_quorum_1, 1000)
     assert :ok == Horde.DynamicSupervisor.wait_for_quorum(:horde_quorum_2, 1000)
   end
+
+
+  test "rebalance/1" do 
+    n1 = :horde_rebalance_1
+    n2 = :horde_rebalance_2
+
+    members = [{n1, Node.self()}, {n2, Node.self()}]
+
+    # Spawn one supervisor and add processes to it, then spawn another and rebalance
+    # the processes between the two.
+    {:ok, _} = Horde.DynamicSupervisor.start_link(
+      name: n1,
+      strategy: :one_for_one,
+      delta_crdt_options: [sync_interval: 20],
+      members: members
+    ) 
+
+    defmodule RebalanceTestServer do 
+      use GenServer
+
+      def start_link(opts) do
+        GenServer.start_link(__MODULE__, nil, name: opts[:name])
+      end
+
+      @impl true
+      def init(_) do 
+        {:ok, nil}
+      end
+    end
+
+
+    # Start 5 child processes with randomized names
+    cspecs = (0..4) |> Enum.map(fn(_) -> 
+      name = :"child_#{:rand.uniform(100_000_000)}"
+      %{
+        id: name,
+        start: {RebalanceTestServer, :start_link, [[name: name]]}
+      }
+    end)
+
+    cspecs |> Enum.each(fn(spec) -> 
+      assert Kernel.match?({:ok, _}, Horde.DynamicSupervisor.start_child(n1, spec))
+    end)
+
+    # Now spin up the 2nd DynamicSupervisor
+    {:ok, _} = Horde.DynamicSupervisor.start_link(
+      name: n2,
+      strategy: :one_for_one,
+      delta_crdt_options: [sync_interval: 20],
+      members: members
+    ) 
+
+    ds_state = Task.async(fn() -> 
+      LocalClusterHelper.await_members_alive(n1)
+    end) |> Task.await() 
+
+    expected = cspecs |> Enum.reduce(%{}, fn(child_spec, acc) -> 
+      # precalculate which processes should end up on which nodes 
+      identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
+
+      {:ok, %Horde.DynamicSupervisor.Member{name: {new_sup_name, _}}} = 
+        Horde.UniformDistribution.choose_node(identifier, Map.values(ds_state.members_info))
+
+      Map.put(acc, child_spec.id, new_sup_name)
+    end)
+    
+    {:ok, rebalance_result} = Horde.DynamicSupervisor.rebalance(n1)
+    simplified = rebalance_result |> 
+      Map.to_list() |>
+      Enum.map(fn({_, res}) -> 
+        %{start: {_, _, [[name: pname]]}} = res[:child_spec]
+        {sup_name, _} = res[:to]
+        {pname, sup_name}
+      end) |>
+      Enum.into(%{})
+    
+    all_ok = Map.keys(expected) |>
+      Enum.all?(fn(pname) -> 
+        case Map.get(expected, pname) do 
+          ^n1 ->
+            # shouldn't appear in the rebalance result
+            !(Map.has_key?(simplified, pname))
+          ^n2 -> 
+            # should appear as reassigned to n2 in the rebalance result
+            Map.get(simplified, pname) == n2
+        end
+      end)
+
+    #according to the result returned from rebalance/1, is everything ok?
+    assert all_ok
+  end
 end
