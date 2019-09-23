@@ -8,7 +8,7 @@ defmodule Horde.DynamicSupervisorImpl.Rebalancer do
   end
 
   @impl true
-  def init(opts) do
+  def init(_) do
     {:ok, nil}
   end
 
