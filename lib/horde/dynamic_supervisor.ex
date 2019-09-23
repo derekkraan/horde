@@ -245,7 +245,8 @@ defmodule Horde.DynamicSupervisor do
 
   Works like `DynamicSupervisor.terminate_child/2`.
   """
-  @spec terminate_child(Supervisor.supervisor(), child_pid :: pid()) :: :ok | {:error, :not_found} | {:error, {:node_dead_or_shutting_down, String.t()}}
+  @spec terminate_child(Supervisor.supervisor(), child_pid :: pid()) ::
+          :ok | {:error, :not_found} | {:error, {:node_dead_or_shutting_down, String.t()}}
   def terminate_child(supervisor, child_pid) when is_pid(child_pid),
     do: call(supervisor, {:terminate_child, child_pid})
 
@@ -271,7 +272,7 @@ defmodule Horde.DynamicSupervisor do
     GenServer.call(horde, :wait_for_quorum, timeout)
   end
 
-  @spec rebalance(horde ::GenServer.server()) :: {:ok, term()}
+  @spec rebalance(horde :: GenServer.server()) :: {:ok, term()}
   def rebalance(horde), do: rebalance(horde, 15_000)
 
   @spec rebalance(horde :: GenServer.server(), timeout :: timeout) :: {:ok, term()}

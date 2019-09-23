@@ -467,8 +467,7 @@ defmodule DynamicSupervisorTest do
     assert :ok == Horde.DynamicSupervisor.wait_for_quorum(:horde_quorum_2, 1000)
   end
 
-
-  test "rebalance/1" do 
+  test "rebalance/1" do
     n1 = :horde_rebalance_1
     n2 = :horde_rebalance_2
 
@@ -476,14 +475,15 @@ defmodule DynamicSupervisorTest do
 
     # Spawn one supervisor and add processes to it, then spawn another and rebalance
     # the processes between the two.
-    {:ok, _} = Horde.DynamicSupervisor.start_link(
-      name: n1,
-      strategy: :one_for_one,
-      delta_crdt_options: [sync_interval: 20],
-      members: members
-    ) 
+    {:ok, _} =
+      Horde.DynamicSupervisor.start_link(
+        name: n1,
+        strategy: :one_for_one,
+        delta_crdt_options: [sync_interval: 20],
+        members: members
+      )
 
-    defmodule RebalanceTestServer do 
+    defmodule RebalanceTestServer do
       use GenServer
 
       def start_link(opts) do
@@ -491,64 +491,76 @@ defmodule DynamicSupervisorTest do
       end
 
       @impl true
-      def init(_) do 
+      def init(_) do
         {:ok, nil}
       end
     end
 
-
     # Start 5 child processes with randomized names
-    cspecs = (0..9) |> Enum.map(fn(_) -> 
-      name = :"child_#{:rand.uniform(100_000_000)}"
-      %{
-        id: name,
-        start: {RebalanceTestServer, :start_link, [[name: name]]}
-      }
-    end)
+    cspecs =
+      0..9
+      |> Enum.map(fn _ ->
+        name = :"child_#{:rand.uniform(100_000_000)}"
 
-    cspecs |> Enum.each(fn(spec) -> 
+        %{
+          id: name,
+          start: {RebalanceTestServer, :start_link, [[name: name]]}
+        }
+      end)
+
+    cspecs
+    |> Enum.each(fn spec ->
       assert Kernel.match?({:ok, _}, Horde.DynamicSupervisor.start_child(n1, spec))
     end)
 
     # Now spin up the 2nd DynamicSupervisor
-    {:ok, _} = Horde.DynamicSupervisor.start_link(
-      name: n2,
-      strategy: :one_for_one,
-      delta_crdt_options: [sync_interval: 20],
-      members: members
-    ) 
+    {:ok, _} =
+      Horde.DynamicSupervisor.start_link(
+        name: n2,
+        strategy: :one_for_one,
+        delta_crdt_options: [sync_interval: 20],
+        members: members
+      )
 
-    ds_state = Task.async(fn() -> 
-      LocalClusterHelper.await_members_alive(n1)
-    end) |> Task.await() 
+    ds_state =
+      Task.async(fn ->
+        LocalClusterHelper.await_members_alive(n1)
+      end)
+      |> Task.await()
 
-    expected = cspecs |> Enum.reduce(%{}, fn(child_spec, acc) -> 
-      # precalculate which processes should end up on which nodes 
-      identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
+    expected =
+      cspecs
+      |> Enum.reduce(%{}, fn child_spec, acc ->
+        # precalculate which processes should end up on which nodes 
+        identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
 
-      {:ok, %Horde.DynamicSupervisor.Member{name: {new_sup_name, _}}} = 
-        Horde.UniformDistribution.choose_node(identifier, Map.values(ds_state.members_info))
+        {:ok, %Horde.DynamicSupervisor.Member{name: {new_sup_name, _}}} =
+          Horde.UniformDistribution.choose_node(identifier, Map.values(ds_state.members_info))
 
-      Map.put(acc, child_spec.id, new_sup_name)
-    end)
-    
+        Map.put(acc, child_spec.id, new_sup_name)
+      end)
+
     {:ok, rebalance_result} = Horde.DynamicSupervisor.rebalance(n1)
-    simplified = rebalance_result |> 
-      Map.to_list() |>
-      Enum.map(fn({_, res}) -> 
+
+    simplified =
+      rebalance_result
+      |> Map.to_list()
+      |> Enum.map(fn {_, res} ->
         %{start: {_, _, [[name: pname]]}} = res[:child_spec]
         {sup_name, _} = res[:to]
         {pname, sup_name}
-      end) |>
-      Enum.into(%{})
-    
-    all_ok = Map.keys(expected) |>
-      Enum.all?(fn(pname) -> 
-        case Map.get(expected, pname) do 
+      end)
+      |> Enum.into(%{})
+
+    all_ok =
+      Map.keys(expected)
+      |> Enum.all?(fn pname ->
+        case Map.get(expected, pname) do
           ^n1 ->
             # shouldn't appear in the rebalance result
-            !(Map.has_key?(simplified, pname))
-          ^n2 -> 
+            !Map.has_key?(simplified, pname)
+
+          ^n2 ->
             # should appear as reassigned to n2 in the rebalance result
             Map.get(simplified, pname) == n2
         end
@@ -560,35 +572,36 @@ defmodule DynamicSupervisorTest do
     # now wait a bit for the state to be updated in both supervisors, and verify 
     # that the processes that should now be on n2 are actually there.
 
-    n2_pnames = rebalance_result |>
-      Map.to_list() |>
-      Enum.map(fn(res) ->
+    n2_pnames =
+      rebalance_result
+      |> Map.to_list()
+      |> Enum.map(fn res ->
         {_, [child_spec: cspec, from: _, to: {sup_name, _}]} = res
         %{start: {_, _, [[name: pname]]}} = cspec
         {sup_name, pname}
-      end) |>
-      Enum.filter(fn({sup_name, pname}) -> 
+      end)
+      |> Enum.filter(fn {sup_name, pname} ->
         sup_name == n2
-      end) |> 
-      Enum.map(fn({sup_name, pname}) ->
+      end)
+      |> Enum.map(fn {sup_name, pname} ->
         pname
       end)
 
     :timer.sleep(100)
     n2_state = :sys.get_state(Process.whereis(n2))
 
-    all_ok = n2_state.processes_by_id |> 
-      Enum.filter(fn({_, {{sup_name, _}, _, _}}) -> 
+    all_ok =
+      n2_state.processes_by_id
+      |> Enum.filter(fn {_, {{sup_name, _}, _, _}} ->
         sup_name == n2
-      end) |>
-      Enum.map(fn({_, {_, %{start: {_, _, [[name: pname]]}}, _}}) ->
-        Enum.any?(n2_pnames, fn(n2pn) -> 
-          n2pn == pname 
+      end)
+      |> Enum.map(fn {_, {_, %{start: {_, _, [[name: pname]]}}, _}} ->
+        Enum.any?(n2_pnames, fn n2pn ->
+          n2pn == pname
         end)
-      end) |>
-      Enum.all?()
+      end)
+      |> Enum.all?()
 
     assert all_ok
-
   end
 end
