@@ -21,11 +21,17 @@ defmodule Horde.Registry do
   defmodule MyRegistry do
     use Horde.Registry
 
-    def init(options) do
-      {:ok, Keyword.put(options, :members, get_members())}
+    def start_link(init_arg, options \\ [])
+      Horde.Registry.start_link(__MODULE__, init_arg, options)
     end
 
-    defp get_members() do
+    def init(init_arg) do
+      [members: members()]
+      |> Keyword.merge(init_arg)
+      |> Horde.Registry.init()
+    end
+
+    defp members() do
       # ...
     end
   end
