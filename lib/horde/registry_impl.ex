@@ -36,6 +36,16 @@ defmodule Horde.RegistryImpl do
     GenServer.start_link(__MODULE__, options, name: name)
   end
 
+  def on_diffs(name, diffs) do
+    try do
+      Kernel.send(name, {:crdt_update, diffs})
+    rescue
+      ArgumentError ->
+        # the process might already been stopped
+        :ok
+    end
+  end
+
   ### GenServer callbacks
 
   def init(opts) do

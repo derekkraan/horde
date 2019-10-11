@@ -62,6 +62,16 @@ defmodule Horde.DynamicSupervisorImpl do
     {:noreply, set_members(members, state)}
   end
 
+  def on_diffs(name, diffs) do
+    try do
+      send(name, {:crdt_update, diffs})
+    rescue
+      ArgumentError ->
+        # the process might already been stopped
+        :ok
+    end
+  end
+
   defp node_info(state) do
     %Horde.DynamicSupervisor.Member{
       status: node_status(state),

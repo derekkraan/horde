@@ -154,7 +154,7 @@ defmodule Horde.Registry do
              max_sync_size: flags.delta_crdt_options.max_sync_size,
              shutdown: flags.delta_crdt_options.shutdown,
              crdt: DeltaCrdt.AWLWWMap,
-             on_diffs: &on_diffs(&1, name),
+             on_diffs: {Horde.RegistryImpl, :on_diffs, [name]},
              name: crdt_name(name)
            ]},
           {Horde.RegistryImpl,
@@ -426,16 +426,6 @@ defmodule Horde.Registry do
       options
     else
       [name | options]
-    end
-  end
-
-  defp on_diffs(diffs, name) do
-    try do
-      Kernel.send(name, {:crdt_update, diffs})
-    rescue
-      ArgumentError ->
-        # the process might already been stopped
-        :ok
     end
   end
 
