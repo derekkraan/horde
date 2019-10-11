@@ -26,11 +26,9 @@ You can choose what to do in the event of a network partition by specifying `:di
 
 ## CAP Theorem
 
-Horde is eventually consistent, which means that Horde can guarantee availability and partition tolerancy. When Horde cluster membership is constant (ie, there is no node being removed or added), Horde also guarantees consistency. When adding or removing a node from the cluster, there will be a small window in which it is possible for race conditions to occur. Horde aggressively closes this window by distributing cluster membership updates as quickly as possible (after 5ms).
+Horde is eventually consistent, which means that Horde can guarantee availability and partition tolerancy. Horde cannot guarantee consistency. This means you may end up with duplicate processes in your cluster. Horde does aggressively synchronize between nodes (this is also tunable), but ultimately, depending on the tuning parameters you choose and the quality of the network, there are conditions under which it is possible to have duplicate processes in your cluster. Horde.Registry terminates duplicate processes as soon as they are discovered with a special exit code, so you'll always know when this is happening. See [this page in the docs](https://hexdocs.pm/horde/eventual_consistency.html#horde-registry-merge-conflict) for more details.
 
-Example race condition: While a node is being added to the cluster, for a short period of time, some nodes know about the new node and some do not. If in this period of time, two nodes attempt to start the same process, this process will be started on two nodes simultaneously. This condition will persist until these two nodes have received deltas from each other and the state has converged (assigning the process to just one of the two nodes). The node that "loses" the process will kill it when it checks and realizes that it no longer owns it.
-
-It's possible to run Horde and add and remove nodes without running into this limitation (depending on load), but one should always keep in mind that it's a plausible scenario.
+_NOTE: Since Horde 0.6.0, Horde.DynamicSupervisor ignores the `id` of a child spec (as Elixir.DynamicSupervisor does), and therefore does not guarantee that each `id` will be unique in the cluster (as it did pre-0.6.0). If you want to uniquely name your processes in a cluster, use Horde.Registry for this purpose. Having both Horde.DynamicSupervisor and Horde.Registry checking for uniqueness was subject to a race condition where Horde.DynamicSupervisor would choose process A to survive and Horde.Registry would choose process B to survive, resulting in both processes being killed._
 
 ## Graceful shutdown
 
@@ -45,7 +43,7 @@ The package can be installed by adding `horde` to your list of dependencies in `
 ```elixir
 def deps do
   [
-    {:horde, "~> 0.6.0"}
+    {:horde, "~> 0.7.0"}
   ]
 end
 ```
