@@ -20,7 +20,7 @@ Node.connect(:"node2@127.0.0.1")
 
 Run `Node.list()` to confirm that the nodes are connected.
 
-Horde assumes that you will manage Erlang clustering yourself. There are libraries that will help you do this. Continue reading the getting started guide and when you are getting ready to deploy your application, read about [how to set up a cluster](libcluster.html).
+Horde assumes that you will manage Erlang clustering yourself. There are libraries that will help you do this. Continue reading the getting started guide and when you are getting ready to deploy your application, read about [how to set up a cluster](libcluster.md).
 
 ## Starting Horde.DynamicSupervisor
 
