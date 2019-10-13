@@ -467,13 +467,13 @@ defmodule DynamicSupervisorTest do
     assert :ok == Horde.DynamicSupervisor.wait_for_quorum(:horde_quorum_2, 1000)
   end
 
-  test "rebalance/1" do
-    n1 = :horde_rebalance_1
-    n2 = :horde_rebalance_2
+  test "redistribute/1" do
+    n1 = :horde_redistribute_1
+    n2 = :horde_redistribute_2
 
     members = [{n1, Node.self()}, {n2, Node.self()}]
 
-    # Spawn one supervisor and add processes to it, then spawn another and rebalance
+    # Spawn one supervisor and add processes to it, then spawn another and redistribute
     # the processes between the two.
     {:ok, _} =
       Horde.DynamicSupervisor.start_link(
@@ -513,6 +513,42 @@ defmodule DynamicSupervisorTest do
       assert Kernel.match?({:ok, _}, Horde.DynamicSupervisor.start_child(n1, spec))
     end)
 
+    expected =
+      cspecs
+      |> Enum.reduce(%{}, fn child_spec, acc ->
+        # precalculate which processes should end up on which nodes 
+        identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
+
+        ds_members = members 
+         |> Enum.map(fn (node) -> 
+            %Horde.DynamicSupervisor.Member{
+              name: node,
+              status: :alive
+            }
+          end) 
+
+        {:ok, %Horde.DynamicSupervisor.Member{name: {new_sup_name, _}}} =
+          Horde.UniformDistribution.choose_node(identifier, ds_members)
+
+        Map.put(acc, child_spec.id, new_sup_name)
+      end)
+
+    :timer.sleep(100) # wait for n1 to spin up
+    n1_state = :sys.get_state(Process.whereis(n1))
+
+    n2_pnames =
+      expected
+      |> Map.to_list()
+      |> Enum.filter(fn {cid, sup_name} ->
+        sup_name == n2
+      end)
+      |> Enum.map(fn {cid, sup_name} ->
+        with %{processes_by_id: processes_by_id} <- n1_state,
+             {_, {_, %{start: {_, _, [[name: pname]]}}, _}} <- Map.get(processes_by_id, cid) do
+          pname
+        end
+      end)
+
     # Now spin up the 2nd DynamicSupervisor
     {:ok, _} =
       Horde.DynamicSupervisor.start_link(
@@ -522,74 +558,16 @@ defmodule DynamicSupervisorTest do
         members: members
       )
 
-    ds_state =
+    # redistribution now happens automatically :) but you could trigger it manually like this:
+    # :ok = Horde.DynamicSupervisor.redistribute(n1)
+
+    n2_state =
       Task.async(fn ->
-        LocalClusterHelper.await_members_alive(n1)
+        LocalClusterHelper.await_members_alive(n2)
       end)
       |> Task.await()
 
-    expected =
-      cspecs
-      |> Enum.reduce(%{}, fn child_spec, acc ->
-        # precalculate which processes should end up on which nodes 
-        identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
-
-        {:ok, %Horde.DynamicSupervisor.Member{name: {new_sup_name, _}}} =
-          Horde.UniformDistribution.choose_node(identifier, Map.values(ds_state.members_info))
-
-        Map.put(acc, child_spec.id, new_sup_name)
-      end)
-
-    {:ok, rebalance_result} = Horde.DynamicSupervisor.rebalance(n1)
-
-    simplified =
-      rebalance_result
-      |> Map.to_list()
-      |> Enum.map(fn {_, res} ->
-        %{start: {_, _, [[name: pname]]}} = res[:child_spec]
-        {sup_name, _} = res[:to]
-        {pname, sup_name}
-      end)
-      |> Enum.into(%{})
-
-    all_ok =
-      Map.keys(expected)
-      |> Enum.all?(fn pname ->
-        case Map.get(expected, pname) do
-          ^n1 ->
-            # shouldn't appear in the rebalance result
-            !Map.has_key?(simplified, pname)
-
-          ^n2 ->
-            # should appear as reassigned to n2 in the rebalance result
-            Map.get(simplified, pname) == n2
-        end
-      end)
-
-    # according to the result returned from rebalance/1, is everything ok?
-    assert all_ok
-
-    # now wait a bit for the state to be updated in both supervisors, and verify 
-    # that the processes that should now be on n2 are actually there.
-
-    n2_pnames =
-      rebalance_result
-      |> Map.to_list()
-      |> Enum.map(fn res ->
-        {_, [child_spec: cspec, from: _, to: {sup_name, _}]} = res
-        %{start: {_, _, [[name: pname]]}} = cspec
-        {sup_name, pname}
-      end)
-      |> Enum.filter(fn {sup_name, pname} ->
-        sup_name == n2
-      end)
-      |> Enum.map(fn {sup_name, pname} ->
-        pname
-      end)
-
-    :timer.sleep(100)
-    n2_state = :sys.get_state(Process.whereis(n2))
-
+    #ensure that all nodes that should end up on n2 do actually end up there.
     all_ok =
       n2_state.processes_by_id
       |> Enum.filter(fn {_, {{sup_name, _}, _, _}} ->

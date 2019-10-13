@@ -171,7 +171,6 @@ defmodule Horde.DynamicSupervisor do
     case mod.init(init_arg) do
       {:ok, flags} when is_map(flags) ->
         children = [
-          {Horde.DynamicSupervisorImpl.Rebalancer, [name: rebalancer_name(name)]},
           {DeltaCrdt,
            [
              sync_interval: flags.delta_crdt_options.sync_interval,
@@ -272,12 +271,9 @@ defmodule Horde.DynamicSupervisor do
     GenServer.call(horde, :wait_for_quorum, timeout)
   end
 
-  @spec rebalance(horde :: GenServer.server()) :: {:ok, term()}
-  def rebalance(horde), do: rebalance(horde, 15_000)
-
-  @spec rebalance(horde :: GenServer.server(), timeout :: timeout) :: {:ok, term()}
-  def rebalance(horde, timeout) do
-    GenServer.call(horde, :rebalance, timeout)
+  def redistribute(supervisor) do 
+    :ok = GenServer.call(supervisor, :redistribute)
+    :ok
   end
 
   defp call(supervisor, msg), do: GenServer.call(supervisor, msg, :infinity)
@@ -310,6 +306,5 @@ defmodule Horde.DynamicSupervisor do
 
   defp supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
   defp crdt_name(name), do: :"#{name}.Crdt"
-  defp rebalancer_name(name), do: :"#{name}.Rebalancer"
   defp graceful_shutdown_manager_name(name), do: :"#{name}.GracefulShutdownManager"
 end
