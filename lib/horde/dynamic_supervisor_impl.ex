@@ -32,7 +32,6 @@ defmodule Horde.DynamicSupervisorImpl do
   ## GenServer callbacks
   defp crdt_name(name), do: :"#{name}.Crdt"
   defp supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
-  defp rebalancer_name(name), do: :"#{name}.Rebalancer"
 
   defp fully_qualified_name({name, node}) when is_atom(name) and is_atom(node), do: {name, node}
   defp fully_qualified_name(name) when is_atom(name), do: {name, node()}
@@ -74,13 +73,8 @@ defmodule Horde.DynamicSupervisorImpl do
   defp node_status(%{shutting_down: true}), do: :shutting_down
 
   @doc false
-  def handle_call(:rebalance, from, state) do
-    Kernel.send(rebalancer_name(state.name), {:rebalance, state, from})
-    {:noreply, state}
-  end
-
-  @doc false
   def handle_call(:horde_shutting_down, _f, state) do
+    IO.puts(":horde_shutting_down signal received #{state.name}")
     state = %{state | shutting_down: true}
 
     DeltaCrdt.mutate(
@@ -343,6 +337,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
   @doc false
   def handle_info({:DOWN, ref, _type, _pid, _reason}, state) do
+    IO.puts(":DOWN received #{inspect _pid}")
     case Map.get(state.supervisor_ref_to_name, ref) do
       nil ->
         {:noreply, state}
@@ -372,16 +367,30 @@ defmodule Horde.DynamicSupervisorImpl do
     new_state =
       if has_membership_change?(diffs) do
         monitor_supervisors(new_state)
-        |> redistribute_processes()
         |> set_own_node_status()
         |> handle_quorum_change()
         |> set_crdt_neighbours()
       else
         new_state
       end
+    
+    new_state = 
+      if needs_redistribution?(diffs) do 
+        redistribute_processes(new_state)
+      else
+        new_state
+      end
+
 
     {:noreply, new_state}
   end
+
+  def needs_redistribution?([ {:add, {:member_node_info, member}, %{status: status}} | _diffs ] ) do
+    IO.puts(":redistribute #{status} #{inspect member}")
+    [:alive, :redistribute, :dead] |> Enum.member?(status);
+  end
+
+  def needs_redistribution?(_), do: false
 
   def has_membership_change?([{:add, {:member_node_info, _}, _} | _diffs]), do: true
 
@@ -587,10 +596,10 @@ defmodule Horde.DynamicSupervisorImpl do
     end)
 
     %{state | members: new_members, members_info: new_members_info}
-    |> redistribute_processes()
     |> monitor_supervisors()
     |> handle_quorum_change()
     |> set_crdt_neighbours()
+    |> redistribute_processes()
   end
 
   defp handle_quorum_change(state) do
@@ -635,7 +644,6 @@ defmodule Horde.DynamicSupervisorImpl do
       Enum.flat_map(members(state), fn
         {name, %{status: :alive}} ->
           [name]
-
         _ ->
           []
       end)

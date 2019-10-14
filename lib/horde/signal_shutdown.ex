@@ -17,6 +17,7 @@ defmodule Horde.SignalShutdown do
   end
 
   def terminate(_reason, signal_to) do
+    IO.puts("#{__MODULE__} terminate received #{inspect signal_to}")
     Enum.each(signal_to, fn destination ->
       :ok = GenServer.call(destination, :horde_shutting_down)
     end)

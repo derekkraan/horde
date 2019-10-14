@@ -2,7 +2,7 @@ defmodule DynamicSupervisorTest do
   require Logger
   use ExUnit.Case
 
-  setup do
+  defp do_setup() do 
     n1 = :"horde_#{:rand.uniform(100_000_000)}"
     n2 = :"horde_#{:rand.uniform(100_000_000)}"
     n3 = :"horde_#{:rand.uniform(100_000_000)}"
@@ -56,6 +56,14 @@ defmodule DynamicSupervisorTest do
       horde_1_sup_pid: horde_1_sup_pid,
       task_def: task_def
     ]
+  end
+
+  setup %{describe: describe} do
+    case describe do 
+      "graceful shutdown" -> 
+        Logger.info("Skip setup for \"#{describe}\" context")
+      _ -> do_setup()
+    end
   end
 
   @tag timeout: 120_000
