@@ -74,6 +74,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
   @doc false
   def handle_call(:horde_shutting_down, _f, state) do
+    IO.puts(":horde_shutting_down received by #{inspect state.name}")
     state = %{state | shutting_down: true}
 
     DeltaCrdt.mutate(
@@ -143,12 +144,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
     child_spec = Map.put(child_spec, :id, :rand.uniform(@big_number))
 
-    distribution_id = :erlang.phash2(Map.drop(child_spec, [:id]))
-
-    case state.distribution_strategy.choose_node(
-           distribution_id,
-           Map.values(members(state))
-         ) do
+    case choose_node(child_spec, state) do
       {:ok, %{name: ^this_name}} ->
         {reply, new_state} = add_child(child_spec, state)
         {:reply, reply, new_state}
@@ -336,6 +332,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
   @doc false
   def handle_info({:DOWN, ref, _type, _pid, _reason}, state) do
+    IO.puts(":DOWN received by #{inspect _pid}")
     case Map.get(state.supervisor_ref_to_name, ref) do
       nil ->
         {:noreply, state}
@@ -373,7 +370,7 @@ defmodule Horde.DynamicSupervisorImpl do
       end
     
     new_state = 
-      if needs_redistribution?(state, diffs) do 
+      if needs_redistribution?(state, new_state, diffs) do 
         redistribute_processes(new_state)
       else
         new_state
@@ -383,22 +380,29 @@ defmodule Horde.DynamicSupervisorImpl do
     {:noreply, new_state}
   end
 
-  def needs_redistribution?(state, [ {:add, {:member_node_info, member}, %{status: status}} | _diffs ] ) do
+  def needs_redistribution?(state, new_state, [ {:add, {:member_node_info, member}, %{status: status}} | _diffs ] ) do
+    %{status: this_node_status} = Map.get(new_state.members_info, fully_qualified_name(state.name))
+
     current_status = case Map.get(state.members_info, member) do 
       nil -> nil
       %{status: current_status} -> current_status
     end
 
-    case {current_status, status} do 
-      {_, ^current_status} -> false
-      {:uninitialized, :alive} -> true
-      {:shutting_down, :dead} -> true
+    IO.inspect({current_status, status, member})
+
+    case this_node_status do 
+      :alive ->
+        case {current_status, status} do 
+          {_, ^current_status} -> false
+          {:uninitialized, :alive} -> true
+          {:shutting_down, :dead} -> true
+          _ -> false
+        end
       _ -> false
     end
-     
   end
 
-  def needs_redistribution?(_state, _diffs), do: false
+  def needs_redistribution?(_state, _nstate, _diffs), do: false
 
   def has_membership_change?([{:add, {:member_node_info, _}, _} | _diffs]), do: true
 
@@ -424,7 +428,7 @@ defmodule Horde.DynamicSupervisorImpl do
   defp update_process(state, {:add, {:process, child_id}, {nil, child_spec}}) do
     this_name = fully_qualified_name(state.name)
 
-    case state.distribution_strategy.choose_node(child_id, Map.values(members(state))) do
+    case choose_node(child_spec, state) do
       {:ok, %{name: ^this_name}} ->
         {_resp, state} = add_child(child_spec, state)
         state
@@ -525,10 +529,7 @@ defmodule Horde.DynamicSupervisorImpl do
   defp redistribute_processes(state, [{member, child, _child_pid} | procs]) do
     this_name = fully_qualified_name(state.name)
     
-    case state.distribution_strategy.choose_node(
-      child.id,
-      Map.values(members(state))
-    ) do 
+    case choose_node(child, state) do 
       {:ok, %{name: chosen_member}} ->
         #if this process is not currently running on this node, but should switch to this node.
         with false <- (this_name == member),
@@ -742,6 +743,15 @@ defmodule Horde.DynamicSupervisorImpl do
       :ignore, {responses, state} ->
         {[:ignore | responses], state}
     end)
+  end
+
+  defp choose_node(child_spec, state) do
+    distribution_id = :erlang.phash2(Map.drop(child_spec, [:id]))
+
+    state.distribution_strategy.choose_node(
+      distribution_id,
+      Map.values(members(state))
+    )
   end
 
   defp members(state) do
