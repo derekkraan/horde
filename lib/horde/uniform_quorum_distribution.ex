@@ -43,4 +43,8 @@ defmodule Horde.UniformQuorumDistribution do
       nodes
     end
   end
+
+  def redistribute_on(_members) do
+    Application.get_env(:horde, :redistribute_on, :all)
+  end
 end

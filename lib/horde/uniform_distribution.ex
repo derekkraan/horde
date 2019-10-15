@@ -24,4 +24,9 @@ defmodule Horde.UniformDistribution do
   end
 
   def has_quorum?(_members), do: true
+
+  def redistribute_on(_members) do
+    Application.get_env(:horde, :redistribute_on, :all)
+  end
+
 end

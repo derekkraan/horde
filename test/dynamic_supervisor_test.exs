@@ -288,6 +288,13 @@ defmodule DynamicSupervisorTest do
 
   describe "graceful shutdown" do
     test "stopping a node moves processes over when they are ready" do
+
+      # NOTE: here I had to disable redistribution on node :up, otherwise 
+      # sometimes horde would kill the :fast process for redistribution when 
+      # :horde_2_graceful is marked as :alive
+
+      Application.put_env(:horde, :redistribute_on, :down)
+
       {:ok, _} =
         Horde.DynamicSupervisor.start_link(
           name: :horde_1_graceful,

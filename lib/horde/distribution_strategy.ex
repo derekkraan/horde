@@ -9,4 +9,6 @@ defmodule Horde.DistributionStrategy do
   @callback choose_node(identifier :: String.t(), members :: [Horde.DynamicSupervisor.Member.t()]) ::
               {:ok, Horde.DynamicSupervisor.Member.t()} | {:error, reason :: String.t()}
   @callback has_quorum?(members :: [Horde.DynamicSupervisor.Member.t()]) :: boolean()
+
+  @callback redistribute_on(members :: [Horde.DynamicSupervisor.Member.t()]) :: :all | :none | :up | :down  
 end

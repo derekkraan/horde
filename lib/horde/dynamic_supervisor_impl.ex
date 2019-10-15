@@ -74,7 +74,6 @@ defmodule Horde.DynamicSupervisorImpl do
 
   @doc false
   def handle_call(:horde_shutting_down, _f, state) do
-    IO.puts(":horde_shutting_down received by #{inspect state.name}")
     state = %{state | shutting_down: true}
 
     DeltaCrdt.mutate(
@@ -332,7 +331,6 @@ defmodule Horde.DynamicSupervisorImpl do
 
   @doc false
   def handle_info({:DOWN, ref, _type, _pid, _reason}, state) do
-    IO.puts(":DOWN received by #{inspect _pid}")
     case Map.get(state.supervisor_ref_to_name, ref) do
       nil ->
         {:noreply, state}
@@ -383,19 +381,19 @@ defmodule Horde.DynamicSupervisorImpl do
   def needs_redistribution?(state, new_state, [ {:add, {:member_node_info, member}, %{status: status}} | _diffs ] ) do
     %{status: this_node_status} = Map.get(new_state.members_info, fully_qualified_name(state.name))
 
+    permitted = state.distribution_strategy.redistribute_on(members(state))
+
     current_status = case Map.get(state.members_info, member) do 
       nil -> nil
       %{status: current_status} -> current_status
     end
 
-    IO.inspect({current_status, status, member})
-
     case this_node_status do 
       :alive ->
         case {current_status, status} do 
           {_, ^current_status} -> false
-          {:uninitialized, :alive} -> true
-          {:shutting_down, :dead} -> true
+          {:uninitialized, :alive} when permitted in [:all, :up] -> true
+          {:shutting_down, :dead} when permitted in [:all, :down] -> true
           _ -> false
         end
       _ -> false
@@ -425,7 +423,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp update_processes(state, []), do: state
 
-  defp update_process(state, {:add, {:process, child_id}, {nil, child_spec}}) do
+  defp update_process(state, {:add, {:process, _child_id}, {nil, child_spec}}) do
     this_name = fully_qualified_name(state.name)
 
     case choose_node(child_spec, state) do
@@ -526,22 +524,23 @@ defmodule Horde.DynamicSupervisorImpl do
     redistribute_processes(state, Map.values(state.processes_by_id))
   end
 
-  defp redistribute_processes(state, [{member, child, _child_pid} | procs]) do
-    this_name = fully_qualified_name(state.name)
+  defp redistribute_processes(state, [{current_node, child, _child_pid} | procs]) do
+    this_node = fully_qualified_name(state.name)
+    
     
     case choose_node(child, state) do 
-      {:ok, %{name: chosen_member}} ->
+      {:ok, %{name: chosen_node}} ->
         #if this process is not currently running on this node, but should switch to this node.
-        with false <- (this_name == member),
-          ^this_name <- chosen_member,
-          {_result, state} <- add_child(child, state) do
+        with false <- (this_node == current_node),
+             ^this_node <- chosen_node,
+             {_result, state} <- add_child(child, state) do
           state
         else
           _ -> 
             #if this process is currently running on this node, but it should swith to another node.
-            with ^this_name <- member,
-              false <- (chosen_member == this_name),
-              {_result, state} <- terminate_child(child, state) do
+            with ^this_node <- current_node,
+                 false <- (chosen_node == this_node),
+                 {_result, state} <- terminate_child(child, state) do
               state
             else
               _ -> state
