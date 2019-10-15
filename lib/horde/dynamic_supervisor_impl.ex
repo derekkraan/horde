@@ -74,7 +74,6 @@ defmodule Horde.DynamicSupervisorImpl do
 
   @doc false
   def handle_call(:horde_shutting_down, _f, state) do
-    IO.puts(":horde_shutting_down signal received #{state.name}")
     state = %{state | shutting_down: true}
 
     DeltaCrdt.mutate(
@@ -337,7 +336,6 @@ defmodule Horde.DynamicSupervisorImpl do
 
   @doc false
   def handle_info({:DOWN, ref, _type, _pid, _reason}, state) do
-    IO.puts(":DOWN received #{inspect _pid}")
     case Map.get(state.supervisor_ref_to_name, ref) do
       nil ->
         {:noreply, state}
@@ -375,7 +373,7 @@ defmodule Horde.DynamicSupervisorImpl do
       end
     
     new_state = 
-      if needs_redistribution?(diffs) do 
+      if needs_redistribution?(state, diffs) do 
         redistribute_processes(new_state)
       else
         new_state
@@ -385,12 +383,22 @@ defmodule Horde.DynamicSupervisorImpl do
     {:noreply, new_state}
   end
 
-  def needs_redistribution?([ {:add, {:member_node_info, member}, %{status: status}} | _diffs ] ) do
-    IO.puts(":redistribute #{status} #{inspect member}")
-    [:alive, :redistribute, :dead] |> Enum.member?(status);
+  def needs_redistribution?(state, [ {:add, {:member_node_info, member}, %{status: status}} | _diffs ] ) do
+    current_status = case Map.get(state.members_info, member) do 
+      nil -> nil
+      %{status: current_status} -> current_status
+    end
+
+    case {current_status, status} do 
+      {_, ^current_status} -> false
+      {:uninitialized, :alive} -> true
+      {:shutting_down, :dead} -> true
+      _ -> false
+    end
+     
   end
 
-  def needs_redistribution?(_), do: false
+  def needs_redistribution?(_state, _diffs), do: false
 
   def has_membership_change?([{:add, {:member_node_info, _}, _} | _diffs]), do: true
 
@@ -511,14 +519,7 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp redistribute_processes(state) do
-    member = Map.get(members(state), fully_qualified_name(state.name))
-    case member.status do 
-      :uninitialized -> state
-      :dead -> state
-      :shutting_down -> state
-      _ -> 
-        redistribute_processes(state, Map.values(state.processes_by_id))
-    end
+    redistribute_processes(state, Map.values(state.processes_by_id))
   end
 
   defp redistribute_processes(state, [{member, child, _child_pid} | procs]) do
@@ -599,7 +600,6 @@ defmodule Horde.DynamicSupervisorImpl do
     |> monitor_supervisors()
     |> handle_quorum_change()
     |> set_crdt_neighbours()
-    |> redistribute_processes()
   end
 
   defp handle_quorum_change(state) do
