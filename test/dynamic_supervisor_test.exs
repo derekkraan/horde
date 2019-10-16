@@ -67,18 +67,22 @@ defmodule DynamicSupervisorTest do
     # Spawn one supervisor and add processes to it, then spawn another and redistribute
     # the processes between the two.
     {:ok, pid_n1} =
-      Horde.DynamicSupervisor.start_link(
+      start_supervised({Horde.DynamicSupervisor, [
         name: n1,
         strategy: :one_for_one,
         delta_crdt_options: [sync_interval: 20]
-      )
+      ]})
 
     {:ok, pid_n2} =
-      Horde.DynamicSupervisor.start_link(
+      start_supervised({Horde.DynamicSupervisor, [
         name: n2,
         strategy: :one_for_one,
         delta_crdt_options: [sync_interval: 20]
-      )
+      ]})
+
+    on_exit(fn () -> 
+      Application.put_env(:horde, :redistribute_on, :all)
+    end)
 
     # Start 5 child processes with randomized names
     num_workers = 10
@@ -111,9 +115,7 @@ defmodule DynamicSupervisorTest do
   end
 
   setup %{describe: describe} do
-    on_exit(fn () -> 
-      Application.put_env(:horde, :redistribute_on, :all)
-    end)
+
 
     case describe do 
       "redistribute" -> redistribute_setup()
@@ -542,11 +544,11 @@ defmodule DynamicSupervisorTest do
   
   describe "redistribute" do 
     test "processes should redistribute to new member nodes as they are added", context do
-      Application.put_env(:horde, :redistribute_on, :all)
       n2_cspecs = LocalClusterHelper.expected_distribution_for(context.children, context.members, context.n2)
 
       Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
       Process.sleep(500)
+
       # redistribution now happens automatically :) but you could trigger it manually like this:
       # :ok = Horde.DynamicSupervisor.redistribute(n1)
     
@@ -616,7 +618,23 @@ defmodule DynamicSupervisorTest do
 
       # n2 should now be running all of the children
       assert LocalClusterHelper.supervisor_has_children?(context.n2, context.children)
+    end
 
+    test "should only redistribute on member :up but not on :down if config says so", context do
+      Application.put_env(:horde, :redistribute_on, :up)
+      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
+      
+      Process.sleep(500)
+
+      #verify that n2 gets some of the nodes
+      refute Kernel.match?([], LocalClusterHelper.running_children(context.n2))
+
+      n2_children = LocalClusterHelper.running_children(context.n2)
+
+      Horde.DynamicSupervisor.stop(context.n2)
+      Process.sleep(500)
+
+      assert LocalClusterHelper.supervisor_doesnt_have_children?(context.n1, n2_children)
     end
 
   end

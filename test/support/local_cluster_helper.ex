@@ -51,18 +51,29 @@ defmodule LocalClusterHelper do
     end)
   end
 
-  def supervisor_has_children?(name, children) do 
+  defp supervisor_child_matches(name, children) do 
+    children
+    |> Enum.map(fn child ->
       running_children(name)
       |> Enum.map(fn {_, {_, cspec, _}} ->
-        children
-        |> Enum.map(fn child -> 
-          Map.take(child, [:start])
-        end) 
-        |> Enum.any?(fn child ->
-          child == Map.take(cspec, [:start])
-        end)
+        cspec
       end)
-      |> Enum.all?()
+      |> Enum.map(fn cspec -> 
+        Map.take(cspec, [:start])
+      end) 
+      |> Enum.any?(fn cspec ->
+        cspec == Map.take(child, [:start])
+      end)
+    end)
+  end
+
+  def supervisor_doesnt_have_children?(name, children) do
+    #check if supervisor has any of these children, and then inverts the response
+    not supervisor_child_matches(name, children) |> Enum.any?()
+  end
+
+  def supervisor_has_children?(name, children) do 
+    supervisor_child_matches(name, children) |> Enum.all?()
   end
 
   def await_members_alive(sup_name) do

@@ -141,7 +141,7 @@ defmodule Horde.DynamicSupervisorImpl do
   def handle_call({:start_child, child_spec} = msg, from, state) do
     this_name = fully_qualified_name(state.name)
 
-    child_spec = Map.put(child_spec, :id, :rand.uniform(@big_number))
+    child_spec = randomize_child_id(child_spec)
 
     case choose_node(child_spec, state) do
       {:ok, %{name: ^this_name}} ->
@@ -243,6 +243,10 @@ defmodule Horde.DynamicSupervisorImpl do
 
     :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
     {:noreply, new_state}
+  end
+  
+  defp randomize_child_id(child) do 
+    Map.put(child, :id, :rand.uniform(@big_number))
   end
 
   defp proxy_to_node(node_name, message, reply_to, state) do
@@ -366,43 +370,41 @@ defmodule Horde.DynamicSupervisorImpl do
       else
         new_state
       end
-    
+
+
     new_state = 
-      if needs_redistribution?(state, new_state, diffs) do 
+      if needs_redistribution?(new_state, diffs) do 
         redistribute_processes(new_state)
       else
         new_state
       end
 
-
     {:noreply, new_state}
   end
 
-  def needs_redistribution?(state, new_state, [ {:add, {:member_node_info, member}, %{status: status}} | _diffs ] ) do
-    %{status: this_node_status} = Map.get(new_state.members_info, fully_qualified_name(state.name))
-
+  def needs_redistribution?(state, [ diff | diffs ] ) do
+    this_node = fully_qualified_name(state.name)
     permitted = state.distribution_strategy.redistribute_on(members(state))
 
-    current_status = case Map.get(state.members_info, member) do 
-      nil -> nil
-      %{status: current_status} -> current_status
+    case diff do 
+      {:remove, {:member_node_info, _}} -> true
+      {:add, {:member_node_info, member}, %{status: new_status}} -> 
+        cond do
+          (member == this_node) -> needs_redistribution?(state, diffs)
+          true ->
+            case new_status do 
+              :redistribute -> true
+              :alive when permitted in [:all, :up] -> true
+              :dead when permitted in [:all, :down] -> true
+              _ -> needs_redistribution?(state, diffs)
+            end
+        end
+      _ -> needs_redistribution?(state, diffs)
     end
 
-    case this_node_status do 
-      :redistribute -> true
-      :alive ->
-        case {current_status, status} do 
-          {_, ^current_status} -> false
-          {_, :redistribute} -> true
-          {:uninitialized, :alive} when permitted in [:all, :up] -> true
-          {_, :dead} when permitted in [:all, :down] -> true
-          _ -> false
-        end
-      _ -> false
-    end
   end
 
-  def needs_redistribution?(_state, _nstate, _diffs), do: false
+  def needs_redistribution?(_state, _diffs), do: false
 
   def has_membership_change?([{:add, {:member_node_info, _}, _} | _diffs]), do: true
 
@@ -534,24 +536,18 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp redistribute_processes(state, [{current_node, child, _child_pid} | procs]) do
     this_node = fully_qualified_name(state.name)
-    
+
     case choose_node(child, state) do 
       {:ok, %{name: chosen_node}} ->
-        #if this process is not currently running on this node, but should switch to this node.
-        with false <- (this_node == current_node),
-             ^this_node <- chosen_node,
-             {_result, state} <- add_child(child, state) do
-          state
-        else
-          _ -> 
-            #if this process is currently running on this node, but it should swith to another node.
-            with ^this_node <- current_node,
-                 false <- (chosen_node == this_node),
-                 {_result, state} <- terminate_child(child, state, :redistribute) do
-              state
-            else
-              _ -> state
-            end
+        cond do 
+          (this_node != current_node) and (this_node == chosen_node) ->
+            {_result, state} = add_child(child, state)
+            state
+          (this_node == current_node) and (chosen_node != this_node) ->
+            {_result, state} = terminate_child(child, state, :redistribute)
+            state
+          true ->
+            state
         end
         |> redistribute_processes(procs)
       {:error, :no_alive_nodes} ->
@@ -718,7 +714,7 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp add_child(child, state) do
-    {[response], new_state} = add_children([child], state)
+    {[response], new_state} = add_children([randomize_child_id(child)], state)
     {response, new_state}
   end
 
