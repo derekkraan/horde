@@ -389,7 +389,7 @@ defmodule Horde.DynamicSupervisorImpl do
     end
 
     case this_node_status do 
-      :alive ->
+      tns when tns in [:alive, :redistribute] ->
         case {current_status, status} do 
           {_, ^current_status} -> false
           {_, :redistribute} -> true
@@ -424,7 +424,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp update_processes(state, []), do: state
 
-  defp update_process(state, {:add, {:process, child_id}, {nil, child_spec}}) do
+  defp update_process(state, {:add, {:process, _child_id}, {nil, child_spec}}) do
     this_name = fully_qualified_name(state.name)
     permitted = state.distribution_strategy.redistribute_on(members(state))
     case choose_node(child_spec, state) do
