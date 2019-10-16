@@ -394,7 +394,7 @@ defmodule Horde.DynamicSupervisorImpl do
           {_, ^current_status} -> false
           {_, :redistribute} -> true
           {:uninitialized, :alive} when permitted in [:all, :up] -> true
-          {:shutting_down, :dead} when permitted in [:all, :down] -> true
+          {_, :dead} when permitted in [:all, :down] -> true
           _ -> false
         end
       _ -> false
