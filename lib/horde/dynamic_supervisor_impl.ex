@@ -293,7 +293,7 @@ defmodule Horde.DynamicSupervisorImpl do
     DeltaCrdt.mutate(
       crdt_name(state.name),
       :add,
-      [{:member_node_info, fully_qualified_name(state.name), this_node_info}],
+      [{:member_node_info, fully_qualified_name(state.name)}, this_node_info],
       :infinity
     )
 

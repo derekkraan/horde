@@ -70,10 +70,15 @@ defmodule DynamicSupervisorTest do
       Horde.DynamicSupervisor.start_link(
         name: n1,
         strategy: :one_for_one,
-        delta_crdt_options: [sync_interval: 20],
-        members: members
+        delta_crdt_options: [sync_interval: 20]
       )
 
+    {:ok, _} =
+      Horde.DynamicSupervisor.start_link(
+        name: n2,
+        strategy: :one_for_one,
+        delta_crdt_options: [sync_interval: 20]
+      )
 
     # Start 5 child processes with randomized names
     cspecs =
@@ -102,12 +107,17 @@ defmodule DynamicSupervisorTest do
   end
 
   setup %{describe: describe} do
+    on_exit(fn () -> 
+      Application.put_env(:horde, :redistribute_on, :all)
+    end)
+
     case describe do 
       "redistribute" -> redistribute_setup()
       "graceful shutdown" -> 
         Logger.info("Skip setup for \"#{describe}\" context")
       _ -> do_setup()
     end
+
   end
 
   @tag timeout: 120_000
@@ -528,23 +538,35 @@ defmodule DynamicSupervisorTest do
   
   describe "redistribute" do 
     test "processes should redistribute to new member nodes as they are added", context do
+      Application.put_env(:horde, :redistribute_on, :all)
       n2_cspecs = LocalClusterHelper.expected_distribution_for(context.children, context.members, context.n2)
 
-      # Now spin up the 2nd DynamicSupervisor
-      {:ok, _} =
-        Horde.DynamicSupervisor.start_link(
-          name: context.n2,
-          strategy: :one_for_one,
-          delta_crdt_options: [sync_interval: 20],
-          members: context.members
-        )
-
+      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
+      Process.sleep(500)
       # redistribution now happens automatically :) but you could trigger it manually like this:
       # :ok = Horde.DynamicSupervisor.redistribute(n1)
     
       assert_receive {:shutdown, :redistribute}, 100
       refute_receive {:shutdown, :shutdown}, 100
 
+      assert LocalClusterHelper.supervisor_has_children?(context.n2, n2_cspecs)
+    end
+    
+    test "processes should not redistribute to new member if redistribution is disabled by config", context do
+      Application.put_env(:horde, :redistribute_on, :none)
+      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
+      Process.sleep(500)
+      assert Kernel.match?([], LocalClusterHelper.running_children(context.n2))
+    end
+
+    test "processes should be manually redistributable via redistribute/1", context do 
+      Application.put_env(:horde, :redistribute_on, :none)
+      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
+      Process.sleep(500)
+      assert Kernel.match?([], LocalClusterHelper.running_children(context.n2))
+
+      n2_cspecs = LocalClusterHelper.expected_distribution_for(context.children, context.members, context.n2)
+      Horde.DynamicSupervisor.redistribute(context.n2)
       assert LocalClusterHelper.supervisor_has_children?(context.n2, n2_cspecs)
     end
   end

@@ -42,7 +42,7 @@ defmodule LocalClusterHelper do
     end)
   end
 
-  def supervisor_has_children?(name, children) do 
+  def running_children(name) do 
       sup_state =
         Task.async(fn ->
           LocalClusterHelper.await_members_alive(name)
@@ -53,6 +53,10 @@ defmodule LocalClusterHelper do
       |> Enum.filter(fn {_id, {{sup_name, _}, _cspec, _pid}} ->
         Kernel.match?(^name, sup_name)
       end)
+  end
+
+  def supervisor_has_children?(name, children) do 
+      running_children(name)
       |> Enum.map(fn {_, {_, cspec, _}} ->
         cspec = Map.delete(cspec, [:id])
         Enum.any?(children, fn child ->
@@ -120,6 +124,7 @@ defmodule RebalanceTestServer do
     {:ok, ppid}
   end
 
+  @impl true
   def terminate(reason, ppid) do 
     send(ppid, {:shutdown, reason})
     Process.exit(self(), :kill)
