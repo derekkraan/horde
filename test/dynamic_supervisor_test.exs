@@ -66,14 +66,14 @@ defmodule DynamicSupervisorTest do
 
     # Spawn one supervisor and add processes to it, then spawn another and redistribute
     # the processes between the two.
-    {:ok, _} =
+    {:ok, pid_n1} =
       Horde.DynamicSupervisor.start_link(
         name: n1,
         strategy: :one_for_one,
         delta_crdt_options: [sync_interval: 20]
       )
 
-    {:ok, _} =
+    {:ok, pid_n2} =
       Horde.DynamicSupervisor.start_link(
         name: n2,
         strategy: :one_for_one,
@@ -81,8 +81,9 @@ defmodule DynamicSupervisorTest do
       )
 
     # Start 5 child processes with randomized names
+    num_workers = 10
     cspecs =
-      0..9
+      0..(num_workers - 1)
       |> Enum.map(fn _ ->
         name = :"child_#{:rand.uniform(100_000_000)}"
 
@@ -100,6 +101,9 @@ defmodule DynamicSupervisorTest do
     [
       n1: n1,
       n2: n2,
+      pid_n1: pid_n1,
+      pid_n2: pid_n2,
+      num_workers: num_workers,
       members: members,
       children: cspecs
     ]
@@ -569,5 +573,51 @@ defmodule DynamicSupervisorTest do
       Horde.DynamicSupervisor.redistribute(context.n2)
       assert LocalClusterHelper.supervisor_has_children?(context.n2, n2_cspecs)
     end
+
+    test "processes should not do failover redistribution if the configuration prohibits it", context do 
+      Application.put_env(:horde, :redistribute_on, :none)
+      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
+      
+      Process.sleep(500)
+      
+      Process.unlink(context.pid_n1)
+      Process.exit(context.pid_n1, :kill)
+      
+      Process.sleep(1000)
+
+      assert %{workers: 0} = Horde.DynamicSupervisor.count_children(context.n2)
+    end
+
+    test "processes should not redistribute on graceful shutdown if configuration prohibits it", context do 
+      Application.put_env(:horde, :redistribute_on, :none)
+      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
+      
+      Process.sleep(500)
+      
+      Horde.DynamicSupervisor.stop(context.n1)
+      
+      Process.sleep(1000)
+
+      assert %{workers: 0} = Horde.DynamicSupervisor.count_children(context.n2)
+    end
+
+    test "should only redistribute on member :down but not on :up if config says so", context do 
+      Application.put_env(:horde, :redistribute_on, :down)
+      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
+      
+      Process.sleep(500)
+    
+      # verify nothing redistributed on :up
+      assert Kernel.match?([], LocalClusterHelper.running_children(context.n2))
+      
+      Horde.DynamicSupervisor.stop(context.n1)
+      
+      Process.sleep(1000)
+
+      # n2 should now be running all of the children
+      assert LocalClusterHelper.supervisor_has_children?(context.n2, context.children)
+
+    end
+
   end
 end

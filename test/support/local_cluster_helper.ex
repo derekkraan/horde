@@ -43,24 +43,23 @@ defmodule LocalClusterHelper do
   end
 
   def running_children(name) do 
-      sup_state =
-        Task.async(fn ->
-          LocalClusterHelper.await_members_alive(name)
-        end)
-        |> Task.await()
+    sup_state = :sys.get_state(Process.whereis(name)) 
 
-      sup_state.processes_by_id
-      |> Enum.filter(fn {_id, {{sup_name, _}, _cspec, _pid}} ->
-        Kernel.match?(^name, sup_name)
-      end)
+    sup_state.processes_by_id
+    |> Enum.filter(fn {_id, {{sup_name, _}, _cspec, _pid}} ->
+      Kernel.match?(^name, sup_name)
+    end)
   end
 
   def supervisor_has_children?(name, children) do 
       running_children(name)
       |> Enum.map(fn {_, {_, cspec, _}} ->
-        cspec = Map.delete(cspec, [:id])
-        Enum.any?(children, fn child ->
-          child == cspec
+        children
+        |> Enum.map(fn child -> 
+          Map.take(child, [:start])
+        end) 
+        |> Enum.any?(fn child ->
+          child == Map.take(cspec, [:start])
         end)
       end)
       |> Enum.all?()
