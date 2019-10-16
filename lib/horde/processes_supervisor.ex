@@ -287,8 +287,8 @@ defmodule Horde.ProcessesSupervisor do
     end
   end
 
-  def terminate_child_by_id(supervisor, child_id) do
-    call(supervisor, {:terminate_child_by_id, child_id})
+  def terminate_child_by_id(supervisor, child_id, reason \\ :shutdown) do
+    call(supervisor, {:terminate_child_by_id, child_id, reason})
   end
 
   @doc """
@@ -664,8 +664,8 @@ defmodule Horde.ProcessesSupervisor do
   defp validate_extra_arguments(list) when is_list(list), do: :ok
   defp validate_extra_arguments(extra), do: {:error, {:invalid_extra_arguments, extra}}
 
-  def handle_call({:terminate_child_by_id, child_id}, from, state) do
-    handle_call({:terminate_child, state.child_id_to_pid[child_id]}, from, state)
+  def handle_call({:terminate_child_by_id, child_id, reason}, from, state) do
+    handle_call({:terminate_child, state.child_id_to_pid[child_id], reason}, from, state)
   end
 
   @impl true
@@ -709,10 +709,15 @@ defmodule Horde.ProcessesSupervisor do
     {:reply, reply, state}
   end
 
-  def handle_call({:terminate_child, pid}, _from, %{children: children} = state) do
+
+  def handle_call({:terminate_child, pid}, from, state) do
+    handle_call({:terminate_child, pid, :shutdown}, from, state)
+  end
+
+  def handle_call({:terminate_child, pid, reason}, _from, %{children: children} = state) do
     case children do
       %{^pid => info} ->
-        :ok = terminate_children(%{pid => info}, state)
+        :ok = terminate_children(%{pid => info}, state, reason)
         {:reply, :ok, delete_child(pid, state)}
 
       %{} ->
@@ -844,8 +849,12 @@ defmodule Horde.ProcessesSupervisor do
     :ok = terminate_children(children, state)
   end
 
-  defp terminate_children(children, state) do
-    {pids, times, stacks} = monitor_children(children)
+  defp terminate_children(children, state) do 
+    terminate_children(children, state, :shutdown)
+  end
+
+  defp terminate_children(children, state, reason) do
+    {pids, times, stacks} = monitor_children(children, reason)
     size = map_size(pids)
 
     timers =
@@ -862,7 +871,7 @@ defmodule Horde.ProcessesSupervisor do
     :ok
   end
 
-  defp monitor_children(children) do
+  defp monitor_children(children, exit_reason) do
     Enum.reduce(children, {%{}, %{}, %{}}, fn
       {_, {:restarting, _}}, acc ->
         acc
@@ -871,7 +880,7 @@ defmodule Horde.ProcessesSupervisor do
       {pids, times, stacks} ->
         case monitor_child(pid) do
           :ok ->
-            times = exit_child(pid, child, times)
+            times = exit_child(pid, child, times, exit_reason)
             {Map.put(pids, pid, child), times, stacks}
 
           {:error, :normal} when restart != :permanent ->
@@ -897,18 +906,18 @@ defmodule Horde.ProcessesSupervisor do
     end
   end
 
-  defp exit_child(pid, {_, _, _, shutdown, _, _}, times) do
+  defp exit_child(pid, {_, _, _, shutdown, _, _}, times, exit_reason) do
     case shutdown do
       :brutal_kill ->
         Process.exit(pid, :kill)
         times
 
       :infinity ->
-        Process.exit(pid, :shutdown)
+        Process.exit(pid, exit_reason)
         times
 
       time ->
-        Process.exit(pid, :shutdown)
+        Process.exit(pid, exit_reason)
         Map.update(times, time, [pid], &[pid | &1])
     end
   end

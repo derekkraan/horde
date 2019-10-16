@@ -389,7 +389,8 @@ defmodule Horde.DynamicSupervisorImpl do
     end
 
     case this_node_status do 
-      tns when tns in [:alive, :redistribute] ->
+      :redistribute -> true
+      :alive ->
         case {current_status, status} do 
           {_, ^current_status} -> false
           {_, :redistribute} -> true
@@ -546,7 +547,7 @@ defmodule Horde.DynamicSupervisorImpl do
             #if this process is currently running on this node, but it should swith to another node.
             with ^this_node <- current_node,
                  false <- (chosen_node == this_node),
-                 {_result, state} <- terminate_child(child, state) do
+                 {_result, state} <- terminate_child(child, state, :redistribute) do
               state
             else
               _ -> state
@@ -696,13 +697,15 @@ defmodule Horde.DynamicSupervisorImpl do
     |> Map.put(:local_process_count, new_local_process_count)
   end
 
-  defp terminate_child(child, state) do 
+  defp terminate_child(child, state), do: terminate_child(child, state, :shutdown) 
+  defp terminate_child(child, state, reason) do 
     child_id = child.id
 
     reply =
       Horde.ProcessesSupervisor.terminate_child_by_id(
         supervisor_name(state.name),
-        child_id
+        child_id,
+        reason
       )
 
     new_state =

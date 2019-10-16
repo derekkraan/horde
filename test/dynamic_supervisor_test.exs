@@ -501,13 +501,19 @@ defmodule DynamicSupervisorTest do
     defmodule RebalanceTestServer do
       use GenServer
 
-      def start_link(opts) do
-        GenServer.start_link(__MODULE__, nil, name: opts[:name])
+      def start_link({name, ppid}) do
+        GenServer.start_link(__MODULE__, ppid, name: name)
       end
 
       @impl true
-      def init(_) do
-        {:ok, nil}
+      def init(ppid) do
+        Process.flag(:trap_exit, true)
+        {:ok, ppid}
+      end
+
+      def terminate(reason, ppid) do 
+        send(ppid, {:shutdown, reason})
+        Process.exit(self(), :kill)
       end
     end
 
@@ -519,7 +525,7 @@ defmodule DynamicSupervisorTest do
 
         %{
           id: name,
-          start: {RebalanceTestServer, :start_link, [[name: name]]}
+          start: {RebalanceTestServer, :start_link, [{name, self()}]}
         }
       end)
 
@@ -554,10 +560,10 @@ defmodule DynamicSupervisorTest do
     n2_pnames =
       expected
       |> Map.to_list()
-      |> Enum.filter(fn {cid, sup_name} ->
+      |> Enum.filter(fn {_cid, sup_name} ->
         sup_name == n2
       end)
-      |> Enum.map(fn {cid, sup_name} ->
+      |> Enum.map(fn {cid, _sup_name} ->
         with %{processes_by_id: processes_by_id} <- n1_state,
              {_, {_, %{start: {_, _, [[name: pname]]}}, _}} <- Map.get(processes_by_id, cid) do
           pname
@@ -575,6 +581,9 @@ defmodule DynamicSupervisorTest do
 
     # redistribution now happens automatically :) but you could trigger it manually like this:
     # :ok = Horde.DynamicSupervisor.redistribute(n1)
+  
+    assert_receive {:shutdown, :redistribute}, 100
+    refute_receive {:shutdown, :shutdown}, 100
 
     n2_state =
       Task.async(fn ->
