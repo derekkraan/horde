@@ -58,8 +58,52 @@ defmodule DynamicSupervisorTest do
     ]
   end
 
+  defp redistribute_setup() do 
+    n1 = :horde_redistribute_1
+    n2 = :horde_redistribute_2
+
+    members = [{n1, Node.self()}, {n2, Node.self()}]
+
+    # Spawn one supervisor and add processes to it, then spawn another and redistribute
+    # the processes between the two.
+    {:ok, _} =
+      Horde.DynamicSupervisor.start_link(
+        name: n1,
+        strategy: :one_for_one,
+        delta_crdt_options: [sync_interval: 20],
+        members: members
+      )
+
+
+    # Start 5 child processes with randomized names
+    cspecs =
+      0..9
+      |> Enum.map(fn _ ->
+        name = :"child_#{:rand.uniform(100_000_000)}"
+
+        %{
+          id: name,
+          start: {RebalanceTestServer, :start_link, [{name, self()}]}
+        }
+      end)
+
+    cspecs
+    |> Enum.each(fn spec ->
+      assert Kernel.match?({:ok, _}, Horde.DynamicSupervisor.start_child(n1, spec))
+    end)
+
+    [
+      n1: n1,
+      n2: n2,
+      members: members,
+      children: cspecs
+    ]
+
+  end
+
   setup %{describe: describe} do
     case describe do 
+      "redistribute" -> redistribute_setup()
       "graceful shutdown" -> 
         Logger.info("Skip setup for \"#{describe}\" context")
       _ -> do_setup()
@@ -481,129 +525,27 @@ defmodule DynamicSupervisorTest do
     assert :ok == Horde.DynamicSupervisor.wait_for_quorum(:horde_quorum_1, 1000)
     assert :ok == Horde.DynamicSupervisor.wait_for_quorum(:horde_quorum_2, 1000)
   end
-
-  test "redistribute/1" do
-    n1 = :horde_redistribute_1
-    n2 = :horde_redistribute_2
-
-    members = [{n1, Node.self()}, {n2, Node.self()}]
-
-    # Spawn one supervisor and add processes to it, then spawn another and redistribute
-    # the processes between the two.
-    {:ok, _} =
-      Horde.DynamicSupervisor.start_link(
-        name: n1,
-        strategy: :one_for_one,
-        delta_crdt_options: [sync_interval: 20],
-        members: members
-      )
-
-    defmodule RebalanceTestServer do
-      use GenServer
-
-      def start_link({name, ppid}) do
-        GenServer.start_link(__MODULE__, ppid, name: name)
-      end
-
-      @impl true
-      def init(ppid) do
-        Process.flag(:trap_exit, true)
-        {:ok, ppid}
-      end
-
-      def terminate(reason, ppid) do 
-        send(ppid, {:shutdown, reason})
-        Process.exit(self(), :kill)
-      end
-    end
-
-    # Start 5 child processes with randomized names
-    cspecs =
-      0..9
-      |> Enum.map(fn _ ->
-        name = :"child_#{:rand.uniform(100_000_000)}"
-
-        %{
-          id: name,
-          start: {RebalanceTestServer, :start_link, [{name, self()}]}
-        }
-      end)
-
-    cspecs
-    |> Enum.each(fn spec ->
-      assert Kernel.match?({:ok, _}, Horde.DynamicSupervisor.start_child(n1, spec))
-    end)
-
-    expected =
-      cspecs
-      |> Enum.reduce(%{}, fn child_spec, acc ->
-        # precalculate which processes should end up on which nodes 
-        identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
-
-        ds_members = members 
-         |> Enum.map(fn (node) -> 
-            %Horde.DynamicSupervisor.Member{
-              name: node,
-              status: :alive
-            }
-          end) 
-
-        {:ok, %Horde.DynamicSupervisor.Member{name: {new_sup_name, _}}} =
-          Horde.UniformDistribution.choose_node(identifier, ds_members)
-
-        Map.put(acc, child_spec.id, new_sup_name)
-      end)
-
-    :timer.sleep(100) # wait for n1 to spin up
-    n1_state = :sys.get_state(Process.whereis(n1))
-
-    n2_pnames =
-      expected
-      |> Map.to_list()
-      |> Enum.filter(fn {_cid, sup_name} ->
-        sup_name == n2
-      end)
-      |> Enum.map(fn {cid, _sup_name} ->
-        with %{processes_by_id: processes_by_id} <- n1_state,
-             {_, {_, %{start: {_, _, [[name: pname]]}}, _}} <- Map.get(processes_by_id, cid) do
-          pname
-        end
-      end)
-
-    # Now spin up the 2nd DynamicSupervisor
-    {:ok, _} =
-      Horde.DynamicSupervisor.start_link(
-        name: n2,
-        strategy: :one_for_one,
-        delta_crdt_options: [sync_interval: 20],
-        members: members
-      )
-
-    # redistribution now happens automatically :) but you could trigger it manually like this:
-    # :ok = Horde.DynamicSupervisor.redistribute(n1)
   
-    assert_receive {:shutdown, :redistribute}, 100
-    refute_receive {:shutdown, :shutdown}, 100
+  describe "redistribute" do 
+    test "processes should redistribute to new member nodes as they are added", context do
+      n2_cspecs = LocalClusterHelper.expected_distribution_for(context.children, context.members, context.n2)
 
-    n2_state =
-      Task.async(fn ->
-        LocalClusterHelper.await_members_alive(n2)
-      end)
-      |> Task.await()
+      # Now spin up the 2nd DynamicSupervisor
+      {:ok, _} =
+        Horde.DynamicSupervisor.start_link(
+          name: context.n2,
+          strategy: :one_for_one,
+          delta_crdt_options: [sync_interval: 20],
+          members: context.members
+        )
 
-    #ensure that all nodes that should end up on n2 do actually end up there.
-    all_ok =
-      n2_state.processes_by_id
-      |> Enum.filter(fn {_, {{sup_name, _}, _, _}} ->
-        sup_name == n2
-      end)
-      |> Enum.map(fn {_, {_, %{start: {_, _, [[name: pname]]}}, _}} ->
-        Enum.any?(n2_pnames, fn n2pn ->
-          n2pn == pname
-        end)
-      end)
-      |> Enum.all?()
+      # redistribution now happens automatically :) but you could trigger it manually like this:
+      # :ok = Horde.DynamicSupervisor.redistribute(n1)
+    
+      assert_receive {:shutdown, :redistribute}, 100
+      refute_receive {:shutdown, :shutdown}, 100
 
-    assert all_ok
+      assert LocalClusterHelper.supervisor_has_children?(context.n2, n2_cspecs)
+    end
   end
 end
