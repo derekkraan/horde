@@ -392,6 +392,7 @@ defmodule Horde.DynamicSupervisorImpl do
       :alive ->
         case {current_status, status} do 
           {_, ^current_status} -> false
+          {_, :redistribute} -> true
           {:uninitialized, :alive} when permitted in [:all, :up] -> true
           {:shutting_down, :dead} when permitted in [:all, :down] -> true
           _ -> false
@@ -423,14 +424,20 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp update_processes(state, []), do: state
 
-  defp update_process(state, {:add, {:process, _child_id}, {nil, child_spec}}) do
+  defp update_process(state, {:add, {:process, child_id}, {nil, child_spec}}) do
     this_name = fully_qualified_name(state.name)
-
+    permitted = state.distribution_strategy.redistribute_on(members(state))
     case choose_node(child_spec, state) do
       {:ok, %{name: ^this_name}} ->
-        {_resp, state} = add_child(child_spec, state)
-        state
-
+        # NOTE: if the user specifies they don't want nodes to be redistributed on :down
+        # then they should get terminated here instead of redistributed to another node
+        if permitted in [:all, :down] do 
+          {_resp, new_state} = add_child(child_spec, state)
+          new_state
+        else
+          {_resp, new_state} = terminate_child(child_spec, state)
+          new_state
+        end
       _ ->
         state
     end
@@ -526,7 +533,6 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp redistribute_processes(state, [{current_node, child, _child_pid} | procs]) do
     this_node = fully_qualified_name(state.name)
-    
     
     case choose_node(child, state) do 
       {:ok, %{name: chosen_node}} ->
