@@ -271,7 +271,7 @@ defmodule Horde.DynamicSupervisor do
     GenServer.call(horde, :wait_for_quorum, timeout)
   end
 
-  def redistribute(supervisor) do 
+  def redistribute(supervisor) do
     :ok = GenServer.call(supervisor, :redistribute)
     :ok
   end

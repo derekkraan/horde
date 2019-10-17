@@ -709,7 +709,6 @@ defmodule Horde.ProcessesSupervisor do
     {:reply, reply, state}
   end
 
-
   def handle_call({:terminate_child, pid}, from, state) do
     handle_call({:terminate_child, pid, :shutdown}, from, state)
   end
@@ -849,7 +848,7 @@ defmodule Horde.ProcessesSupervisor do
     :ok = terminate_children(children, state)
   end
 
-  defp terminate_children(children, state) do 
+  defp terminate_children(children, state) do
     terminate_children(children, state, :shutdown)
   end
 

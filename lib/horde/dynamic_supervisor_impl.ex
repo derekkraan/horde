@@ -2,7 +2,7 @@ defmodule Horde.DynamicSupervisor.Member do
   @moduledoc false
 
   @type t :: %Horde.DynamicSupervisor.Member{}
-  @type status :: :uninitialized | :alive | :shutting_down | :dead 
+  @type status :: :uninitialized | :alive | :shutting_down | :dead
   defstruct [:status, :name]
 end
 
@@ -20,7 +20,7 @@ defmodule Horde.DynamicSupervisorImpl do
             local_process_count: 0,
             waiting_for_quorum: [],
             supervisor_ref_to_name: %{},
-            child_addition_queue: %{}, 
+            child_addition_queue: %{},
             name_to_supervisor_ref: %{},
             shutting_down: false,
             last_redistribute_ref: nil,
@@ -113,14 +113,12 @@ defmodule Horde.DynamicSupervisorImpl do
     {:reply, Map.keys(state.members), state}
   end
 
-
   def handle_call({:terminate_child, child_pid} = msg, from, state) do
     this_name = fully_qualified_name(state.name)
 
     with child_id when not is_nil(child_id) <- Map.get(state.process_pid_to_id, child_pid),
-        {^this_name, child, _child_pid} <- Map.get(state.processes_by_id, child_id),
-        {reply, new_state} <- terminate_child(child, state) do
-      
+         {^this_name, child, _child_pid} <- Map.get(state.processes_by_id, child_id),
+         {reply, new_state} <- terminate_child(child, state) do
       {:reply, reply, new_state}
     else
       {other_node, _child_spec, _child_pid} ->
@@ -247,8 +245,8 @@ defmodule Horde.DynamicSupervisorImpl do
     :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
     {:noreply, new_state}
   end
-  
-  defp randomize_child_id(child) do 
+
+  defp randomize_child_id(child) do
     Map.put(child, :id, :rand.uniform(@big_number))
   end
 
@@ -291,7 +289,7 @@ defmodule Horde.DynamicSupervisorImpl do
     Map.put(state, :members_info, new_members_info)
   end
 
-  defp set_redistribute_signal(name) do 
+  defp set_redistribute_signal(name) do
     DeltaCrdt.mutate(
       crdt_name(name),
       :add,
@@ -330,9 +328,11 @@ defmodule Horde.DynamicSupervisorImpl do
   def handle_info({:DOWN, ref, _type, _pid, _reason}, state) do
     case Map.get(state.supervisor_ref_to_name, ref) do
       nil ->
-        case Map.get(state.child_addition_queue, ref) do 
-          nil -> {:noreply, state}
-          child -> 
+        case Map.get(state.child_addition_queue, ref) do
+          nil ->
+            {:noreply, state}
+
+          child ->
             {{:ok, _}, state} = add_child(child, state)
             add_q = Map.delete(state.child_addition_queue, [ref])
             state = Map.put(state, :child_addition_queue, add_q)
@@ -357,12 +357,12 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   def handle_info({:crdt_update, diffs}, state) do
-    new_state = 
+    new_state =
       update_members(state, diffs)
-      |> update_processes(diffs) 
+      |> update_processes(diffs)
 
-    new_state = 
-      case needs_redistribution?(new_state, diffs) do 
+    new_state =
+      case needs_redistribution?(new_state, diffs) do
         true -> redistribute_processes(new_state)
         false -> new_state
       end
@@ -381,28 +381,35 @@ defmodule Horde.DynamicSupervisorImpl do
     {:noreply, new_state}
   end
 
-  def needs_redistribution?(state, [ diff | diffs ] ) do
+  def needs_redistribution?(state, [diff | diffs]) do
     this_node = fully_qualified_name(state.name)
     permitted = state.distribution_strategy.redistribute_on(members(state))
 
-    case diff do 
-      {:remove, {:member_node_info, _}} -> true
-      {:add, :redistribute, ref} -> 
+    case diff do
+      {:remove, {:member_node_info, _}} ->
+        true
+
+      {:add, :redistribute, ref} ->
         cond do
-          (ref != state.last_redistribute_ref) -> true
+          ref != state.last_redistribute_ref -> true
           true -> needs_redistribution?(state, diffs)
         end
-      {:add, {:member_node_info, member}, %{status: new_status}} -> 
+
+      {:add, {:member_node_info, member}, %{status: new_status}} ->
         cond do
-          (member == this_node) -> needs_redistribution?(state, diffs)
+          member == this_node ->
+            needs_redistribution?(state, diffs)
+
           true ->
-            case new_status do 
+            case new_status do
               :alive when permitted in [:all, :up] -> true
               :dead when permitted in [:all, :down] -> true
               _ -> needs_redistribution?(state, diffs)
             end
         end
-      _ -> needs_redistribution?(state, diffs)
+
+      _ ->
+        needs_redistribution?(state, diffs)
     end
   end
 
@@ -438,18 +445,20 @@ defmodule Horde.DynamicSupervisorImpl do
   defp update_process(state, {:add, {:process, _child_id}, {nil, child_spec}}) do
     this_name = fully_qualified_name(state.name)
     permitted = state.distribution_strategy.redistribute_on(members(state))
+
     case choose_node(child_spec, state) do
       {:ok, %{name: ^this_name}} ->
         # NOTE: if the user specifies they don't want nodes to be redistributed on :down
         # then they should get terminated here instead of redistributed to another node
 
-        if permitted in [:all, :down] do 
+        if permitted in [:all, :down] do
           {_resp, new_state} = add_child(child_spec, state)
           new_state
         else
           {_resp, new_state} = terminate_child(child_spec, state)
           new_state
         end
+
       _ ->
         state
     end
@@ -549,25 +558,30 @@ defmodule Horde.DynamicSupervisorImpl do
     this_node = fully_qualified_name(state.name)
 
     Map.values(state.processes_by_id)
-    |> Enum.reduce(state, fn({current_node, child, _child_pid}, state) -> 
-      case choose_node(child, state) do 
+    |> Enum.reduce(state, fn {current_node, child, _child_pid}, state ->
+      case choose_node(child, state) do
         {:ok, %{name: chosen_node}} ->
-          cond do 
-            (this_node != current_node) and (this_node == chosen_node) ->
-              case add_child(child, state) do 
-                {{:ok, _}, state} -> state 
-                {{:error, {:already_started, pid}}, state} -> 
+          cond do
+            this_node != current_node and this_node == chosen_node ->
+              case add_child(child, state) do
+                {{:ok, _}, state} ->
+                  state
+
+                {{:error, {:already_started, pid}}, state} ->
                   # NOTE: in this case we'll monitor the process until it terminates (gracefully!) 
                   # and then when it does we'll spin up our own
 
                   queue_add_child(child, pid, state)
               end
-            (this_node == current_node) and (chosen_node != this_node) ->
+
+            this_node == current_node and chosen_node != this_node ->
               {:ok, state} = terminate_child(child, state, :redistribute)
               state
+
             true ->
               state
-          end 
+          end
+
         {:error, :no_alive_nodes} ->
           state
       end
@@ -664,6 +678,7 @@ defmodule Horde.DynamicSupervisorImpl do
       Enum.flat_map(members(state), fn
         {name, %{status: :alive}} ->
           [name]
+
         _ ->
           []
       end)
@@ -710,8 +725,9 @@ defmodule Horde.DynamicSupervisorImpl do
     |> Map.put(:local_process_count, new_local_process_count)
   end
 
-  defp terminate_child(child, state), do: terminate_child(child, state, :shutdown) 
-  defp terminate_child(child, state, reason) do 
+  defp terminate_child(child, state), do: terminate_child(child, state, :shutdown)
+
+  defp terminate_child(child, state, reason) do
     child_id = child.id
 
     reply =
@@ -726,7 +742,7 @@ defmodule Horde.DynamicSupervisorImpl do
       |> Map.put(:local_process_count, state.local_process_count - 1)
 
     :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
-    
+
     {reply, new_state}
   end
 

@@ -10,19 +10,20 @@ defmodule LocalClusterHelper do
     fn -> send(pid, msg) end
   end
 
-  def expected_distribution(cspecs, members) do 
+  def expected_distribution(cspecs, members) do
     cspecs
     |> Enum.reduce(%{}, fn child_spec, acc ->
       # precalculate which processes should end up on which nodes 
       identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
 
-      ds_members = members 
-       |> Enum.map(fn (node) -> 
+      ds_members =
+        members
+        |> Enum.map(fn node ->
           %Horde.DynamicSupervisor.Member{
             name: node,
             status: :alive
           }
-        end) 
+        end)
 
       {:ok, %Horde.DynamicSupervisor.Member{name: {new_sup_name, _}}} =
         Horde.UniformDistribution.choose_node(identifier, ds_members)
@@ -42,25 +43,25 @@ defmodule LocalClusterHelper do
     end)
   end
 
-  def running_children(name) do 
-    sup_state = :sys.get_state(Process.whereis(name)) 
+  def running_children(name) do
+    sup_state = :sys.get_state(Process.whereis(name))
 
     sup_state.processes_by_id
     |> Enum.filter(fn {_id, {{sup_name, _}, _cspec, _pid}} ->
       Kernel.match?(^name, sup_name)
-    end) 
-    |> Enum.map(fn {_, {_, child, _}} -> 
+    end)
+    |> Enum.map(fn {_, {_, child, _}} ->
       child
     end)
   end
 
-  def supervisor_child_matches(name, children) do 
+  def supervisor_child_matches(name, children) do
     children
     |> Enum.map(fn child ->
       running_children(name)
-      |> Enum.map(fn cspec -> 
+      |> Enum.map(fn cspec ->
         Map.take(cspec, [:start])
-      end) 
+      end)
       |> Enum.any?(fn cspec ->
         cspec == Map.take(child, [:start])
       end)
@@ -68,11 +69,11 @@ defmodule LocalClusterHelper do
   end
 
   def supervisor_doesnt_have_children?(name, children) do
-    #check if supervisor has any of these children, and then inverts the response
+    # check if supervisor has any of these children, and then inverts the response
     not (supervisor_child_matches(name, children) |> Enum.any?())
   end
 
-  def supervisor_has_children?(name, children) do 
+  def supervisor_has_children?(name, children) do
     supervisor_child_matches(name, children) |> Enum.all?()
   end
 
@@ -135,7 +136,7 @@ defmodule RebalanceTestServer do
   end
 
   @impl true
-  def terminate(reason, ppid) do 
+  def terminate(reason, ppid) do
     send(ppid, {:shutdown, reason})
     Process.exit(self(), :kill)
   end
