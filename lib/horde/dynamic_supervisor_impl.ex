@@ -379,6 +379,7 @@ defmodule Horde.DynamicSupervisorImpl do
         new_state
       end
 
+
     {:noreply, new_state}
   end
 
@@ -401,7 +402,6 @@ defmodule Horde.DynamicSupervisorImpl do
         end
       _ -> needs_redistribution?(state, diffs)
     end
-
   end
 
   def needs_redistribution?(_state, _diffs), do: false
@@ -531,31 +531,27 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp redistribute_processes(state) do
-    redistribute_processes(state, Map.values(state.processes_by_id))
-  end
-
-  defp redistribute_processes(state, [{current_node, child, _child_pid} | procs]) do
     this_node = fully_qualified_name(state.name)
 
-    case choose_node(child, state) do 
-      {:ok, %{name: chosen_node}} ->
-        cond do 
-          (this_node != current_node) and (this_node == chosen_node) ->
-            {_result, state} = add_child(child, state)
-            state
-          (this_node == current_node) and (chosen_node != this_node) ->
-            {_result, state} = terminate_child(child, state, :redistribute)
-            state
-          true ->
-            state
-        end
-        |> redistribute_processes(procs)
-      {:error, :no_alive_nodes} ->
-        redistribute_processes(state, procs);
-    end
+    Map.values(state.processes_by_id)
+    |> Enum.reduce(state, fn({current_node, child, _child_pid}, state) -> 
+      case choose_node(child, state) do 
+        {:ok, %{name: chosen_node}} ->
+          cond do 
+            (this_node != current_node) and (this_node == chosen_node) ->
+              {_result, state} = add_child(child, state)
+              state
+            (this_node == current_node) and (chosen_node != this_node) ->
+              {_result, state} = terminate_child(child, state, :redistribute)
+              state
+            true ->
+              state
+          end 
+        {:error, :no_alive_nodes} ->
+          state
+      end
+    end)
   end
-
-  defp redistribute_processes(state, []), do: state
 
   defp member_names(names) do
     Enum.map(names, fn

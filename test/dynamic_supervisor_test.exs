@@ -548,10 +548,7 @@ defmodule DynamicSupervisorTest do
 
       Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
       Process.sleep(500)
-
-      # redistribution now happens automatically :) but you could trigger it manually like this:
-      # :ok = Horde.DynamicSupervisor.redistribute(n1)
-    
+      
       assert_receive {:shutdown, :redistribute}, 100
       refute_receive {:shutdown, :shutdown}, 100
 
