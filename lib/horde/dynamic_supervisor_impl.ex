@@ -2,7 +2,7 @@ defmodule Horde.DynamicSupervisor.Member do
   @moduledoc false
 
   @type t :: %Horde.DynamicSupervisor.Member{}
-  @type status :: :uninitialized | :alive | :shutting_down | :dead | :redistribute
+  @type status :: :uninitialized | :alive | :shutting_down | :dead 
   defstruct [:status, :name]
 end
 
@@ -23,6 +23,7 @@ defmodule Horde.DynamicSupervisorImpl do
             child_addition_queue: %{}, 
             name_to_supervisor_ref: %{},
             shutting_down: false,
+            last_redistribute_ref: nil,
             supervisor_options: [],
             distribution_strategy: Horde.UniformDistribution
 
@@ -131,7 +132,8 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   def handle_call(:redistribute, _from, state) do
-    {:reply, :ok, mark_redistribute(state)}
+    :ok = set_redistribute_signal(state.name)
+    {:reply, :ok, state}
   end
 
   def handle_call({:start_child, _child_spec}, _from, %{shutting_down: true} = state),
@@ -289,23 +291,13 @@ defmodule Horde.DynamicSupervisorImpl do
     Map.put(state, :members_info, new_members_info)
   end
 
-  defp mark_redistribute(state) do 
-    this_node_info = %Horde.DynamicSupervisor.Member{
-      status: :redistribute,
-      name: fully_qualified_name(state.name)
-    }
-
+  defp set_redistribute_signal(name) do 
     DeltaCrdt.mutate(
-      crdt_name(state.name),
+      crdt_name(name),
       :add,
-      [{:member_node_info, fully_qualified_name(state.name)}, this_node_info],
+      [:redistribute, make_ref()],
       :infinity
     )
-
-    new_members_info =
-      Map.put(state.members_info, fully_qualified_name(state.name), this_node_info)
-
-    Map.put(state, :members_info, new_members_info)
   end
 
   defp mark_dead(state, name) do
@@ -381,6 +373,7 @@ defmodule Horde.DynamicSupervisorImpl do
         |> set_own_node_status()
         |> handle_quorum_change()
         |> set_crdt_neighbours()
+        |> update_redistribution_ref(diffs)
       else
         new_state
       end
@@ -394,12 +387,16 @@ defmodule Horde.DynamicSupervisorImpl do
 
     case diff do 
       {:remove, {:member_node_info, _}} -> true
+      {:add, :redistribute, ref} -> 
+        cond do
+          (ref != state.last_redistribute_ref) -> true
+          true -> needs_redistribution?(state, diffs)
+        end
       {:add, {:member_node_info, member}, %{status: new_status}} -> 
         cond do
           (member == this_node) -> needs_redistribution?(state, diffs)
           true ->
             case new_status do 
-              :redistribute -> true
               :alive when permitted in [:all, :up] -> true
               :dead when permitted in [:all, :down] -> true
               _ -> needs_redistribution?(state, diffs)
@@ -410,6 +407,12 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   def needs_redistribution?(_state, _diffs), do: false
+
+  def update_redistribution_ref(state, [{:add, :redistribute, ref} | _diffs]) do
+    Map.put(state, :last_redistribute_ref, ref)
+  end
+
+  def update_redistribution_ref(state, _), do: state
 
   def has_membership_change?([{:add, {:member_node_info, _}, _} | _diffs]), do: true
 
@@ -552,12 +555,11 @@ defmodule Horde.DynamicSupervisorImpl do
           cond do 
             (this_node != current_node) and (this_node == chosen_node) ->
               case add_child(child, state) do 
-                {{:ok, _}, state} -> state
+                {{:ok, _}, state} -> state 
                 {{:error, {:already_started, pid}}, state} -> 
-
                   # NOTE: in this case we'll monitor the process until it terminates (gracefully!) 
                   # and then when it does we'll spin up our own
-                  
+
                   queue_add_child(child, pid, state)
               end
             (this_node == current_node) and (chosen_node != this_node) ->
@@ -729,7 +731,7 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp add_child(child, state) do
-    {[response], new_state} = add_children([child], state)
+    {[response], new_state} = add_children([randomize_child_id(child)], state)
     {response, new_state}
   end
 

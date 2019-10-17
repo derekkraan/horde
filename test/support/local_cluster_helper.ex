@@ -48,16 +48,16 @@ defmodule LocalClusterHelper do
     sup_state.processes_by_id
     |> Enum.filter(fn {_id, {{sup_name, _}, _cspec, _pid}} ->
       Kernel.match?(^name, sup_name)
+    end) 
+    |> Enum.map(fn {_, {_, child, _}} -> 
+      child
     end)
   end
 
-  defp supervisor_child_matches(name, children) do 
+  def supervisor_child_matches(name, children) do 
     children
     |> Enum.map(fn child ->
       running_children(name)
-      |> Enum.map(fn {_, {_, cspec, _}} ->
-        cspec
-      end)
       |> Enum.map(fn cspec -> 
         Map.take(cspec, [:start])
       end) 
@@ -69,7 +69,7 @@ defmodule LocalClusterHelper do
 
   def supervisor_doesnt_have_children?(name, children) do
     #check if supervisor has any of these children, and then inverts the response
-    not supervisor_child_matches(name, children) |> Enum.any?()
+    not (supervisor_child_matches(name, children) |> Enum.any?())
   end
 
   def supervisor_has_children?(name, children) do 
