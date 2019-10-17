@@ -572,6 +572,8 @@ defmodule DynamicSupervisorTest do
 
       n2_cspecs = LocalClusterHelper.expected_distribution_for(context.children, context.members, context.n2)
       Horde.DynamicSupervisor.redistribute(context.n2)
+      Process.sleep(500)
+
       assert LocalClusterHelper.supervisor_has_children?(context.n2, n2_cspecs)
     end
 
