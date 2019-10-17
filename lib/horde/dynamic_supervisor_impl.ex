@@ -20,6 +20,7 @@ defmodule Horde.DynamicSupervisorImpl do
             local_process_count: 0,
             waiting_for_quorum: [],
             supervisor_ref_to_name: %{},
+            child_addition_queue: %{}, 
             name_to_supervisor_ref: %{},
             shutting_down: false,
             supervisor_options: [],
@@ -337,7 +338,14 @@ defmodule Horde.DynamicSupervisorImpl do
   def handle_info({:DOWN, ref, _type, _pid, _reason}, state) do
     case Map.get(state.supervisor_ref_to_name, ref) do
       nil ->
-        {:noreply, state}
+        case Map.get(state.child_addition_queue, ref) do 
+          nil -> {:noreply, state}
+          child -> 
+            {{:ok, _}, state} = add_child(child, state)
+            add_q = Map.delete(state.child_addition_queue, [ref])
+            state = Map.put(state, :child_addition_queue, add_q)
+            {:noreply, state}
+        end
 
       name ->
         new_state =
@@ -357,9 +365,15 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   def handle_info({:crdt_update, diffs}, state) do
-    new_state =
+    new_state = 
       update_members(state, diffs)
-      |> update_processes(diffs)
+      |> update_processes(diffs) 
+
+    new_state = 
+      case needs_redistribution?(new_state, diffs) do 
+        true -> redistribute_processes(new_state)
+        false -> new_state
+      end
 
     new_state =
       if has_membership_change?(diffs) do
@@ -370,15 +384,6 @@ defmodule Horde.DynamicSupervisorImpl do
       else
         new_state
       end
-
-
-    new_state = 
-      if needs_redistribution?(new_state, diffs) do 
-        redistribute_processes(new_state)
-      else
-        new_state
-      end
-
 
     {:noreply, new_state}
   end
@@ -434,6 +439,7 @@ defmodule Horde.DynamicSupervisorImpl do
       {:ok, %{name: ^this_name}} ->
         # NOTE: if the user specifies they don't want nodes to be redistributed on :down
         # then they should get terminated here instead of redistributed to another node
+
         if permitted in [:all, :down] do 
           {_resp, new_state} = add_child(child_spec, state)
           new_state
@@ -530,6 +536,12 @@ defmodule Horde.DynamicSupervisorImpl do
     %Horde.DynamicSupervisor.Member{status: :uninitialized, name: member}
   end
 
+  defp queue_add_child(child, pid, state) do
+    ref = Process.monitor(pid)
+    add_q = Map.put(state.child_addition_queue, ref, child)
+    Map.put(state, :child_addition_queue, add_q)
+  end
+
   defp redistribute_processes(state) do
     this_node = fully_qualified_name(state.name)
 
@@ -539,10 +551,17 @@ defmodule Horde.DynamicSupervisorImpl do
         {:ok, %{name: chosen_node}} ->
           cond do 
             (this_node != current_node) and (this_node == chosen_node) ->
-              {_result, state} = add_child(child, state)
-              state
+              case add_child(child, state) do 
+                {{:ok, _}, state} -> state
+                {{:error, {:already_started, pid}}, state} -> 
+
+                  # NOTE: in this case we'll monitor the process until it terminates (gracefully!) 
+                  # and then when it does we'll spin up our own
+                  
+                  queue_add_child(child, pid, state)
+              end
             (this_node == current_node) and (chosen_node != this_node) ->
-              {_result, state} = terminate_child(child, state, :redistribute)
+              {:ok, state} = terminate_child(child, state, :redistribute)
               state
             true ->
               state
@@ -710,7 +729,7 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp add_child(child, state) do
-    {[response], new_state} = add_children([randomize_child_id(child)], state)
+    {[response], new_state} = add_children([child], state)
     {response, new_state}
   end
 

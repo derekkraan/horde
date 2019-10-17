@@ -548,9 +548,11 @@ defmodule DynamicSupervisorTest do
 
       Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
       Process.sleep(500)
-      
+            
       assert_receive {:shutdown, :redistribute}, 100
       refute_receive {:shutdown, :shutdown}, 100
+
+      #:sys.get_state(Process.whereis(context.n2)).processes_by_id |> IO.inspect()
 
       assert LocalClusterHelper.supervisor_has_children?(context.n2, n2_cspecs)
     end
