@@ -61,13 +61,13 @@ defmodule NetsplitTest do
       ])
     end)
 
+    # Wait for supervisor and registry in all nodes
+    Process.sleep(sleep_millis)
+
     Enum.each(nodes, fn node ->
       assert MySupervisor.alive?(node)
       assert MyRegistry.alive?(node)
     end)
-
-    # Wait for supervisor and registry in all nodes
-    Process.sleep(sleep_millis)
 
     Schism.partition([node1, node2])
     Schism.partition([node3])
@@ -98,9 +98,9 @@ defmodule NetsplitTest do
     end)
 
     # Verify all nodes are able to see the same pid for that server
-    pid1 = MyCluster.whereis(node1, server_name)
-    pid2 = MyCluster.whereis(node2, server_name)
-    pid3 = MyCluster.whereis(node3, server_name)
+    pid1 = MyCluster.whereis_server(node1, server_name)
+    pid2 = MyCluster.whereis_server(node2, server_name)
+    pid3 = MyCluster.whereis_server(node3, server_name)
 
     assert is_pid(pid1)
     assert pid1 == pid2

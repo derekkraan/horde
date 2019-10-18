@@ -18,17 +18,32 @@ defmodule MySupervisionTree do
 end
 
 defmodule MyCluster do
-  def set_members(name, cluster) do
-    members = members(name, cluster)
+  def set_members(cluster) do
+    nodes = nodes(cluster)
+    set_members(nodes, MyRegistry)
+    set_members(nodes, MySupervisor)
+  end
+
+  def set_members(nodes, name) do
+    members = members(nodes, name)
     :ok = Horde.Cluster.set_members(name, members)
   end
 
-  def members(name, cluster) do
+  def nodes(cluster) do
     [Node.self() | Node.list()]
     |> Enum.filter(fn node ->
       String.contains?("#{node}", cluster)
     end)
-    |> Enum.map(fn node -> {name, node} end)
+  end
+
+  def members(nodes, name) when is_list(nodes) do
+    Enum.map(nodes, fn node -> {name, node} end)
+  end
+
+  def members(cluster, name) when is_binary(cluster) do
+    cluster
+    |> nodes()
+    |> members(name)
   end
 
   def start_server(node, name) do
@@ -39,12 +54,12 @@ defmodule MyCluster do
     Horde.DynamicSupervisor.start_child(MySupervisor, {MyServer, name})
   end
 
-  def whereis(name) do
+  def whereis_server(name) do
     MyServer.whereis(name)
   end
 
-  def whereis(node, name) do
-    :rpc.call(node, MyCluster, :whereis, [name])
+  def whereis_server(node, name) do
+    :rpc.call(node, MyCluster, :whereis_server, [name])
   end
 end
 
@@ -64,7 +79,7 @@ defmodule MyRegistry do
   end
 
   def init(args) do
-    members = MyCluster.members(__MODULE__, args[:cluster])
+    members = MyCluster.members(args[:cluster], __MODULE__)
     args = Keyword.merge(args, members: members)
     Horde.Registry.init(args)
   end
@@ -88,7 +103,7 @@ defmodule MyRegistry do
   end
 
   def alive?(node) do
-    :rpc.call(node, Process, :alive?, [])
+    :rpc.call(node, MyRegistry, :alive?, [])
   end
 
   def alive?() do
@@ -120,9 +135,8 @@ defmodule MySupervisor do
   end
 
   def init(args) do
-    members = MyCluster.members(__MODULE__, args[:cluster])
+    members = MyCluster.members(args[:cluster], __MODULE__)
     args = Keyword.merge(args, members: members)
-
     Horde.DynamicSupervisor.init(args)
   end
 
@@ -131,7 +145,7 @@ defmodule MySupervisor do
   end
 
   def alive?(node) do
-    :rpc.call(node, Process, :alive?, [])
+    :rpc.call(node, MySupervisor, :alive?, [])
   end
 
   def alive?() do
@@ -161,15 +175,13 @@ defmodule MyNodeListener do
 
   def handle_info({:nodeup, _node, _node_type}, state) do
     cluster_name = state[:cluster]
-    MyCluster.set_members(MyRegistry, cluster_name)
-    MyCluster.set_members(MySupervisor, cluster_name)
+    MyCluster.set_members(cluster_name)
     {:noreply, state}
   end
 
   def handle_info({:nodedown, _node, _node_type}, state) do
     cluster_name = state[:cluster]
-    MyCluster.set_members(MyRegistry, cluster_name)
-    MyCluster.set_members(MySupervisor, cluster_name)
+    MyCluster.set_members(cluster_name)
     {:noreply, state}
   end
 end
@@ -178,8 +190,13 @@ defmodule MyServer do
   use GenServer
 
   def start_link(name) do
-    spec = via_tuple(name)
-    GenServer.start_link(__MODULE__, [name], name: spec)
+    case GenServer.start_link(__MODULE__, [name], name: via_tuple(name)) do
+      {:error, {:already_started, _}} ->
+        :ignore
+
+      other ->
+        other
+    end
   end
 
   def child_spec(name) do
@@ -190,15 +207,29 @@ defmodule MyServer do
     }
   end
 
-  def init(name) do
-    {:ok, name}
-  end
-
   defp via_tuple(name) do
     MyRegistry.via_tuple({__MODULE__, name})
   end
 
   def whereis(name) do
     MyRegistry.whereis(via_tuple(name))
+  end
+
+  @impl GenServer
+  def init([name]) do
+    Process.flag(:trap_exit, true)
+    {:ok, name}
+  end
+
+  @impl GenServer
+  def handle_info({:EXIT, _, {:name_conflict, {{_, name}, _}, _registry, winner}}, state) do
+    IO.inspect(conflict: name, looser: {self(), node(self())}, winner: {winner, node(winner)})
+    {:stop, :shutdown, state}
+  end
+
+  @impl GenServer
+  def terminate(reason, name) do
+    IO.inspect(terminate: name, reason: reason, pid: self(), node: Node.self())
+    :ok
   end
 end
