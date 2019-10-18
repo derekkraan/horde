@@ -226,10 +226,4 @@ defmodule MyServer do
     IO.inspect(conflict: name, looser: {self(), node(self())}, winner: {winner, node(winner)})
     {:stop, :shutdown, state}
   end
-
-  @impl GenServer
-  def terminate(reason, name) do
-    IO.inspect(terminate: name, reason: reason, pid: self(), node: Node.self())
-    :ok
-  end
 end
