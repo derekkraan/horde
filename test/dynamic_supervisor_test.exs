@@ -87,7 +87,7 @@ defmodule DynamicSupervisorTest do
       )
 
     on_exit(fn ->
-      Application.put_env(:horde, :redistribute_on, :all)
+      Application.put_env(:horde, :redistribute_on_alive, true)
     end)
 
     # Start 5 child processes with randomized names
@@ -359,7 +359,7 @@ defmodule DynamicSupervisorTest do
       # sometimes horde would kill the :fast process for redistribution when 
       # :horde_2_graceful is marked as :alive
 
-      Application.put_env(:horde, :redistribute_on, :down)
+      Application.put_env(:horde, :redistribute_on_alive, false)
 
       {:ok, _} =
         Horde.DynamicSupervisor.start_link(
@@ -570,14 +570,14 @@ defmodule DynamicSupervisorTest do
 
     test "processes should not redistribute to new member if redistribution is disabled by config",
          context do
-      Application.put_env(:horde, :redistribute_on, :none)
+      Application.put_env(:horde, :redistribute_on_alive, false)
       Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
       Process.sleep(500)
       assert Kernel.match?([], LocalClusterHelper.running_children(context.n2))
     end
 
     test "processes should be manually redistributable via redistribute/1", context do
-      Application.put_env(:horde, :redistribute_on, :none)
+      Application.put_env(:horde, :redistribute_on_alive, false)
       Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
       Process.sleep(500)
       assert Kernel.match?([], LocalClusterHelper.running_children(context.n2))
@@ -595,42 +595,14 @@ defmodule DynamicSupervisorTest do
       assert LocalClusterHelper.supervisor_has_children?(context.n2, n2_cspecs)
     end
 
-    test "processes should not do failover redistribution if the configuration prohibits it",
+    test "should only redistribute on member :down but not on :alive if config disables it",
          context do
-      Application.put_env(:horde, :redistribute_on, :none)
+      Application.put_env(:horde, :redistribute_on_alive, false)
       Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
 
       Process.sleep(500)
 
-      Process.unlink(context.pid_n1)
-      Process.exit(context.pid_n1, :kill)
-
-      Process.sleep(1000)
-
-      assert %{workers: 0} = Horde.DynamicSupervisor.count_children(context.n2)
-    end
-
-    test "processes should not redistribute on graceful shutdown if configuration prohibits it",
-         context do
-      Application.put_env(:horde, :redistribute_on, :none)
-      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
-
-      Process.sleep(500)
-
-      Horde.DynamicSupervisor.stop(context.n1)
-
-      Process.sleep(1000)
-
-      assert %{workers: 0} = Horde.DynamicSupervisor.count_children(context.n2)
-    end
-
-    test "should only redistribute on member :down but not on :up if config says so", context do
-      Application.put_env(:horde, :redistribute_on, :down)
-      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
-
-      Process.sleep(500)
-
-      # verify nothing redistributed on :up
+      # verify nothing redistributed on :alive
       assert Kernel.match?([], LocalClusterHelper.running_children(context.n2))
 
       Horde.DynamicSupervisor.stop(context.n1)
@@ -639,23 +611,6 @@ defmodule DynamicSupervisorTest do
 
       # n2 should now be running all of the children
       assert LocalClusterHelper.supervisor_has_children?(context.n2, context.children)
-    end
-
-    test "should only redistribute on member :up but not on :down if config says so", context do
-      Application.put_env(:horde, :redistribute_on, :up)
-      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
-
-      Process.sleep(500)
-
-      # verify that n2 gets some of the nodes
-      refute Kernel.match?([], LocalClusterHelper.running_children(context.n2))
-
-      n2_children = LocalClusterHelper.running_children(context.n2)
-
-      Horde.DynamicSupervisor.stop(context.n2)
-      Process.sleep(500)
-
-      assert LocalClusterHelper.supervisor_doesnt_have_children?(context.n1, n2_children)
     end
   end
 end
