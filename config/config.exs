@@ -2,4 +2,4 @@
 # and its dependencies with the aid of the Mix.Config module.
 use Mix.Config
 
-config :horde, :redistribute_on_alive, true
+config :horde, :handoff_on_alive, true

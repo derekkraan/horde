@@ -1004,6 +1004,12 @@ defmodule Horde.ProcessesSupervisor do
     restart_child(pid, child, state)
   end
 
+  defp maybe_restart_child(_, :horde_handoff, pid, _child, state) do
+    # if the process is being shutdown for handoff, then we just let it happen
+    # without remove_child_from_horde
+    {:ok, delete_child(pid, state)}
+  end
+
   defp maybe_restart_child(_, :normal, pid, _child, state) do
     remove_child_from_horde(state, pid)
     {:ok, delete_child(pid, state)}

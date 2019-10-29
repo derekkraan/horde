@@ -58,6 +58,24 @@ defmodule DynamicSupervisorTest do
     ]
   end
 
+  defp redistribute_child_spec(name) do
+    %{
+      id: name,
+      start: {
+        Horde.DynamicSupervisor,
+        :start_link,
+        [
+          [
+            name: name,
+            strategy: :one_for_one,
+            delta_crdt_options: [sync_interval: 20]
+          ]
+        ]
+      },
+      restart: :transient
+    }
+  end
+
   defp redistribute_setup() do
     n1 = :horde_redistribute_1
     n2 = :horde_redistribute_2
@@ -66,28 +84,11 @@ defmodule DynamicSupervisorTest do
 
     # Spawn one supervisor and add processes to it, then spawn another and redistribute
     # the processes between the two.
-    {:ok, pid_n1} =
-      start_supervised(
-        {Horde.DynamicSupervisor,
-         [
-           name: n1,
-           strategy: :one_for_one,
-           delta_crdt_options: [sync_interval: 20]
-         ]}
-      )
-
-    {:ok, pid_n2} =
-      start_supervised(
-        {Horde.DynamicSupervisor,
-         [
-           name: n2,
-           strategy: :one_for_one,
-           delta_crdt_options: [sync_interval: 20]
-         ]}
-      )
+    {:ok, pid_n1} = start_supervised(redistribute_child_spec(n1))
+    {:ok, pid_n2} = start_supervised(redistribute_child_spec(n2))
 
     on_exit(fn ->
-      Application.put_env(:horde, :redistribute_on_alive, true)
+      Application.put_env(:horde, :handoff_on_alive, true)
     end)
 
     # Start 5 child processes with randomized names
@@ -359,7 +360,7 @@ defmodule DynamicSupervisorTest do
       # sometimes horde would kill the :fast process for redistribution when 
       # :horde_2_graceful is marked as :alive
 
-      Application.put_env(:horde, :redistribute_on_alive, false)
+      Application.put_env(:horde, :handoff_on_alive, false)
 
       {:ok, _} =
         Horde.DynamicSupervisor.start_link(
@@ -560,7 +561,7 @@ defmodule DynamicSupervisorTest do
       Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
       Process.sleep(500)
 
-      assert_receive {:shutdown, :redistribute}, 100
+      assert_receive {:shutdown, :horde_handoff}, 100
       refute_receive {:shutdown, :shutdown}, 100
 
       # :sys.get_state(Process.whereis(context.n2)).processes_by_id |> IO.inspect()
@@ -570,34 +571,15 @@ defmodule DynamicSupervisorTest do
 
     test "processes should not redistribute to new member if redistribution is disabled by config",
          context do
-      Application.put_env(:horde, :redistribute_on_alive, false)
+      Application.put_env(:horde, :handoff_on_alive, false)
       Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
       Process.sleep(500)
       assert Kernel.match?([], LocalClusterHelper.running_children(context.n2))
-    end
-
-    test "processes should be manually redistributable via redistribute/1", context do
-      Application.put_env(:horde, :redistribute_on_alive, false)
-      Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
-      Process.sleep(500)
-      assert Kernel.match?([], LocalClusterHelper.running_children(context.n2))
-
-      n2_cspecs =
-        LocalClusterHelper.expected_distribution_for(
-          context.children,
-          context.members,
-          context.n2
-        )
-
-      Horde.DynamicSupervisor.redistribute(context.n2)
-      Process.sleep(500)
-
-      assert LocalClusterHelper.supervisor_has_children?(context.n2, n2_cspecs)
     end
 
     test "should only redistribute on member :down but not on :alive if config disables it",
          context do
-      Application.put_env(:horde, :redistribute_on_alive, false)
+      Application.put_env(:horde, :handoff_on_alive, false)
       Horde.Cluster.set_members(context.n1, [context.n1, context.n2])
 
       Process.sleep(500)
@@ -605,6 +587,7 @@ defmodule DynamicSupervisorTest do
       # verify nothing redistributed on :alive
       assert Kernel.match?([], LocalClusterHelper.running_children(context.n2))
 
+      Process.unlink(context.pid_n1)
       Horde.DynamicSupervisor.stop(context.n1)
 
       Process.sleep(1000)
