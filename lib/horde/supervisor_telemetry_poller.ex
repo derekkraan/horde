@@ -1,4 +1,4 @@
-defmodule Horde.SupervisorTelemetryPoller do
+defmodule Horde.DynamicSupervisorTelemetryPoller do
   @moduledoc false
   def child_spec(supervisor_impl_name) do
     %{

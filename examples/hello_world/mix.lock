@@ -1,5 +1,5 @@
 %{
-  "delta_crdt": {:hex, :delta_crdt, "0.5.5", "5350b56714c0a72921fd9b88c9d29c49952804d1546e6b5e81ffdf201f44f326", [:mix], [{:merkle_map, "~> 0.2.0", [hex: :merkle_map, repo: "hexpm", optional: false]}, {:murmur, "~> 1.0", [hex: :murmur, repo: "hexpm", optional: false]}, {:telemetry, "~> 0.4.0", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm"},
+  "delta_crdt": {:hex, :delta_crdt, "0.5.9", "0849656cf570f1ac292806646fad31dbdbb0875580dcce439be467b49a927533", [:mix], [{:merkle_map, "~> 0.2.0", [hex: :merkle_map, repo: "hexpm", optional: false]}, {:telemetry, "~> 0.4.0", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm"},
   "horde": {:git, "https://github.com/derekkraan/horde.git", "8822a432f4c3528f904bd62ddbb1bcc242658c93", [branch: "fix_start_children"]},
   "jason": {:hex, :jason, "1.1.2", "b03dedea67a99223a2eaf9f1264ce37154564de899fd3d8b9a21b1a6fd64afe7", [:mix], [{:decimal, "~> 1.0", [hex: :decimal, repo: "hexpm", optional: true]}], "hexpm"},
   "libcluster": {:hex, :libcluster, "3.0.3", "492e98c7f5c9a6e95b8d51f0b198cf8eab60af3b490f40b958d4bc326d11e40e", [:mix], [{:jason, "~> 1.0", [hex: :jason, repo: "hexpm", optional: false]}], "hexpm"},

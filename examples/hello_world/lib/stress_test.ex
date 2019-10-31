@@ -21,7 +21,7 @@ defmodule StressTest do
       (seconds_to_live * 0.75 + :rand.uniform(seconds_to_live) / 2)
       |> round()
 
-    Horde.Supervisor.start_child(HelloWorld.HelloSupervisor, %{
+    Horde.DynamicSupervisor.start_child(HelloWorld.HelloSupervisor, %{
       id: number,
       restart: :transient,
       start: {

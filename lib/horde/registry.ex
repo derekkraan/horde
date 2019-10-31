@@ -21,11 +21,17 @@ defmodule Horde.Registry do
   defmodule MyRegistry do
     use Horde.Registry
 
-    def init(options) do
-      {:ok, Keyword.put(options, :members, get_members())}
+    def start_link(init_arg, options \\ [])
+      Horde.Registry.start_link(__MODULE__, init_arg, options)
     end
 
-    defp get_members() do
+    def init(init_arg) do
+      [members: members()]
+      |> Keyword.merge(init_arg)
+      |> Horde.Registry.init()
+    end
+
+    defp members() do
       # ...
     end
   end
@@ -38,7 +44,7 @@ defmodule Horde.Registry do
   @type option ::
           {:keys, :unique}
           | {:name, atom()}
-          | {:delta_crdt, [DeltaCrdt.crdt_option()]}
+          | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
           | {:members, [Horde.Cluster.member()]}
 
   @callback init(options :: Keyword.t()) :: {:ok, options :: Keyword.t()}
@@ -94,7 +100,7 @@ defmodule Horde.Registry do
       :keys,
       :distribution_strategy,
       :members,
-      :delta_crdt
+      :delta_crdt_options
     ]
 
     {sup_options, start_options} = Keyword.split(options, keys)
@@ -123,7 +129,7 @@ defmodule Horde.Registry do
     listeners = Keyword.get(options, :listeners, [])
     meta = Keyword.get(options, :meta, nil)
     members = Keyword.get(options, :members, [])
-    delta_crdt = Keyword.get(options, :delta_crdt, [])
+    delta_crdt_options = Keyword.get(options, :delta_crdt_options, [])
 
     distribution_strategy =
       Keyword.get(
@@ -138,7 +144,7 @@ defmodule Horde.Registry do
       keys: keys,
       distribution_strategy: distribution_strategy,
       members: members,
-      delta_crdt_config: delta_crdt_config(delta_crdt)
+      delta_crdt_options: delta_crdt_options(delta_crdt_options)
     }
 
     {:ok, flags}
@@ -150,11 +156,11 @@ defmodule Horde.Registry do
         children = [
           {DeltaCrdt,
            [
-             sync_interval: flags.delta_crdt_config.sync_interval,
-             max_sync_size: flags.delta_crdt_config.max_sync_size,
-             shutdown: flags.delta_crdt_config.shutdown,
+             sync_interval: flags.delta_crdt_options.sync_interval,
+             max_sync_size: flags.delta_crdt_options.max_sync_size,
+             shutdown: flags.delta_crdt_options.shutdown,
              crdt: DeltaCrdt.AWLWWMap,
-             on_diffs: &on_diffs(&1, name),
+             on_diffs: {Horde.RegistryImpl, :on_diffs, [name]},
              name: crdt_name(name)
            ]},
           {Horde.RegistryImpl,
@@ -413,7 +419,7 @@ defmodule Horde.Registry do
     end
   end
 
-  defp delta_crdt_config(options) do
+  defp delta_crdt_options(options) do
     %{
       sync_interval: Keyword.get(options, :sync_interval, 300),
       max_sync_size: Keyword.get(options, :max_sync_size, :infinite),
@@ -426,16 +432,6 @@ defmodule Horde.Registry do
       options
     else
       [name | options]
-    end
-  end
-
-  defp on_diffs(diffs, name) do
-    try do
-      Kernel.send(name, {:crdt_update, diffs})
-    rescue
-      ArgumentError ->
-        # the process might already been stopped
-        :ok
     end
   end
 

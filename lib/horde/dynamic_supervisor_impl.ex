@@ -1,12 +1,12 @@
-defmodule Horde.Supervisor.Member do
+defmodule Horde.DynamicSupervisor.Member do
   @moduledoc false
 
-  @type t :: %Horde.Supervisor.Member{}
+  @type t :: %Horde.DynamicSupervisor.Member{}
   @type status :: :uninitialized | :alive | :shutting_down | :dead
   defstruct [:status, :name]
 end
 
-defmodule Horde.SupervisorImpl do
+defmodule Horde.DynamicSupervisorImpl do
   @moduledoc false
 
   require Logger
@@ -62,8 +62,21 @@ defmodule Horde.SupervisorImpl do
     {:noreply, set_members(members, state)}
   end
 
+  def on_diffs(name, diffs) do
+    try do
+      send(name, {:crdt_update, diffs})
+    rescue
+      ArgumentError ->
+        # the process might already been stopped
+        :ok
+    end
+  end
+
   defp node_info(state) do
-    %Horde.Supervisor.Member{status: node_status(state), name: fully_qualified_name(state.name)}
+    %Horde.DynamicSupervisor.Member{
+      status: node_status(state),
+      name: fully_qualified_name(state.name)
+    }
   end
 
   defp node_status(%{shutting_down: false}), do: :alive
@@ -295,7 +308,7 @@ defmodule Horde.SupervisorImpl do
     DeltaCrdt.mutate(
       crdt_name(state.name),
       :add,
-      [{:member_node_info, name}, %Horde.Supervisor.Member{name: name, status: :dead}],
+      [{:member_node_info, name}, %Horde.DynamicSupervisor.Member{name: name, status: :dead}],
       :infinity
     )
 
@@ -474,7 +487,7 @@ defmodule Horde.SupervisorImpl do
   defp update_member(state, _), do: state
 
   defp uninitialized_member(member) do
-    %Horde.Supervisor.Member{status: :uninitialized, name: member}
+    %Horde.DynamicSupervisor.Member{status: :uninitialized, name: member}
   end
 
   defp handle_dead_nodes(state) do
@@ -521,7 +534,7 @@ defmodule Horde.SupervisorImpl do
     uninitialized_new_members_info =
       member_names(members)
       |> Map.new(fn name ->
-        {name, %Horde.Supervisor.Member{name: name, status: :uninitialized}}
+        {name, %Horde.DynamicSupervisor.Member{name: name, status: :uninitialized}}
       end)
 
     new_members_info =

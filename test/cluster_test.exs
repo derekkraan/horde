@@ -8,7 +8,7 @@ defmodule ClusterTest do
           name: :reg4,
           keys: :unique,
           members: [:reg4, :reg5],
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       {:ok, _} =
@@ -16,7 +16,7 @@ defmodule ClusterTest do
           name: :reg5,
           keys: :unique,
           members: [:reg4, :reg5],
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       members = Horde.Cluster.members(:reg4)
@@ -25,19 +25,19 @@ defmodule ClusterTest do
 
     test "can join supervisor by specifying members in init" do
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup4,
           strategy: :one_for_one,
           members: [:sup4, :sup5],
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup5,
           strategy: :one_for_one,
           members: [:sup4, :sup5],
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       members = Horde.Cluster.members(:sup4)
@@ -51,7 +51,7 @@ defmodule ClusterTest do
         Horde.Registry.start_link(
           name: :reg0,
           keys: :unique,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       assert :ok = Horde.Cluster.set_members(:reg0, [:reg00, :reg0])
@@ -62,10 +62,10 @@ defmodule ClusterTest do
 
     test "Supervisor returns same thing after setting members twice" do
       {:ok, _reg1} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup0,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       assert :ok = Horde.Cluster.set_members(:sup0, [:sup00, :sup0])
@@ -81,14 +81,14 @@ defmodule ClusterTest do
         Horde.Registry.start_link(
           name: :reg1,
           keys: :unique,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       {:ok, _reg2} =
         Horde.Registry.start_link(
           name: :reg2,
           keys: :unique,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       assert :ok = Horde.Cluster.set_members(:reg1, [:reg1, :reg2])
@@ -96,17 +96,17 @@ defmodule ClusterTest do
 
     test "returns true when supervisors joined" do
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup1,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup2,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       assert :ok = Horde.Cluster.set_members(:sup1, [:sup1, :sup2])
@@ -117,7 +117,7 @@ defmodule ClusterTest do
         Horde.Registry.start_link(
           name: :reg3,
           keys: :unique,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       assert :ok = Horde.Cluster.set_members(:reg3, [:reg3, :doesnt_exist], 100)
@@ -125,10 +125,10 @@ defmodule ClusterTest do
 
     test "returns true when other supervisor doesn't exist" do
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup3,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       assert :ok = Horde.Cluster.set_members(:sup3, [:sup3, :doesnt_exist], 100)
@@ -136,17 +136,17 @@ defmodule ClusterTest do
 
     test "can join and unjoin supervisor with set_members" do
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup6,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       {:ok, _} =
-        Horde.Supervisor.start_link(
+        Horde.DynamicSupervisor.start_link(
           name: :sup7,
           strategy: :one_for_one,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       assert :ok = Horde.Cluster.set_members(:sup6, [:sup6, :sup7])
@@ -166,14 +166,14 @@ defmodule ClusterTest do
         Horde.Registry.start_link(
           name: :reg6,
           keys: :unique,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       {:ok, _} =
         Horde.Registry.start_link(
           name: :reg7,
           keys: :unique,
-          delta_crdt: [sync_interval: 10]
+          delta_crdt_options: [sync_interval: 10]
         )
 
       assert :ok = Horde.Cluster.set_members(:reg6, [:reg6, :reg7])
@@ -193,9 +193,9 @@ defmodule ClusterTest do
     end
 
     test "supervisor can start child" do
-      {:ok, _} = start_supervised({Horde.Supervisor, [name: :sup, strategy: :one_for_one]})
+      {:ok, _} = start_supervised({Horde.DynamicSupervisor, [name: :sup, strategy: :one_for_one]})
       assert :ok = Horde.Cluster.set_members(:sup, [:sup])
-      {:ok, child_pid} = Supervisor.start_child(:sup, {Task, fn -> :ok end})
+      {:ok, child_pid} = Horde.DynamicSupervisor.start_child(:sup, {Task, fn -> :ok end})
       assert is_pid(child_pid)
     end
   end

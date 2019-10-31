@@ -4,7 +4,7 @@ defmodule Horde.MixProject do
   def project do
     [
       app: :horde,
-      version: "0.6.1",
+      version: "0.7.1",
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -29,7 +29,7 @@ defmodule Horde.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:delta_crdt, "~> 0.5.7"},
+      {:delta_crdt, "~> 0.5.10"},
       {:libring, "~> 1.4"},
       {:telemetry, "~> 0.4.0"},
       {:telemetry_poller, "~> 0.4.0"},
@@ -37,7 +37,8 @@ defmodule Horde.MixProject do
       {:benchee, "> 0.0.1", only: :dev, runtime: false},
       {:stream_data, "~> 0.4", only: :test},
       {:local_cluster, "~> 1.1", only: :test},
-      {:schism, "~> 1.0.1", only: :test}
+      {:schism, "~> 1.0.1", only: :test},
+      {:dialyxir, "~> 1.0.0-rc.6", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -58,6 +59,7 @@ defmodule Horde.MixProject do
     # getting started
     [
       "README.md",
+      "CHANGELOG.md",
       "guides/getting_started.md",
       "guides/eventual_consistency.md",
       "guides/state_handoff.md",

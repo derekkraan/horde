@@ -6,9 +6,9 @@ defmodule Horde.Cluster do
 
   Calling `Horde.Cluster.set_members/2` will join the given members in a cluster. Cluster membership is propagated via a CRDT, so setting it once on a single node is sufficient.
   ```elixir
-  {:ok, sup1} = Horde.Supervisor.start_link([], name: :supervisor_1, strategy: :one_for_one)
-  {:ok, sup2} = Horde.Supervisor.start_link([], name: :supervisor_2, strategy: :one_for_one)
-  {:ok, sup3} = Horde.Supervisor.start_link([], name: :supervisor_3, strategy: :one_for_one)
+  {:ok, sup1} = Horde.DynamicSupervisor.start_link([], name: :supervisor_1, strategy: :one_for_one)
+  {:ok, sup2} = Horde.DynamicSupervisor.start_link([], name: :supervisor_2, strategy: :one_for_one)
+  {:ok, sup3} = Horde.DynamicSupervisor.start_link([], name: :supervisor_3, strategy: :one_for_one)
 
   :ok = Horde.Cluster.set_members(:supervisor_1, [:supervisor_1, :supervisor_2, :supervisor_3])
   ```
