@@ -1,6 +1,7 @@
 # Disable until we can get this working on CircleCI
-# :ok = LocalCluster.start()
+{_, 0} = System.cmd("epmd", ["-daemon"])
+:ok = LocalCluster.start()
 
-# Application.ensure_all_started(:horde)
+Application.ensure_all_started(:horde)
 
 ExUnit.start()
