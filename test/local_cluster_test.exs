@@ -21,6 +21,7 @@ defmodule LocalClusterTest do
     [nodes: nodes]
   end
 
+  @tag skip: true
   test "a heal after a netsplit should ensure the process keeps running", %{
     nodes: [n1, n2] = nodes
   } do
