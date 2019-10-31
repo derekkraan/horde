@@ -17,7 +17,7 @@ defmodule Worker do
   end
 
   def start(name) do
-    Horde.Supervisor.start_child(
+    Horde.DynamicSupervisor.start_child(
       TestSup,
       child_spec(name: name)
     )
