@@ -661,7 +661,12 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp handoff_child(child, state) do
     {_, _, child_pid} = Map.get(state.processes_by_id, child.id)
-    Process.exit(child_pid, {:shutdown, :process_redistribution})
+
+    Horde.ProcessesSupervisor.send_exit_signal(
+      supervisor_name(state.name),
+      child_pid,
+      {:shutdown, :process_redistribution}
+    )
 
     new_state = Map.put(state, :local_process_count, state.local_process_count - 1)
 

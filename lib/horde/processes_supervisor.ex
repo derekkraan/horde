@@ -291,6 +291,10 @@ defmodule Horde.ProcessesSupervisor do
   #  call(supervisor, {:send_exit_signal, child_pid, reason})
   # end
 
+  def send_exit_signal(supervisor, pid, reason) do
+    GenServer.cast(supervisor, {:send_exit_signal, pid, reason})
+  end
+
   def terminate_child_by_id(supervisor, child_id) do
     call(supervisor, {:terminate_child_by_id, child_id})
   end
@@ -793,6 +797,11 @@ defmodule Horde.ProcessesSupervisor do
   defp exit_reason(:exit, reason, _), do: reason
   defp exit_reason(:error, reason, stack), do: {reason, stack}
   defp exit_reason(:throw, value, stack), do: {{:nocatch, value}, stack}
+
+  def handle_cast({:send_exit_signal, pid, reason}, state) do
+    Process.exit(pid, reason)
+    {:noreply, state}
+  end
 
   @impl true
   def handle_cast(_msg, state) do
