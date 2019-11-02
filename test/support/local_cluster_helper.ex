@@ -135,7 +135,8 @@ defmodule RebalanceTestServer do
     {:ok, {type, ppid}}
   end
 
-  def handle_info({:EXIT, _pid, reason}, {type, ppid} = state) do
+  @impl true
+  def handle_info({:EXIT, _pid, reason}, state) do
     {:stop, reason, state}
   end
 
