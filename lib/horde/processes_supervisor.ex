@@ -287,12 +287,8 @@ defmodule Horde.ProcessesSupervisor do
     end
   end
 
-  # def send_exit_signal( supervisor, child_pid, reason ) do 
-  #  call(supervisor, {:send_exit_signal, child_pid, reason})
-  # end
-
   def send_exit_signal(supervisor, pid, reason) do
-    GenServer.cast(supervisor, {:send_exit_signal, pid, reason})
+    GenServer.call(supervisor, {:send_exit_signal, pid, reason})
   end
 
   def terminate_child_by_id(supervisor, child_id) do
@@ -672,10 +668,10 @@ defmodule Horde.ProcessesSupervisor do
   defp validate_extra_arguments(list) when is_list(list), do: :ok
   defp validate_extra_arguments(extra), do: {:error, {:invalid_extra_arguments, extra}}
 
-  # def handle_call({:send_exit_signal, child_pid, reason}, _f, state) do 
-  #  Process.exit(child_pid, reason)
-  #  {:reply, :ok, state}
-  # end
+  def handle_call({:send_exit_signal, pid, reason}, _f, state) do
+    Process.exit(pid, reason)
+    {:reply, :ok, state}
+  end
 
   def handle_call({:terminate_child_by_id, child_id}, from, state) do
     handle_call({:terminate_child, state.child_id_to_pid[child_id]}, from, state)
@@ -797,11 +793,6 @@ defmodule Horde.ProcessesSupervisor do
   defp exit_reason(:exit, reason, _), do: reason
   defp exit_reason(:error, reason, stack), do: {reason, stack}
   defp exit_reason(:throw, value, stack), do: {{:nocatch, value}, stack}
-
-  def handle_cast({:send_exit_signal, pid, reason}, state) do
-    Process.exit(pid, reason)
-    {:noreply, state}
-  end
 
   @impl true
   def handle_cast(_msg, state) do
