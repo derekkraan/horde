@@ -287,8 +287,12 @@ defmodule Horde.ProcessesSupervisor do
     end
   end
 
-  def terminate_child_by_id(supervisor, child_id, reason \\ :shutdown) do
-    call(supervisor, {:terminate_child_by_id, child_id, reason})
+  # def send_exit_signal( supervisor, child_pid, reason ) do 
+  #  call(supervisor, {:send_exit_signal, child_pid, reason})
+  # end
+
+  def terminate_child_by_id(supervisor, child_id) do
+    call(supervisor, {:terminate_child_by_id, child_id})
   end
 
   @doc """
@@ -664,8 +668,13 @@ defmodule Horde.ProcessesSupervisor do
   defp validate_extra_arguments(list) when is_list(list), do: :ok
   defp validate_extra_arguments(extra), do: {:error, {:invalid_extra_arguments, extra}}
 
-  def handle_call({:terminate_child_by_id, child_id, reason}, from, state) do
-    handle_call({:terminate_child, state.child_id_to_pid[child_id], reason}, from, state)
+  # def handle_call({:send_exit_signal, child_pid, reason}, _f, state) do 
+  #  Process.exit(child_pid, reason)
+  #  {:reply, :ok, state}
+  # end
+
+  def handle_call({:terminate_child_by_id, child_id}, from, state) do
+    handle_call({:terminate_child, state.child_id_to_pid[child_id]}, from, state)
   end
 
   @impl true
@@ -709,14 +718,10 @@ defmodule Horde.ProcessesSupervisor do
     {:reply, reply, state}
   end
 
-  def handle_call({:terminate_child, pid}, from, state) do
-    handle_call({:terminate_child, pid, :shutdown}, from, state)
-  end
-
-  def handle_call({:terminate_child, pid, reason}, _from, %{children: children} = state) do
+  def handle_call({:terminate_child, pid}, _from, %{children: children} = state) do
     case children do
       %{^pid => info} ->
-        :ok = terminate_children(%{pid => info}, state, reason)
+        :ok = terminate_children(%{pid => info}, state)
         {:reply, :ok, delete_child(pid, state)}
 
       %{} ->
@@ -849,11 +854,7 @@ defmodule Horde.ProcessesSupervisor do
   end
 
   defp terminate_children(children, state) do
-    terminate_children(children, state, :shutdown)
-  end
-
-  defp terminate_children(children, state, reason) do
-    {pids, times, stacks} = monitor_children(children, reason)
+    {pids, times, stacks} = monitor_children(children)
     size = map_size(pids)
 
     timers =
@@ -870,7 +871,7 @@ defmodule Horde.ProcessesSupervisor do
     :ok
   end
 
-  defp monitor_children(children, exit_reason) do
+  defp monitor_children(children) do
     Enum.reduce(children, {%{}, %{}, %{}}, fn
       {_, {:restarting, _}}, acc ->
         acc
@@ -879,7 +880,7 @@ defmodule Horde.ProcessesSupervisor do
       {pids, times, stacks} ->
         case monitor_child(pid) do
           :ok ->
-            times = exit_child(pid, child, times, exit_reason)
+            times = exit_child(pid, child, times)
             {Map.put(pids, pid, child), times, stacks}
 
           {:error, :normal} when restart != :permanent ->
@@ -905,18 +906,18 @@ defmodule Horde.ProcessesSupervisor do
     end
   end
 
-  defp exit_child(pid, {_, _, _, shutdown, _, _}, times, exit_reason) do
+  defp exit_child(pid, {_, _, _, shutdown, _, _}, times) do
     case shutdown do
       :brutal_kill ->
         Process.exit(pid, :kill)
         times
 
       :infinity ->
-        Process.exit(pid, exit_reason)
+        Process.exit(pid, :shutdown)
         times
 
       time ->
-        Process.exit(pid, exit_reason)
+        Process.exit(pid, :shutdown)
         Map.update(times, time, [pid], &[pid | &1])
     end
   end
@@ -999,15 +1000,14 @@ defmodule Horde.ProcessesSupervisor do
     end
   end
 
+  defp maybe_restart_child(_, {:shutdown, :process_redistribution}, pid, _child, state) do
+    relinquish_child_to_horde(state, pid)
+    {:ok, delete_child(pid, state)}
+  end
+
   defp maybe_restart_child(:permanent, reason, pid, child, state) do
     report_error(:child_terminated, reason, pid, child, state)
     restart_child(pid, child, state)
-  end
-
-  defp maybe_restart_child(_, :horde_handoff, pid, _child, state) do
-    # if the process is being shutdown for handoff, then we just let it happen
-    # without remove_child_from_horde
-    {:ok, delete_child(pid, state)}
   end
 
   defp maybe_restart_child(_, :normal, pid, _child, state) do
@@ -1034,6 +1034,11 @@ defmodule Horde.ProcessesSupervisor do
     remove_child_from_horde(state, pid)
     report_error(:child_terminated, reason, pid, child, state)
     {:ok, delete_child(pid, state)}
+  end
+
+  defp relinquish_child_to_horde(state, pid) do
+    {child_id, _, _, _, _, _} = Map.get(state.children, pid)
+    GenServer.cast(state.root_name, {:relinquish_child_process, child_id})
   end
 
   defp remove_child_from_horde(state, pid) do

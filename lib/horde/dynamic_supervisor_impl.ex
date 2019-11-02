@@ -224,6 +224,21 @@ defmodule Horde.DynamicSupervisorImpl do
     end
   end
 
+  def handle_cast({:relinquish_child_process, child_id}, state) do
+    # signal to the rest of the nodes that this process has been relinquished
+    # (to the Horde!) by its parent
+    {_, child, _} = Map.get(state.processes_by_id, child_id)
+
+    :ok =
+      DeltaCrdt.mutate(
+        crdt_name(state.name),
+        :add,
+        [{:process, child.id}, {nil, child}]
+      )
+
+    {:noreply, state}
+  end
+
   # TODO think of a better name than "disown_child_process"
   def handle_cast({:disown_child_process, child_id}, state) do
     {{_, _, child_pid}, new_processes_by_id} = Map.pop(state.processes_by_id, child_id)
@@ -308,7 +323,6 @@ defmodule Horde.DynamicSupervisorImpl do
     end
   end
 
-  @doc false
   def handle_info({:DOWN, ref, _type, _pid, _reason}, state) do
     case Map.get(state.supervisor_ref_to_name, ref) do
       nil ->
@@ -386,12 +400,11 @@ defmodule Horde.DynamicSupervisorImpl do
               end
 
             this_node == current_node and chosen_node != this_node ->
-              case Application.get_env(:horde, :handoff_on_alive, true) do
-                true ->
-                  {:ok, state} = handoff_child(child, state)
-                  state
+              case state.supervisor_options[:process_redistribution] do
+                :active ->
+                  handoff_child(child, state)
 
-                false ->
+                :passive ->
                   state
               end
 
@@ -647,37 +660,21 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp handoff_child(child, state) do
-    reply =
-      Horde.ProcessesSupervisor.terminate_child_by_id(
-        supervisor_name(state.name),
-        child.id,
-        :horde_handoff
-      )
-
-    # signal to the rest of the nodes that this process has been relinquished
-    # (to the Horde!) by its parent
-    :ok =
-      DeltaCrdt.mutate(
-        crdt_name(state.name),
-        :add,
-        [{:process, child.id}, {nil, child}]
-      )
+    {_, _, child_pid} = Map.get(state.processes_by_id, child.id)
+    Process.exit(child_pid, {:shutdown, :process_redistribution})
 
     new_state = Map.put(state, :local_process_count, state.local_process_count - 1)
 
-    {reply, new_state}
+    new_state
   end
 
-  defp terminate_child(child, state), do: terminate_child(child, state, :shutdown)
-
-  defp terminate_child(child, state, reason) do
+  defp terminate_child(child, state) do
     child_id = child.id
 
     reply =
       Horde.ProcessesSupervisor.terminate_child_by_id(
         supervisor_name(state.name),
-        child_id,
-        reason
+        child_id
       )
 
     new_state =

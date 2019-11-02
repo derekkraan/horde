@@ -125,19 +125,22 @@ end
 defmodule RebalanceTestServer do
   use GenServer
 
-  def start_link({name, ppid}) do
-    GenServer.start_link(__MODULE__, ppid, name: name)
+  def start_link({name, type, ppid}) do
+    GenServer.start_link(__MODULE__, {type, ppid}, name: name)
   end
 
   @impl true
-  def init(ppid) do
+  def init({type, ppid}) do
     Process.flag(:trap_exit, true)
-    {:ok, ppid}
+    {:ok, {type, ppid}}
+  end
+
+  def handle_info({:EXIT, _pid, reason}, {type, ppid} = state) do
+    {:stop, reason, state}
   end
 
   @impl true
-  def terminate(reason, ppid) do
-    send(ppid, {:shutdown, reason})
-    Process.exit(self(), :kill)
+  def terminate(reason, {type, ppid}) do
+    send(ppid, {:shutdown, type, reason})
   end
 end
