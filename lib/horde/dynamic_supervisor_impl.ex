@@ -252,16 +252,26 @@ defmodule Horde.DynamicSupervisorImpl do
 
   # TODO think of a better name than "disown_child_process"
   def handle_cast({:disown_child_process, child_id}, state) do
-    {{_, _, child_pid}, new_processes_by_id} = Map.pop(state.processes_by_id, child_id)
+    {child_info, new_processes_by_id} = Map.pop(state.processes_by_id, child_id)
 
-    new_state = %{
-      state
-      | processes_by_id: new_processes_by_id,
-        process_pid_to_id: Map.delete(state.process_pid_to_id, child_pid),
-        local_process_count: state.local_process_count - 1
-    }
+    new_state =
+      case child_info do
+        nil ->
+          Logger.warn("Disowning child with id #{child_id} but no pid was found")
+          state
 
-    :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
+        {_, _, child_pid} ->
+          :ok =
+            DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
+
+          %{
+            state
+            | processes_by_id: new_processes_by_id,
+              process_pid_to_id: Map.delete(state.process_pid_to_id, child_pid),
+              local_process_count: state.local_process_count - 1
+          }
+      end
+
     {:noreply, new_state}
   end
 
