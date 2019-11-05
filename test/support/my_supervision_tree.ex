@@ -61,6 +61,73 @@ defmodule MyCluster do
   def whereis_server(node, name) do
     :rpc.call(node, MyCluster, :whereis_server, [name])
   end
+
+  def debug(nodes) when is_list(nodes) do
+    Enum.map(nodes, fn n ->
+      {n, debug(n)}
+    end)
+  end
+
+  def debug(n) when is_atom(n) do
+    :rpc.call(n, MyCluster, :debug, [])
+  end
+
+  @doc """
+  Returns member and registry content information. This function is used
+  to debug failed expectations in tests
+  """
+  def debug() do
+    [
+      members: [
+        supervisor: Horde.Cluster.members(MySupervisor),
+        registry: Horde.Cluster.members(MyRegistry)
+      ],
+      keys:
+        MyRegistry.keys()
+        |> Enum.map(fn {k, pid} ->
+          {k, pid, node(pid)}
+        end)
+    ]
+  end
+
+  @doc """
+  Checks whether the given server name is seen by all the nodes
+  in the given list. This function returns true, if all nodes are able
+  to see the same pid, and the node of that pid is one of those nodes.
+
+  """
+  def server_in_nodes?(nodes, name) do
+    Enum.reduce_while(nodes, [], fn n, pids ->
+      case whereis_server(n, name) do
+        :not_found ->
+          # At least one node is not able to locate the server
+          # return false
+          {:halt, :not_found}
+
+        pid when is_pid(pid) ->
+          # Collect the pid see by the node, for later
+          {:cont, [pid | pids]}
+      end
+    end)
+    |> case do
+      :not_found ->
+        false
+
+      pids ->
+        # All nodes are able to see a pid. Check whether all nodes
+        # see the same pid, and that pid is one of the nodes of original
+        # list
+        case Enum.uniq(pids) do
+          [pid] ->
+            Enum.member?(nodes, node(pid))
+
+          _ ->
+            # There is more than one distinct pid in the list
+            # Return false
+            false
+        end
+    end
+  end
 end
 
 defmodule MyRegistry do
@@ -114,6 +181,10 @@ defmodule MyRegistry do
       nil ->
         false
     end
+  end
+
+  def keys() do
+    Horde.Registry.select(__MODULE__, [{{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$2"}}]}])
   end
 end
 
