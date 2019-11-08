@@ -60,6 +60,10 @@ In this scenario, you may also want to implement a [module-based Registry](https
 ```elixir
 defmodule MyHordeRegistry do
   use Horde.Registry
+  
+  def start_link(init_arg, options \\ []) do
+    Horde.Registry.start_link(__MODULE__, init_arg, options)
+  end
 
   def init(options) do
     {:ok, Keyword.put(options, :members, get_members())}
