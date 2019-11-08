@@ -42,13 +42,23 @@ In this scenario, you will need to implement a [module-based Supervisor](https:/
 defmodule MyHordeSupervisor do
   use Horde.DynamicSupervisor
 
-  def init(options) do
-    {:ok, Keyword.put(options, :members, get_members())}
+  def start_link(_) do
+    Horde.DynamicSupervisor.start_link(
+      __MODULE__,
+      [strategy: :one_for_one],
+      name: __MODULE__
+    )
   end
 
-  defp get_members() do
+  def init(init_arg) do
+    [members: members()]
+    |> Keyword.merge(init_arg)
+    |> Horde.DynamicSupervisor.init()
+  end
+
+  defp members() do
     [Node.self() | Node.list()]
-    |> Enum.map(fn node -> {MyHordeSupervisor, node} end)
+    |> Enum.map(fn node -> {__MODULE__, node} end)
   end
 end
 ```
@@ -60,18 +70,20 @@ In this scenario, you may also want to implement a [module-based Registry](https
 ```elixir
 defmodule MyHordeRegistry do
   use Horde.Registry
-  
-  def start_link(init_arg, options \\ []) do
-    Horde.Registry.start_link(__MODULE__, init_arg, options)
+
+  def start_link(_) do
+    Horde.Registry.start_link(__MODULE__, [keys: :unique], name: __MODULE__)
   end
 
-  def init(options) do
-    {:ok, Keyword.put(options, :members, get_members())}
+  def init(init_arg) do
+    [members: members()]
+    |> Keyword.merge(init_arg)
+    |> Horde.Registry.init()
   end
 
-  defp get_members() do
+  defp members() do
     [Node.self() | Node.list()]
-    |> Enum.map(fn node -> {MyHordeRegistry, node} end)
+    |> Enum.map(fn node -> {__MODULE__, node} end)
   end
 end
 ```
@@ -84,7 +96,7 @@ We also need a separate process that will listen for `{:nodeup, node}` and `{:no
 defmodule NodeListener do
   use GenServer
 
-  def start_link(), do: GenServer.start_link(__MODULE__, [])
+  def start_link(_), do: GenServer.start_link(__MODULE__, [])
 
   def init(_) do
     :net_kernel.monitor_nodes(true, node_type: :visible)
@@ -105,8 +117,9 @@ defmodule NodeListener do
 
   defp set_members(name) do
     members =
-    [Node.self() | Node.list()]
-    |> Enum.map(fn node -> {name, node} end)
+      [Node.self() | Node.list()]
+      |> Enum.map(fn node -> {name, node} end)
+
     :ok = Horde.Cluster.set_members(name, members)
   end
 end
