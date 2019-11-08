@@ -21,8 +21,8 @@ defmodule Horde.Registry do
   defmodule MyRegistry do
     use Horde.Registry
 
-    def start_link(init_arg, options \\ []) do
-      Horde.Registry.start_link(__MODULE__, init_arg, options)
+    def start_link(_) do
+      Horde.Registry.start_link(__MODULE__, [keys: :unique], name: __MODULE__)
     end
 
     def init(init_arg) do
@@ -32,8 +32,9 @@ defmodule Horde.Registry do
     end
 
     defp members() do
-      # ...
-    end
+      [Node.self() | Node.list()]
+      |> Enum.map(fn node -> {__MODULE__, node} end)
+    end  
   end
   ```
 
