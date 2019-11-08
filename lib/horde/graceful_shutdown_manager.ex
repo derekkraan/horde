@@ -30,9 +30,10 @@ defmodule Horde.GracefulShutdownManager do
   end
 
   def handle_cast({:shut_down, child_spec}, {processes_pid, true} = s) do
-    GenServer.cast(
+    DeltaCrdt.mutate_async(
       processes_pid,
-      {:operation, {:add, [{:process, child_spec.id}, {nil, child_spec}]}}
+      :add,
+      [{:process, child_spec.id}, {nil, child_spec}]
     )
 
     {:noreply, s}

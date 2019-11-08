@@ -63,6 +63,7 @@ defmodule Horde.DynamicSupervisor do
           | {:shutdown, integer()}
           | {:members, [Horde.Cluster.member()]}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
+          | {:process_redistribution, :active | :passive}
 
   @callback init(options()) :: {:ok, options()}
   @callback child_spec(options :: options()) :: Supervisor.child_spec()
@@ -117,6 +118,7 @@ defmodule Horde.DynamicSupervisor do
       :max_restarts,
       :strategy,
       :distribution_strategy,
+      :process_redistribution,
       :members,
       :delta_crdt_options
     ]
@@ -145,6 +147,7 @@ defmodule Horde.DynamicSupervisor do
     extra_arguments = Keyword.get(options, :extra_arguments, [])
     members = Keyword.get(options, :members, [])
     delta_crdt_options = Keyword.get(options, :delta_crdt_options, [])
+    process_redistribution = Keyword.get(options, :process_redistribution, :passive)
 
     distribution_strategy =
       Keyword.get(
@@ -161,7 +164,8 @@ defmodule Horde.DynamicSupervisor do
       extra_arguments: extra_arguments,
       distribution_strategy: distribution_strategy,
       members: members,
-      delta_crdt_options: delta_crdt_options(delta_crdt_options)
+      delta_crdt_options: delta_crdt_options(delta_crdt_options),
+      process_redistribution: process_redistribution
     }
 
     {:ok, flags}
@@ -192,6 +196,7 @@ defmodule Horde.DynamicSupervisor do
              extra_arguments: flags.extra_arguments,
              strategy: flags.strategy,
              distribution_strategy: flags.distribution_strategy,
+             process_redistribution: flags.process_redistribution,
              members: members(flags.members, name)
            ]},
           {Horde.GracefulShutdownManager,
@@ -244,7 +249,8 @@ defmodule Horde.DynamicSupervisor do
 
   Works like `DynamicSupervisor.terminate_child/2`.
   """
-  @spec terminate_child(Supervisor.supervisor(), child_pid :: pid()) :: :ok | {:error, :not_found}
+  @spec terminate_child(Supervisor.supervisor(), child_pid :: pid()) ::
+          :ok | {:error, :not_found} | {:error, {:node_dead_or_shutting_down, String.t()}}
   def terminate_child(supervisor, child_pid) when is_pid(child_pid),
     do: call(supervisor, {:terminate_child, child_pid})
 

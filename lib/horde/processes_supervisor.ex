@@ -287,6 +287,10 @@ defmodule Horde.ProcessesSupervisor do
     end
   end
 
+  def send_exit_signal(supervisor, pid, reason) do
+    GenServer.call(supervisor, {:send_exit_signal, pid, reason})
+  end
+
   def terminate_child_by_id(supervisor, child_id) do
     call(supervisor, {:terminate_child_by_id, child_id})
   end
@@ -664,6 +668,11 @@ defmodule Horde.ProcessesSupervisor do
   defp validate_extra_arguments(list) when is_list(list), do: :ok
   defp validate_extra_arguments(extra), do: {:error, {:invalid_extra_arguments, extra}}
 
+  def handle_call({:send_exit_signal, pid, reason}, _f, state) do
+    Process.exit(pid, reason)
+    {:reply, :ok, state}
+  end
+
   def handle_call({:terminate_child_by_id, child_id}, from, state) do
     handle_call({:terminate_child, state.child_id_to_pid[child_id]}, from, state)
   end
@@ -991,6 +1000,11 @@ defmodule Horde.ProcessesSupervisor do
     end
   end
 
+  defp maybe_restart_child(_, {:shutdown, :process_redistribution}, pid, _child, state) do
+    relinquish_child_to_horde(state, pid)
+    {:ok, delete_child(pid, state)}
+  end
+
   defp maybe_restart_child(:permanent, reason, pid, child, state) do
     report_error(:child_terminated, reason, pid, child, state)
     restart_child(pid, child, state)
@@ -1020,6 +1034,11 @@ defmodule Horde.ProcessesSupervisor do
     remove_child_from_horde(state, pid)
     report_error(:child_terminated, reason, pid, child, state)
     {:ok, delete_child(pid, state)}
+  end
+
+  defp relinquish_child_to_horde(state, pid) do
+    {child_id, _, _, _, _, _} = Map.get(state.children, pid)
+    GenServer.cast(state.root_name, {:relinquish_child_process, child_id})
   end
 
   defp remove_child_from_horde(state, pid) do

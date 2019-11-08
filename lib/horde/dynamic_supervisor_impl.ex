@@ -125,19 +125,8 @@ defmodule Horde.DynamicSupervisorImpl do
     this_name = fully_qualified_name(state.name)
 
     with child_id when not is_nil(child_id) <- Map.get(state.process_pid_to_id, child_pid),
-         {^this_name, _child_spec, _child_pid} <- Map.get(state.processes_by_id, child_id) do
-      reply =
-        Horde.ProcessesSupervisor.terminate_child_by_id(
-          supervisor_name(state.name),
-          child_id
-        )
-
-      new_state =
-        Map.put(state, :processes_by_id, Map.delete(state.processes_by_id, child_id))
-        |> Map.put(:local_process_count, state.local_process_count - 1)
-
-      :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
-
+         {^this_name, child, _child_pid} <- Map.get(state.processes_by_id, child_id),
+         {reply, new_state} <- terminate_child(child, state) do
       {:reply, reply, new_state}
     else
       {other_node, _child_spec, _child_pid} ->
@@ -156,14 +145,9 @@ defmodule Horde.DynamicSupervisorImpl do
   def handle_call({:start_child, child_spec} = msg, from, state) do
     this_name = fully_qualified_name(state.name)
 
-    child_spec = Map.put(child_spec, :id, :rand.uniform(@big_number))
+    child_spec = randomize_child_id(child_spec)
 
-    distribution_id = :erlang.phash2(Map.drop(child_spec, [:id]))
-
-    case state.distribution_strategy.choose_node(
-           distribution_id,
-           Map.values(members(state))
-         ) do
+    case choose_node(child_spec, state) do
       {:ok, %{name: ^this_name}} ->
         {reply, new_state} = add_child(child_spec, state)
         {:reply, reply, new_state}
@@ -250,6 +234,21 @@ defmodule Horde.DynamicSupervisorImpl do
     end
   end
 
+  def handle_cast({:relinquish_child_process, child_id}, state) do
+    # signal to the rest of the nodes that this process has been relinquished
+    # (to the Horde!) by its parent
+    {_, child, _} = Map.get(state.processes_by_id, child_id)
+
+    :ok =
+      DeltaCrdt.mutate(
+        crdt_name(state.name),
+        :add,
+        [{:process, child.id}, {nil, child}]
+      )
+
+    {:noreply, state}
+  end
+
   # TODO think of a better name than "disown_child_process"
   def handle_cast({:disown_child_process, child_id}, state) do
     {{_, _, child_pid}, new_processes_by_id} = Map.pop(state.processes_by_id, child_id)
@@ -263,6 +262,10 @@ defmodule Horde.DynamicSupervisorImpl do
 
     :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
     {:noreply, new_state}
+  end
+
+  defp randomize_child_id(child) do
+    Map.put(child, :id, :rand.uniform(@big_number))
   end
 
   defp proxy_to_node(node_name, message, reply_to, state) do
@@ -330,7 +333,6 @@ defmodule Horde.DynamicSupervisorImpl do
     end
   end
 
-  @doc false
   def handle_info({:DOWN, ref, _type, _pid, _reason}, state) do
     case Map.get(state.supervisor_ref_to_name, ref) do
       nil ->
@@ -364,7 +366,7 @@ defmodule Horde.DynamicSupervisorImpl do
         |> set_own_node_status()
         |> handle_quorum_change()
         |> set_crdt_neighbours()
-        |> handle_dead_nodes()
+        |> handoff_processes()
       else
         new_state
       end
@@ -386,6 +388,46 @@ defmodule Horde.DynamicSupervisorImpl do
 
   def has_membership_change?([]), do: false
 
+  defp handoff_processes(state) do
+    this_node = fully_qualified_name(state.name)
+
+    Map.values(state.processes_by_id)
+    |> Enum.reduce(state, fn {current_node, child, _child_pid}, state ->
+      case choose_node(child, state) do
+        {:ok, %{name: chosen_node}} ->
+          current_member = Map.get(state.members_info, current_node)
+
+          cond do
+            this_node != current_node and this_node == chosen_node ->
+              # handle_dead_nodes 
+              case current_member do
+                %{status: :dead} ->
+                  {{:ok, _}, state} = add_child(child, state)
+                  state
+
+                _ ->
+                  state
+              end
+
+            this_node == current_node and chosen_node != this_node ->
+              case state.supervisor_options[:process_redistribution] do
+                :active ->
+                  handoff_child(child, state)
+
+                :passive ->
+                  state
+              end
+
+            true ->
+              state
+          end
+
+        {:error, :no_alive_nodes} ->
+          state
+      end
+    end)
+  end
+
   defp update_processes(state, [diff | diffs]) do
     update_process(state, diff)
     |> update_processes(diffs)
@@ -393,13 +435,13 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp update_processes(state, []), do: state
 
-  defp update_process(state, {:add, {:process, child_id}, {nil, child_spec}}) do
+  defp update_process(state, {:add, {:process, _child_id}, {nil, child_spec}}) do
     this_name = fully_qualified_name(state.name)
 
-    case state.distribution_strategy.choose_node(child_id, Map.values(members(state))) do
+    case choose_node(child_spec, state) do
       {:ok, %{name: ^this_name}} ->
-        {_resp, state} = add_child(child_spec, state)
-        state
+        {_resp, new_state} = add_child(child_spec, state)
+        new_state
 
       _ ->
         state
@@ -490,37 +532,6 @@ defmodule Horde.DynamicSupervisorImpl do
     %Horde.DynamicSupervisor.Member{status: :uninitialized, name: member}
   end
 
-  defp handle_dead_nodes(state) do
-    not_dead_members =
-      Enum.flat_map(members(state), fn
-        {_, %{status: :dead}} -> []
-        {not_dead, _} -> [not_dead]
-      end)
-      |> MapSet.new()
-
-    check_processes(state, Map.values(state.processes_by_id), not_dead_members)
-  end
-
-  defp check_processes(state, [{member, child, _child_pid} | procs], not_dead_members) do
-    this_name = fully_qualified_name(state.name)
-
-    with false <- MapSet.member?(not_dead_members, member),
-         {:ok, %{name: ^this_name}} <-
-           state.distribution_strategy.choose_node(
-             child.id,
-             Map.values(members(state))
-           ),
-         {_result, state} <- add_child(child, state) do
-      state
-    else
-      _ ->
-        state
-    end
-    |> check_processes(procs, not_dead_members)
-  end
-
-  defp check_processes(state, [], _), do: state
-
   defp member_names(names) do
     Enum.map(names, fn
       {name, node} -> {name, node}
@@ -567,7 +578,6 @@ defmodule Horde.DynamicSupervisorImpl do
     |> monitor_supervisors()
     |> handle_quorum_change()
     |> set_crdt_neighbours()
-    |> handle_dead_nodes()
   end
 
   defp handle_quorum_change(state) do
@@ -659,6 +669,38 @@ defmodule Horde.DynamicSupervisorImpl do
     |> Map.put(:local_process_count, new_local_process_count)
   end
 
+  defp handoff_child(child, state) do
+    {_, _, child_pid} = Map.get(state.processes_by_id, child.id)
+
+    Horde.ProcessesSupervisor.send_exit_signal(
+      supervisor_name(state.name),
+      child_pid,
+      {:shutdown, :process_redistribution}
+    )
+
+    new_state = Map.put(state, :local_process_count, state.local_process_count - 1)
+
+    new_state
+  end
+
+  defp terminate_child(child, state) do
+    child_id = child.id
+
+    reply =
+      Horde.ProcessesSupervisor.terminate_child_by_id(
+        supervisor_name(state.name),
+        child_id
+      )
+
+    new_state =
+      Map.put(state, :processes_by_id, Map.delete(state.processes_by_id, child_id))
+      |> Map.put(:local_process_count, state.local_process_count - 1)
+
+    :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
+
+    {reply, new_state}
+  end
+
   defp add_child(child, state) do
     {[response], new_state} = add_children([child], state)
     {response, new_state}
@@ -693,6 +735,15 @@ defmodule Horde.DynamicSupervisorImpl do
       :ignore, {responses, state} ->
         {[:ignore | responses], state}
     end)
+  end
+
+  defp choose_node(child_spec, state) do
+    distribution_id = :erlang.phash2(Map.drop(child_spec, [:id]))
+
+    state.distribution_strategy.choose_node(
+      distribution_id,
+      Map.values(members(state))
+    )
   end
 
   defp members(state) do
