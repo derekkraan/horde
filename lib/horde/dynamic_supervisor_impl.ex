@@ -422,7 +422,7 @@ defmodule Horde.DynamicSupervisorImpl do
               state
           end
 
-        {:error, :no_alive_nodes} ->
+        {:error, _reason} ->
           state
       end
     end)
@@ -443,7 +443,7 @@ defmodule Horde.DynamicSupervisorImpl do
         {_resp, new_state} = add_child(child_spec, state)
         new_state
 
-      _ ->
+      {:error, _reason} ->
         state
     end
   end
