@@ -21,7 +21,7 @@ defmodule Horde.Registry do
   defmodule MyRegistry do
     use Horde.Registry
 
-    def start_link(init_arg, options \\ [])
+    def start_link(init_arg, options \\ []) do
       Horde.Registry.start_link(__MODULE__, init_arg, options)
     end
 
