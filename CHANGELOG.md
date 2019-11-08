@@ -1,4 +1,9 @@
 ## master
+- `Horde.DynamicSupervisor` now supports the option `process_redistribution: :active` to rebalance processes actively (aka, when a node joins or leaves the cluster). The default is `:passive`, which only redistributes processes when a node dies or loses quorum. [#164](https://github.com/derekkraan/horde/pull/164).
+
+## 0.7.1
+- Use MFA for `on_diff` instead of anonymous function, avoids passing around functions (which can be error-prone). [#167](https://github.com/derekkraan/horde/pull/167).
+
 ## 0.7.0
 - `Horde.Supervisor` has been renamed to `Horde.DynamicSupervisor`.
 - `Horde.Registry` and `Horde.Supervisor` now follow the api of `Elixir.DynamicSupervisor` more closely (specifically `init/1` callback and module-based Supervisor / Registry). [#152](https://github.com/derekkraan/horde/pull/152).
