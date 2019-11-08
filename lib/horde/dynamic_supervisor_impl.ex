@@ -443,7 +443,7 @@ defmodule Horde.DynamicSupervisorImpl do
         {_resp, new_state} = add_child(child_spec, state)
         new_state
 
-      {:error, _reason} ->
+      _ ->
         state
     end
   end
