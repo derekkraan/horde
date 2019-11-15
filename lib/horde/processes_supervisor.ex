@@ -946,7 +946,6 @@ defmodule Horde.ProcessesSupervisor do
             wait_children(pids, size - 1, timers, stacks, children, state)
 
           %{} ->
-            handle_graceful_shutdown_horde(children[pid], state)
             wait_children(pids, size, timers, stacks, children, state)
         end
 
