@@ -235,10 +235,10 @@ defmodule Horde.ProcessesSupervisor do
     :max_restarts,
     :max_seconds,
     :root_name,
-    :graceful_shutdown_manager,
     children: %{},
     child_id_to_pid: %{},
-    restarts: []
+    restarts: [],
+    shutting_down: false
   ]
 
   @doc """
@@ -324,8 +324,7 @@ defmodule Horde.ProcessesSupervisor do
       :max_seconds,
       :max_restarts,
       :strategy,
-      :root_name,
-      :graceful_shutdown_manager
+      :root_name
     ]
 
     {sup_opts, start_opts} = Keyword.split(options, keys)
@@ -578,7 +577,6 @@ defmodule Horde.ProcessesSupervisor do
     max_children = Keyword.get(options, :max_children, :infinity)
     extra_arguments = Keyword.get(options, :extra_arguments, [])
     root_name = Keyword.fetch!(options, :root_name)
-    graceful_shutdown_manager = Keyword.fetch!(options, :graceful_shutdown_manager)
 
     flags = %{
       strategy: strategy,
@@ -586,8 +584,7 @@ defmodule Horde.ProcessesSupervisor do
       period: period,
       max_children: max_children,
       extra_arguments: extra_arguments,
-      root_name: root_name,
-      graceful_shutdown_manager: graceful_shutdown_manager
+      root_name: root_name
     }
 
     {:ok, flags}
@@ -631,7 +628,6 @@ defmodule Horde.ProcessesSupervisor do
     max_seconds = Map.get(flags, :period, 5)
     strategy = Map.get(flags, :strategy, :one_for_one)
     root_name = Map.fetch!(flags, :root_name)
-    graceful_shutdown_manager = Map.fetch!(flags, :graceful_shutdown_manager)
 
     with :ok <- validate_strategy(strategy),
          :ok <- validate_restarts(max_restarts),
@@ -646,8 +642,7 @@ defmodule Horde.ProcessesSupervisor do
            max_restarts: max_restarts,
            max_seconds: max_seconds,
            strategy: strategy,
-           root_name: root_name,
-           graceful_shutdown_manager: graceful_shutdown_manager
+           root_name: root_name
        }}
     end
   end
@@ -850,7 +845,7 @@ defmodule Horde.ProcessesSupervisor do
 
   @impl true
   def terminate(_, %{children: children} = state) do
-    :ok = terminate_children(children, state)
+    :ok = terminate_children(children, %{state | shutting_down: true})
   end
 
   defp terminate_children(children, state) do
@@ -942,7 +937,7 @@ defmodule Horde.ProcessesSupervisor do
         case pids do
           %{^pid => child} ->
             stacks = wait_child(pid, child, reason, stacks)
-            handle_graceful_shutdown_horde(children[pid], state)
+            if state.shutting_down, do: relinquish_child_to_horde(state, pid)
             wait_children(pids, size - 1, timers, stacks, children, state)
 
           %{} ->
@@ -972,19 +967,6 @@ defmodule Horde.ProcessesSupervisor do
       :normal when restart != :permanent -> stacks
       reason -> Map.put(stacks, pid, {child, reason})
     end
-  end
-
-  defp handle_graceful_shutdown_horde({child_id, start, restart, shutdown, type, modules}, state) do
-    child_spec = %{
-      id: child_id,
-      start: start,
-      restart: restart,
-      shutdown: shutdown,
-      type: type,
-      modules: modules
-    }
-
-    GenServer.cast(state.graceful_shutdown_manager, {:shut_down, child_spec})
   end
 
   defp maybe_restart_child(pid, reason, %{children: children} = state) do
