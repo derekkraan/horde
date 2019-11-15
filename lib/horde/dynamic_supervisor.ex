@@ -199,15 +199,9 @@ defmodule Horde.DynamicSupervisor do
              process_redistribution: flags.process_redistribution,
              members: members(flags.members, name)
            ]},
-          {Horde.GracefulShutdownManager,
-           [
-             processes_pid: crdt_name(name),
-             name: graceful_shutdown_manager_name(name)
-           ]},
           {Horde.ProcessesSupervisor,
            [
              shutdown: :infinity,
-             graceful_shutdown_manager: graceful_shutdown_manager_name(name),
              root_name: name,
              type: :supervisor,
              name: supervisor_name(name),
@@ -215,7 +209,7 @@ defmodule Horde.DynamicSupervisor do
            ]},
           {Horde.SignalShutdown,
            [
-             signal_to: [graceful_shutdown_manager_name(name), name]
+             signal_to: [name]
            ]},
           {Horde.DynamicSupervisorTelemetryPoller, name}
         ]
@@ -296,5 +290,4 @@ defmodule Horde.DynamicSupervisor do
 
   defp supervisor_name(name), do: :"#{name}.ProcessesSupervisor"
   defp crdt_name(name), do: :"#{name}.Crdt"
-  defp graceful_shutdown_manager_name(name), do: :"#{name}.GracefulShutdownManager"
 end
