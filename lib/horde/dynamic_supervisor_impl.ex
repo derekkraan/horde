@@ -399,7 +399,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
           cond do
             this_node != current_node and this_node == chosen_node ->
-              # handle_dead_nodes 
+              # handle_dead_nodes
               case current_member do
                 %{status: :dead} ->
                   {{:ok, _}, state} = add_child(child, state)
@@ -443,7 +443,12 @@ defmodule Horde.DynamicSupervisorImpl do
         {_resp, new_state} = add_child(child_spec, state)
         new_state
 
-      _ ->
+      {:ok, _} ->
+        # matches another node, do nothing
+        state
+
+      {:error, _reason} ->
+        # error (could be quorum), do nothing
         state
     end
   end
