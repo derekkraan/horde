@@ -976,18 +976,16 @@ defmodule Horde.ProcessesSupervisor do
   end
 
   defp handle_graceful_shutdown_horde({child_id, start, restart, shutdown, type, modules}, state) do
-    if state.graceful_shutdown_manager do
-      child_spec = %{
-        id: child_id,
-        start: start,
-        restart: restart,
-        shutdown: shutdown,
-        type: type,
-        modules: modules
-      }
+    child_spec = %{
+      id: child_id,
+      start: start,
+      restart: restart,
+      shutdown: shutdown,
+      type: type,
+      modules: modules
+    }
 
-      GenServer.cast(state.graceful_shutdown_manager, {:shut_down, child_spec})
-    end
+    GenServer.cast(state.graceful_shutdown_manager, {:shut_down, child_spec})
   end
 
   defp maybe_restart_child(pid, reason, %{children: children} = state) do
