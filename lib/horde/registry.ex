@@ -4,7 +4,7 @@ defmodule Horde.Registry do
 
   Horde.Registry implements a distributed Registry backed by a δ-CRDT (provided by `DeltaCrdt`). This CRDT is used for both tracking membership of the cluster and implementing the registry functionality itself. Local changes to the registry will automatically be synced to other nodes in the cluster.
 
-  Cluster membership is managed with `Horde.Cluster`. Joining a cluster can be done with `Horde.Cluster.set_members/2`. To take a node out of the cluster, call `Horde.Cluster.set_members/2` without that node in the list.
+  Cluster membership is managed with `Horde.Cluster`. Joining a cluster can be done with `Horde.Cluster.set_members/2`. To take a node out of the cluster, call `Horde.Cluster.set_members/2` without that node in the list. Alternatively, setting the `members` startup option to `:auto` will make Horde auto-manage cluster membership so that all (and only) visible nodes are members of the cluster.
 
   Horde.Registry supports the common "via tuple", described in the [documentation](https://hexdocs.pm/elixir/GenServer.html#module-name-registration) for `GenServer`.
 
@@ -46,7 +46,7 @@ defmodule Horde.Registry do
           {:keys, :unique}
           | {:name, atom()}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
-          | {:members, [Horde.Cluster.member()]}
+          | {:members, [Horde.Cluster.member()] | :auto}
 
   @callback init(options :: Keyword.t()) :: {:ok, options :: Keyword.t()}
   @callback child_spec(options :: [option()]) :: Supervisor.child_spec()
@@ -154,7 +154,7 @@ defmodule Horde.Registry do
   def init({mod, init_arg, name}) do
     case mod.init(init_arg) do
       {:ok, flags} when is_map(flags) ->
-        children = [
+        [
           {DeltaCrdt,
            [
              sync_interval: flags.delta_crdt_options.sync_interval,
@@ -173,8 +173,8 @@ defmodule Horde.Registry do
              members: members(flags.members, name)
            ]}
         ]
-
-        Supervisor.init(children, strategy: :one_for_all)
+        |> maybe_add_node_manager(flags.members, name)
+        |> Supervisor.init(strategy: :one_for_all)
 
       :ignore ->
         :ignore
@@ -406,6 +406,11 @@ defmodule Horde.Registry do
     end
   end
 
+  defp maybe_add_node_manager(children, :auto, name),
+    do: [{Horde.NodeListener, name} | children]
+
+  defp maybe_add_node_manager(children, _, _), do: children
+
   defp process_alive?(pid) when node(pid) == node(), do: Process.alive?(pid)
 
   defp process_alive?(pid) do
@@ -427,6 +432,8 @@ defmodule Horde.Registry do
       shutdown: Keyword.get(options, :shutdown, 30_000)
     }
   end
+
+  def members(:auto, _name), do: :auto
 
   def members(options, name) do
     if name in options do

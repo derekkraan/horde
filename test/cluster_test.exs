@@ -199,4 +199,81 @@ defmodule ClusterTest do
       assert is_pid(child_pid)
     end
   end
+
+  describe "auto cluster membership" do
+    setup do
+      cluster = "cluster-#{:rand.uniform(1000)}"
+      nodes = LocalCluster.start_nodes(cluster, 2)
+
+      on_exit(fn ->
+        :rpc.multicall(Node.list([:visible, :this]), Horde.NodeListener, :clear_all, [])
+      end)
+
+      {:ok, cluster: cluster, nodes: nodes, all_nodes: Enum.sort([node() | nodes])}
+    end
+
+    test "supervisor should be registered on all clusters", ctx do
+      Horde.DynamicSupervisor.start_link(
+        name: :auto_sup,
+        strategy: :one_for_one,
+        delta_crdt_options: [sync_interval: 10],
+        members: :auto
+      )
+
+      Process.sleep(200)
+
+      assert :auto_sup |> Horde.Cluster.members() |> Keyword.values() |> Enum.sort() ==
+               ctx.all_nodes
+    end
+
+    test "registry should be registered on all clusters", ctx do
+      Horde.Registry.start_link(
+        name: :auto_reg,
+        keys: :unique,
+        members: :auto,
+        delta_crdt_options: [sync_interval: 10]
+      )
+
+      Process.sleep(200)
+
+      assert :auto_reg |> Horde.Cluster.members() |> Keyword.values() |> Enum.sort() ==
+               ctx.all_nodes
+    end
+
+    test "a new node should be auto added to the cluster", ctx do
+      Horde.DynamicSupervisor.start_link(
+        name: :auto_sup_add,
+        strategy: :one_for_one,
+        delta_crdt_options: [sync_interval: 10],
+        members: :auto
+      )
+
+      Process.sleep(500)
+
+      [new] = LocalCluster.start_nodes("extra-cluster", 1)
+
+      Process.sleep(500)
+
+      assert :auto_sup_add |> Horde.Cluster.members() |> Keyword.values() |> Enum.sort() ==
+               Enum.sort([new | ctx.all_nodes])
+    end
+
+    test "a dead node should be auto removed from the cluster", ctx do
+      Horde.Registry.start_link(
+        name: :auto_reg_remove,
+        keys: :unique,
+        members: :auto,
+        delta_crdt_options: [sync_interval: 10]
+      )
+
+      Process.sleep(500)
+
+      LocalCluster.stop_nodes([hd(ctx.nodes)])
+
+      Process.sleep(500)
+
+      assert :auto_reg_remove |> Horde.Cluster.members() |> Keyword.values() |> Enum.sort() ==
+               Enum.sort([node() | tl(ctx.nodes)])
+    end
+  end
 end

@@ -6,7 +6,7 @@ defmodule Horde.DynamicSupervisor do
 
   Using CRDTs guarantees that the distributed, shared state will eventually converge. It also means that Horde.DynamicSupervisor is eventually-consistent, and is optimized for availability and partition tolerance. This can result in temporary inconsistencies under certain conditions (when cluster membership is changing, for example).
 
-  Cluster membership is managed with `Horde.Cluster`. Joining a cluster can be done with `Horde.Cluster.set_members/2`. To take a node out of the cluster, call `Horde.Cluster.set_members/2` without that node in the list.
+  Cluster membership is managed with `Horde.Cluster`. Joining a cluster can be done with `Horde.Cluster.set_members/2`. To take a node out of the cluster, call `Horde.Cluster.set_members/2` without that node in the list. Alternatively, setting the `members` startup option to `:auto` will make Horde auto-manage cluster membership so that all (and only) visible nodes are members of the cluster.
 
   Each Horde.DynamicSupervisor node wraps its own local instance of `DynamicSupervisor`. `Horde.Supervisor.start_child/2` (for example) delegates to the local instance of DynamicSupervisor to actually start and monitor the child. The child spec is also written into the processes CRDT, along with a reference to the node on which it is running. When there is an update to the processes CRDT, Horde makes a comparison and corrects any inconsistencies (for example, if a conflict has been resolved and there is a process that no longer should be running on its node, it will kill that process and remove it from the local supervisor). So while most functions map 1:1 to the equivalent DynamicSupervisor functions, the eventually consistent nature of Horde requires extra behaviour not present in DynamicSupervisor.
 
@@ -61,7 +61,7 @@ defmodule Horde.DynamicSupervisor do
           | {:extra_arguments, [term()]}
           | {:distribution_strategy, Horde.DistributionStrategy.t()}
           | {:shutdown, integer()}
-          | {:members, [Horde.Cluster.member()]}
+          | {:members, [Horde.Cluster.member()] | :auto}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
           | {:process_redistribution, :active | :passive}
 
@@ -174,7 +174,7 @@ defmodule Horde.DynamicSupervisor do
   def init({mod, init_arg, name}) do
     case mod.init(init_arg) do
       {:ok, flags} when is_map(flags) ->
-        children = [
+        [
           {DeltaCrdt,
            [
              sync_interval: flags.delta_crdt_options.sync_interval,
@@ -213,8 +213,8 @@ defmodule Horde.DynamicSupervisor do
            ]},
           {Horde.DynamicSupervisorTelemetryPoller, name}
         ]
-
-        Supervisor.init(children, strategy: :one_for_all)
+        |> maybe_add_node_manager(flags.members, name)
+        |> Supervisor.init(strategy: :one_for_all)
 
       :ignore ->
         :ignore
@@ -272,6 +272,11 @@ defmodule Horde.DynamicSupervisor do
 
   defp call(supervisor, msg), do: GenServer.call(supervisor, msg, :infinity)
 
+  defp maybe_add_node_manager(children, :auto, name),
+    do: [{Horde.NodeListener, name} | children]
+
+  defp maybe_add_node_manager(children, _, _), do: children
+
   defp delta_crdt_options(options) do
     %{
       sync_interval: Keyword.get(options, :sync_interval, 300),
@@ -279,6 +284,8 @@ defmodule Horde.DynamicSupervisor do
       shutdown: Keyword.get(options, :shutdown, 30_000)
     }
   end
+
+  def members(:auto, _name), do: :auto
 
   def members(options, name) do
     if name in options do

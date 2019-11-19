@@ -87,6 +87,10 @@ defmodule Horde.RegistryImpl do
         nil ->
           state
 
+        :auto ->
+          Horde.NodeListener.initial_set(state.name)
+          state
+
         members ->
           members = Enum.map(members, &fully_qualified_name/1)
 
