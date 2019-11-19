@@ -2,7 +2,15 @@
 
 Horde doesn't provide functionality to set up your cluster, we recommend you use [`libcluster`](https://hexdocs.pm/libcluster/readme.html) for this purpose.
 
-There are two strategies you can use to integrate libcluster with Horde:
+There are three strategies you can use to integrate libcluster with Horde:
+
+## Automatic Cluster Membership
+
+When starting a `Horde.Registry` or `Horde.DynamicSupervisor`, setting the `members`
+option to have a value of `:auto` will automate membership management. In this
+mode, all visible nodes will be initially added to the cluster. In addition,
+any new nodes that become visible will be automatically added and any
+nodes that shut down will be automatically removed.
 
 ## Static Cluster Membership
 
@@ -34,7 +42,7 @@ This is the simplest approach. You tell Horde which members are supposed to be i
 
 ## Dynamic Cluster Membership
 
-If you will be adding and removing nodes from your cluster constantly, and don't want to repackage your application every time you do this, then you will need to perform a couple of extra steps.
+If you will be adding and removing nodes from your cluster constantly, and don't want to repackage your application every time you do this, then you will need to perform a couple of extra steps (assuming your needs cannot be met by the [`:auto` setting](#automatic-cluster-membership)).
 
 In this scenario, you will need to implement a [module-based Supervisor](https://hexdocs.pm/horde/Horde.DynamicSupervisor.html#module-module-based-supervisor)
 
@@ -124,3 +132,8 @@ defmodule NodeListener do
   end
 end
 ```
+
+Note that the funcionality provided in this example is essentially the same as
+the [`members: :auto` setting](#automatic-cluster-membership), however setting
+it up yourself allows greater flexability to modify it if `:auto` mode doesn't
+meet your requirements.

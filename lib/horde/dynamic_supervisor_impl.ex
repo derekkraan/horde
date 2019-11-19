@@ -58,6 +58,11 @@ defmodule Horde.DynamicSupervisorImpl do
 
   def handle_continue({:set_members, nil}, state), do: {:noreply, state}
 
+  def handle_continue({:set_members, :auto}, state) do
+    Horde.NodeListener.initial_set(state.name)
+    {:noreply, state}
+  end
+
   def handle_continue({:set_members, members}, state) do
     {:noreply, set_members(members, state)}
   end
