@@ -842,6 +842,41 @@ defmodule RegistryTest do
     end
   end
 
+  describe "conflict_fun option" do
+    test "conflict_fun is called (if set) for conflicting processes" do
+      self = self()
+
+      conflict_fun = fn loser, winner, id, registry ->
+        send(self, {:conflict_called, loser, winner, id, registry})
+      end
+
+      reg = start_registry(conflict_fun: conflict_fun, keys: :unique)
+      reg2 = start_registry(conflict_fun: conflict_fun, keys: :unique)
+
+      t1 =
+        Task.async(fn ->
+          Horde.Registry.register(reg, :task, :task_value)
+          Process.sleep(1000)
+        end)
+
+      t2 =
+        Task.async(fn ->
+          Horde.Registry.register(reg2, :task, :task_value)
+          Process.sleep(1000)
+        end)
+
+      %{pid: t1_pid} = t1
+      %{pid: t2_pid} = t2
+
+      Horde.Cluster.set_members(reg, [reg, reg2])
+
+      assert_receive {:conflict_called, ^t2_pid, ^t1_pid, {:task, :task_value}, _}, 200
+      refute_receive _, 500
+      assert Horde.Registry.lookup(reg, :task) == [{t1_pid, :task_value}]
+      assert Horde.Registry.lookup(reg2, :task) == [{t1_pid, :task_value}]
+    end
+  end
+
   defp register_task(registry, key, value) do
     parent = self()
 

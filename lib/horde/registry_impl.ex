@@ -10,6 +10,7 @@ defmodule Horde.RegistryImpl do
     defstruct name: nil,
               nodes: MapSet.new(),
               members: MapSet.new(),
+              conflict_fun: nil,
               registry_ets_table: nil,
               pids_ets_table: nil,
               keys_ets_table: nil,
@@ -52,6 +53,7 @@ defmodule Horde.RegistryImpl do
     Process.flag(:trap_exit, true)
 
     name = Keyword.get(opts, :name)
+    conflict_fun = Keyword.get(opts, :conflict_fun)
     pids_name = :"pids_#{name}"
     keys_name = :"keys_#{name}"
     members_name = :"members_#{name}"
@@ -75,6 +77,7 @@ defmodule Horde.RegistryImpl do
 
     state = %State{
       name: name,
+      conflict_fun: conflict_fun,
       registry_ets_table: name,
       pids_ets_table: pids_name,
       keys_ets_table: keys_name,
@@ -187,7 +190,11 @@ defmodule Horde.RegistryImpl do
         send(listener, {:unregister, state.name, key, other_pid})
       end
 
-      Process.exit(other_pid, {:name_conflict, {key, other_value}, state.name, pid})
+      if state.conflict_fun do
+        state.conflict_fun.(other_pid, pid, {key, other_value}, state.name)
+      else
+        Process.exit(other_pid, {:name_conflict, {key, other_value}, state.name, pid})
+      end
     end
 
     :ets.insert(state.keys_ets_table, {key, member, {pid, value}})

@@ -44,6 +44,7 @@ defmodule Horde.Registry do
   @type option ::
           {:keys, :unique}
           | {:name, atom()}
+          | {:conflict_fun, (pid(), pid(), {atom(), term()}, atom() -> any())}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
           | {:members, [Horde.Cluster.member()]}
 
@@ -98,6 +99,7 @@ defmodule Horde.Registry do
       :listeners,
       :meta,
       :keys,
+      :conflict_fun,
       :distribution_strategy,
       :members,
       :delta_crdt_options
@@ -127,6 +129,7 @@ defmodule Horde.Registry do
     end
 
     listeners = Keyword.get(options, :listeners, [])
+    conflict_fun = Keyword.get(options, :conflict_fun, nil)
     meta = Keyword.get(options, :meta, nil)
     members = Keyword.get(options, :members, [])
     delta_crdt_options = Keyword.get(options, :delta_crdt_options, [])
@@ -142,6 +145,7 @@ defmodule Horde.Registry do
       listeners: listeners,
       meta: meta,
       keys: keys,
+      conflict_fun: conflict_fun,
       distribution_strategy: distribution_strategy,
       members: members,
       delta_crdt_options: delta_crdt_options(delta_crdt_options)
@@ -169,6 +173,7 @@ defmodule Horde.Registry do
              listeners: flags.listeners,
              meta: flags.meta,
              keys: flags.keys,
+             conflict_fun: flags.conflict_fun,
              members: members(flags.members, name)
            ]}
         ]
