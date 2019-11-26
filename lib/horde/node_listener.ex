@@ -14,10 +14,9 @@ defmodule Horde.NodeListener do
   def start_link(cluster),
     do: GenServer.start_link(__MODULE__, cluster, name: listener_name(cluster))
 
-  @spec initial_set(atom()) :: :ok
-  def initial_set(cluster) do
-    GenServer.cast(listener_name(cluster), :initial_set)
-  end
+  @spec make_members(atom()) :: [{atom(), node()}]
+  def make_members(cluster),
+    do: Enum.map(nodes(), fn node -> {cluster, node} end)
 
   # GenServer callbacks
 
@@ -47,10 +46,8 @@ defmodule Horde.NodeListener do
 
   defp listener_name(cluster), do: Module.concat(cluster, NodeListener)
 
-  defp set_members(cluster) do
-    members = Enum.map(nodes(), fn node -> {cluster, node} end)
-    :ok = Horde.Cluster.set_members(cluster, members)
-  end
+  defp set_members(cluster),
+    do: :ok = Horde.Cluster.set_members(cluster, make_members(cluster))
 
   defp nodes(), do: Node.list([:visible, :this])
 end
