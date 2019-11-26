@@ -88,24 +88,12 @@ defmodule Horde.RegistryImpl do
           state
 
         :auto ->
-          Horde.NodeListener.initial_set(state.name)
-          state
+          state.name
+          |> Horde.NodeListener.make_members()
+          |> set_initial_members(state)
 
         members ->
-          members = Enum.map(members, &fully_qualified_name/1)
-
-          Enum.each(members, fn member ->
-            DeltaCrdt.mutate(crdt_name(state.name), :add, [{:member, member}, 1], :infinity)
-            :ets.insert(state.members_ets_table, {member, 1})
-          end)
-
-          neighbours =
-            List.delete(members, [fully_qualified_name(state.name)])
-            |> crdt_names()
-
-          send(crdt_name(state.name), {:set_neighbours, neighbours})
-
-          %{state | nodes: Enum.map(members, fn {_name, node} -> node end) |> MapSet.new()}
+          set_initial_members(members, state)
       end
 
     case Keyword.get(opts, :meta) do
@@ -141,6 +129,23 @@ defmodule Horde.RegistryImpl do
     end
 
     {:noreply, state}
+  end
+
+  def set_initial_members(members, state) do
+    members = Enum.map(members, &fully_qualified_name/1)
+
+    Enum.each(members, fn member ->
+      DeltaCrdt.mutate(crdt_name(state.name), :add, [{:member, member}, 1], :infinity)
+      :ets.insert(state.members_ets_table, {member, 1})
+    end)
+
+    neighbours =
+      List.delete(members, [fully_qualified_name(state.name)])
+      |> crdt_names()
+
+    send(crdt_name(state.name), {:set_neighbours, neighbours})
+
+    %{state | nodes: Enum.map(members, fn {_name, node} -> node end) |> MapSet.new()}
   end
 
   defp process_diffs(state, [diff | diffs]) do
