@@ -34,7 +34,7 @@ defmodule Horde.Registry do
     defp members() do
       [Node.self() | Node.list()]
       |> Enum.map(fn node -> {__MODULE__, node} end)
-    end  
+    end
   end
   ```
 
@@ -268,6 +268,10 @@ defmodule Horde.Registry do
   @doc "See `Registry.put_meta/3`."
   def put_meta(registry, key, value) when is_atom(registry) do
     GenServer.call(registry, {:put_meta, key, value})
+  end
+
+  def delete_meta(registry, key) when is_atom(registry) do
+    GenServer.call(registry, {:delete_meta, key})
   end
 
   @spec count(registry :: Registry.registry()) :: non_neg_integer()

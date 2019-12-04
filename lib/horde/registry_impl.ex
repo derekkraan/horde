@@ -222,6 +222,11 @@ defmodule Horde.RegistryImpl do
     state
   end
 
+  defp process_diff(state, {:remove, {:registry, key}}) do
+    :ets.delete(state.registry_ets_table, key)
+    state
+  end
+
   defp add_key_to_pids_table(state, pid, key) do
     case :ets.lookup(state.pids_ets_table, pid) do
       [] ->
@@ -324,6 +329,12 @@ defmodule Horde.RegistryImpl do
     {:reply, :ok, state}
   end
 
+  def handle_call({:delete_meta, key}, _from, state) do
+    delete_meta(state, key)
+
+    {:reply, :ok, state}
+  end
+
   def handle_call(:members, _from, state) do
     {:reply, MapSet.to_list(state.members), state}
   end
@@ -348,5 +359,11 @@ defmodule Horde.RegistryImpl do
     DeltaCrdt.mutate(crdt_name(state.name), :add, [{:registry, key}, value], :infinity)
 
     :ets.insert(state.registry_ets_table, {key, value})
+  end
+
+  defp delete_meta(state, key) do
+    DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:registry, key}], :infinity)
+
+    :ets.delete(state.registry_ets_table, key)
   end
 end
