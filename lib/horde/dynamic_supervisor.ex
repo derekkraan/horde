@@ -65,7 +65,11 @@ defmodule Horde.DynamicSupervisor do
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
           | {:process_redistribution, :active | :passive}
 
-  @callback init(options()) :: {:ok, options()}
+  @callback init(options()) ::
+              {:ok, map()}
+              | {:ok, tuple()}
+              | :ignore
+              | {:stop, {:bad_return, {atom(), :init, any()}}}
   @callback child_spec(options :: options()) :: Supervisor.child_spec()
 
   defmacro __using__(options) do
