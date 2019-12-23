@@ -217,17 +217,20 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp set_child_pid(state, child_id, new_child_pid) do
     case Map.get(state.processes_by_id, child_id) do
-      {name, child, old_pid} ->
+      {name, child_spec, old_pid} ->
         :ok =
           DeltaCrdt.mutate(
             crdt_name(state.name),
             :add,
-            [{:process, child.id}, {fully_qualified_name(state.name), child, new_child_pid}],
+            [
+              {:process, child_spec.id},
+              {fully_qualified_name(state.name), child_spec, new_child_pid}
+            ],
             :infinity
           )
 
         new_processes_by_id =
-          Map.put(state.processes_by_id, child_id, {name, child, new_child_pid})
+          Map.put(state.processes_by_id, child_id, {name, child_spec, new_child_pid})
 
         new_process_pid_to_id =
           Map.put(state.process_pid_to_id, new_child_pid, child_id) |> Map.delete(old_pid)
@@ -401,8 +404,8 @@ defmodule Horde.DynamicSupervisorImpl do
     this_node = fully_qualified_name(state.name)
 
     Map.values(state.processes_by_id)
-    |> Enum.reduce(state, fn {current_node, child, _child_pid}, state ->
-      case choose_node(child, state) do
+    |> Enum.reduce(state, fn {current_node, child_spec, _child_pid}, state ->
+      case choose_node(child_spec, state) do
         {:ok, %{name: chosen_node}} ->
           current_member = Map.get(state.members_info, current_node)
 
@@ -421,7 +424,7 @@ defmodule Horde.DynamicSupervisorImpl do
             this_node == current_node and chosen_node != this_node ->
               case state.supervisor_options[:process_redistribution] do
                 :active ->
-                  handoff_child(child, state)
+                  handoff_child(child_spec, state)
 
                 :passive ->
                   state
@@ -721,13 +724,13 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp add_children(children, state) do
-    Enum.map(children, fn child ->
-      case Horde.ProcessesSupervisor.start_child(supervisor_name(state.name), child) do
-        {:ok, process_pid} ->
-          {{:ok, process_pid}, child}
+    Enum.map(children, fn child_spec ->
+      case Horde.ProcessesSupervisor.start_child(supervisor_name(state.name), child_spec) do
+        {:ok, child_pid} ->
+          {{:ok, child_pid}, child_spec}
 
-        {:ok, process_pid, term} ->
-          {{:ok, process_pid, term}, child}
+        {:ok, child_pid, term} ->
+          {{:ok, child_pid, term}, child_spec}
 
         {:error, error} ->
           {:error, error}
@@ -737,11 +740,11 @@ defmodule Horde.DynamicSupervisorImpl do
       end
     end)
     |> Enum.reduce({[], state}, fn
-      {{:ok, child_pid} = resp, child}, {responses, state} ->
-        {[resp | responses], update_state_with_child(child, child_pid, state)}
+      {{:ok, child_pid} = resp, child_spec}, {responses, state} ->
+        {[resp | responses], update_state_with_child(child_spec, child_pid, state)}
 
-      {{:ok, child_pid, _term} = resp, child}, {responses, state} ->
-        {[resp | responses], update_state_with_child(child, child_pid, state)}
+      {{:ok, child_pid, _term} = resp, child_spec}, {responses, state} ->
+        {[resp | responses], update_state_with_child(child_spec, child_pid, state)}
 
       {:error, error}, {responses, state} ->
         {[{:error, error} | responses], state}
