@@ -27,7 +27,7 @@ end
 
 def handle_info({:EXIT, _from, {:name_conflict, {key, value}, registry, pid}}, state) do
   # handle the message, add some logging perhaps, and probably stop the GenServer.
-  {:stop, state}
+  {:stop, :normal, state}
 end
 ```
 
