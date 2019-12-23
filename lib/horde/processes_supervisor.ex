@@ -1060,8 +1060,14 @@ defmodule Horde.ProcessesSupervisor do
 
   defp update_child_pid_horde({child_id, _, _, _, _, _}, state) do
     %{child_id_to_pid: child_id_to_pid} = state
-    new_pid = Map.get(child_id_to_pid, child_id)
-    GenServer.call(state.root_name, {:update_child_pid, child_id, new_pid})
+
+    case child_id_to_pid do
+      %{^child_id => new_pid} ->
+        GenServer.call(state.root_name, {:update_child_pid, child_id, new_pid})
+
+      _pid_deleted ->
+        GenServer.cast(state.root_name, {:disown_child_process, child_id})
+    end
   end
 
   defp add_restart(state) do
