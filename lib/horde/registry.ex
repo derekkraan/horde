@@ -34,7 +34,7 @@ defmodule Horde.Registry do
     defp members() do
       [Node.self() | Node.list()]
       |> Enum.map(fn node -> {__MODULE__, node} end)
-    end  
+    end
   end
   ```
 
