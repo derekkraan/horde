@@ -41,6 +41,98 @@ defmodule NetsplitTest do
     refute_receive {^n, :hello_echo_server}, 1100
   end
 
+  test "process redistribution after netsplit" do
+    cluster_name = "node"
+    sleep_millis = 2000
+
+    [node1, node2, node3] = nodes = LocalCluster.start_nodes(cluster_name, 3)
+
+    Enum.each(nodes, fn node ->
+      assert :pong = Node.ping(node)
+    end)
+
+    # Start a test supervision tree in all three nodes
+    Enum.each(nodes, fn node ->
+      Node.spawn(node, LocalClusterHelper, :start, [
+        MySupervisionTree,
+        :start_link,
+        [
+          [
+            cluster: cluster_name,
+            distribution: Horde.UniformDistribution,
+            sync_interval: 100
+          ]
+        ]
+      ])
+    end)
+
+    # Wait for supervisor and registry in all nodes
+    Process.sleep(sleep_millis)
+
+    Enum.each(nodes, fn node ->
+      assert MySupervisor.alive?(node)
+      assert MyRegistry.alive?(node)
+    end)
+
+    # Start 10 servers. Processes should be distributed across all three
+    # nodes in the cluster
+    servers = 10
+
+    1..servers
+    |> Enum.each(fn n ->
+      {:ok, _} = MyCluster.start_server(node1, server_name(n))
+    end)
+
+    Process.sleep(sleep_millis)
+
+    # Ensure all servers are running in one of the 3 nodes of the
+    # clusters.
+    ensure_servers_in_nodes(servers, nodes)
+
+    Process.sleep(sleep_millis)
+
+    # Create a network partition. Node3 is now isolated from the other
+    # two nodes
+    Schism.partition([node3])
+
+    Process.sleep(sleep_millis)
+
+    Enum.each(nodes, fn node ->
+      assert MySupervisor.alive?(node)
+      assert MyRegistry.alive?(node)
+    end)
+
+    # Verify all 10 servers are now living in the partition
+    # formed by node1 and node2. We verify this for each one of the ten
+    # servers started, and we verify the view on that process is
+    # consistent from both nodes of the partition, ie, both nodes see
+    # the same pid and that pid is in one of those nodes
+    ensure_servers_in_nodes(servers, [node1, node2])
+  end
+
+  defp server_name(n), do: "server#{n}"
+
+  # Convenience function that inspects each server, and fails the test
+  # if necessary
+  defp ensure_servers_in_nodes(count, nodes) do
+    1..count
+    |> Enum.each(fn n ->
+      name = server_name(n)
+
+      case MyCluster.server_in_nodes?(nodes, name) do
+        false ->
+          flunk(
+            "Server #{name} not running in one of: #{inspect(nodes)}. Debug: #{
+              inspect(MyCluster.debug(nodes))
+            }"
+          )
+
+        true ->
+          :ok
+      end
+    end)
+  end
+
   test "name conflict after healing netsplit" do
     cluster_name = "cluster"
     server_name = "server"
@@ -57,7 +149,13 @@ defmodule NetsplitTest do
       Node.spawn(node, LocalClusterHelper, :start, [
         MySupervisionTree,
         :start_link,
-        [[cluster: cluster_name, distribution: Horde.UniformQuorumDistribution, sync_interval: 5]]
+        [
+          [
+            cluster: cluster_name,
+            distribution: Horde.UniformQuorumDistribution,
+            sync_interval: 100
+          ]
+        ]
       ])
     end)
 
