@@ -128,7 +128,6 @@ defmodule MyCluster do
         end
     end
   end
-
 end
 
 defmodule MyRegistry do
@@ -187,7 +186,6 @@ defmodule MyRegistry do
   def keys() do
     Horde.Registry.select(__MODULE__, [{{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$2"}}]}])
   end
-
 end
 
 defmodule MySupervisor do
