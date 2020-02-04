@@ -409,19 +409,15 @@ defmodule Horde.DynamicSupervisorImpl do
         {:ok, %{name: chosen_node}} ->
           current_member = Map.get(state.members_info, current_node)
 
-          cond do
-            this_node != current_node and this_node == chosen_node ->
-              # handle_dead_nodes
-              case current_member do
-                %{status: :dead} ->
-                  {_, state} = add_child(child_spec, state)
-                  state
+          case {current_node, chosen_node} do
+            {_same_node, _same_node} ->
+              # process is running on the node on which it belongs
 
-                _ ->
-                  state
-              end
+              state
 
-            this_node == current_node and chosen_node != this_node ->
+            {^this_node, _other_node} ->
+              # process is running here but belongs somewhere else
+
               case state.supervisor_options[:process_redistribution] do
                 :active ->
                   handoff_child(child_spec, state)
@@ -430,7 +426,21 @@ defmodule Horde.DynamicSupervisorImpl do
                   state
               end
 
-            true ->
+            {_other_node, ^this_node} ->
+              # process is running on another node but belongs here
+
+              case current_member do
+                %{status: :dead} ->
+                  {_, state} = add_child(randomize_child_id(child_spec), state)
+                  state
+
+                _ ->
+                  state
+              end
+
+            {_other_node1, _other_node2} ->
+              # process is neither running here nor belongs here
+
               state
           end
 
@@ -467,17 +477,6 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp update_process(state, {:add, {:process, child_id}, {node, child_spec, child_pid}}) do
     this_node = fully_qualified_name(state.name)
-
-    case {Map.get(state.processes_by_id, child_id), node} do
-      {{^this_node, _child_spec, _child_pid}, ^this_node} ->
-        nil
-
-      {{^this_node, _child_spec, _child_pid}, _other_node} ->
-        Horde.ProcessesSupervisor.terminate_child_by_id(supervisor_name(state.name), child_id)
-
-      _ ->
-        nil
-    end
 
     new_process_pid_to_id =
       case Map.get(state.processes_by_id, child_id) do
@@ -688,6 +687,11 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp handoff_child(child, state) do
     {_, _, child_pid} = Map.get(state.processes_by_id, child.id)
+
+    # we send a special exit signal to the process here.
+    # when the process has exited, Horde.ProcessSupervisor
+    # will cast `{:relinquish_child_process, child_id}`
+    # to this process for cleanup.
 
     Horde.ProcessesSupervisor.send_exit_signal(
       supervisor_name(state.name),

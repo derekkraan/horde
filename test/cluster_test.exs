@@ -1,5 +1,5 @@
 defmodule ClusterTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   describe "members option" do
     test "can join registry by specifying members in init" do
