@@ -523,7 +523,12 @@ defmodule Horde.ProcessesSupervisor do
   """
   @spec stop(Supervisor.supervisor(), reason :: term, timeout) :: :ok
   def stop(supervisor, reason \\ :normal, timeout \\ :infinity) do
-    GenServer.stop(supervisor, reason, timeout)
+    try do
+      GenServer.stop(supervisor, reason, timeout)
+    catch
+      # process doesn't exist, ignore error
+      :exit, {:noproc, _err} -> :ok
+    end
   end
 
   @doc """
