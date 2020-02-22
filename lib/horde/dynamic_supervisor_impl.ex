@@ -249,14 +249,19 @@ defmodule Horde.DynamicSupervisorImpl do
   def handle_cast({:relinquish_child_process, child_id}, state) do
     # signal to the rest of the nodes that this process has been relinquished
     # (to the Horde!) by its parent
-    {_, child, _} = Map.get(state.processes_by_id, child_id)
+    case Map.get(state.processes_by_id, child_id) do
+      {_, child, _} ->
+        :ok =
+          DeltaCrdt.mutate(
+            crdt_name(state.name),
+            :add,
+            [{:process, child.id}, {nil, child}]
+          )
 
-    :ok =
-      DeltaCrdt.mutate(
-        crdt_name(state.name),
-        :add,
-        [{:process, child.id}, {nil, child}]
-      )
+      nil ->
+        # the process doesn't exist in the local state. state not in sync?
+        nil
+    end
 
     {:noreply, state}
   end
@@ -612,7 +617,13 @@ defmodule Horde.DynamicSupervisorImpl do
         state
 
       true ->
-        :ok = Horde.ProcessesSupervisor.stop(supervisor_name(state.name))
+        try do
+          Horde.ProcessesSupervisor.stop(supervisor_name(state.name))
+        catch
+          # process doesn't exist, ignore error
+          :exit, {:noproc, _err} -> nil
+        end
+
         state
     end
   end
