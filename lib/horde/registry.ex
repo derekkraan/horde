@@ -415,7 +415,9 @@ defmodule Horde.Registry do
 
   defp process_alive?(pid) do
     n = node(pid)
-    Node.list() |> Enum.member?(n) && :rpc.call(n, Process, :alive?, [pid])
+
+    Node.list() |> Enum.member?(n) &&
+      :rpc.call(n, Process, :alive?, [pid])
   end
 
   defp member_in_cluster?(registry, member) do

@@ -112,7 +112,9 @@ defmodule Horde.RegistryImpl do
     {:noreply, new_state}
   end
 
-  def handle_info({:EXIT, pid, _reason}, state) do
+  def handle_info({:EXIT, pid, reason}, state) do
+    Logger.debug("#{inspect(node)} #{inspect(pid)} is dead, removing: #{inspect(reason)}")
+
     case :ets.take(state.pids_ets_table, pid) do
       [{_pid, keys}] ->
         Enum.each(keys, fn key ->
