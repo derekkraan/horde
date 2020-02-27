@@ -93,14 +93,9 @@ defmodule Horde.DynamicSupervisorImpl do
 
   @doc false
   def handle_call(:horde_shutting_down, _f, state) do
-    state = %{state | shutting_down: true}
-
-    DeltaCrdt.mutate(
-      crdt_name(state.name),
-      :add,
-      [{:member_node_info, fully_qualified_name(state.name)}, node_info(state)],
-      :infinity
-    )
+    state =
+      %{state | shutting_down: true}
+      |> set_own_node_status()
 
     {:reply, :ok, state}
   end
@@ -373,7 +368,7 @@ defmodule Horde.DynamicSupervisorImpl do
       |> update_processes(diffs)
 
     new_state =
-      if has_membership_change?(diffs) do
+      if has_membership_changed?(diffs) do
         monitor_supervisors(new_state)
         |> set_own_node_status()
         |> handle_quorum_change()
@@ -386,19 +381,16 @@ defmodule Horde.DynamicSupervisorImpl do
     {:noreply, new_state}
   end
 
-  def has_membership_change?([{:add, {:member_node_info, _}, _} | _diffs]), do: true
+  def has_membership_changed?([{:add, {:member_node_info, _}, _} = diff | _diffs]), do: true
+  def has_membership_changed?([{:remove, {:member_node_info, _}} = diff | _diffs]), do: true
+  def has_membership_changed?([{:add, {:member, _}, _} = diff | _diffs]), do: true
+  def has_membership_changed?([{:remove, {:member, _}} = diff | _diffs]), do: true
 
-  def has_membership_change?([{:remove, {:member_node_info, _}} | _diffs]), do: true
-
-  def has_membership_change?([{:add, {:member, _}, _} | _diffs]), do: true
-
-  def has_membership_change?([{:remove, {:member, _}} | _diffs]), do: true
-
-  def has_membership_change?([_diff | diffs]) do
-    has_membership_change?(diffs)
+  def has_membership_changed?([_diff | diffs]) do
+    has_membership_changed?(diffs)
   end
 
-  def has_membership_change?([]), do: false
+  def has_membership_changed?([]), do: false
 
   defp handoff_processes(state) do
     this_node = fully_qualified_name(state.name)
@@ -426,12 +418,13 @@ defmodule Horde.DynamicSupervisorImpl do
                   state
               end
 
-            {_other_node, ^this_node} ->
+            {current_node, ^this_node} ->
               # process is running on another node but belongs here
 
               case current_member do
                 %{status: :dead} ->
-                  {_, state} = add_child(randomize_child_id(child_spec), state)
+                  {response, state} = add_child(randomize_child_id(child_spec), state)
+
                   state
 
                 _ ->

@@ -1,110 +1,185 @@
-defmodule NetsplitTest do
+defmodule NetSplitTest do
   use ExUnit.Case
+  require Logger
 
-  @tag :skip
-  test "supervisor recovers after netsplit" do
-    [node1, node2] = nodes = LocalCluster.start_nodes("cluster-", 2)
+  Enum.each(1..1, fn x ->
+    test "test #{x}" do
+      nodes = LocalCluster.start_nodes("loner-cluster", 4, files: [__ENV__.file])
 
-    Enum.each(nodes, fn node ->
-      assert :pong = Node.ping(node)
-    end)
+      [n1, n2, n3, n4] = nodes
 
-    [sup | _] = supervisors = Enum.map(nodes, fn node -> {:horde_supervisor, node} end)
+      Enum.each(nodes, &Node.spawn(&1, __MODULE__, :setup_horde, [nodes]))
 
-    Enum.each(supervisors, fn {name, node} ->
-      Node.spawn(node, LocalClusterHelper, :start, [
-        Horde.DynamicSupervisor,
-        :start_link,
-        [[strategy: :one_for_one, name: name, members: supervisors]]
-      ])
-    end)
+      Process.sleep(1000)
 
-    Process.sleep(1000)
+      num_procs = 1000
 
-    Horde.DynamicSupervisor.start_child(sup, %{
-      id: :first_child,
-      start: {EchoServer, :start_link, [self()]}
-    })
+      Enum.each(1..num_procs, fn x ->
+        {:ok, _pid} =
+          :rpc.call(n1, Horde.DynamicSupervisor, :start_child, [
+            TestNetSplitSup,
+            {TestNetSplitServer, name: :"test_netsplit_server_#{x}"}
+          ])
+      end)
 
-    assert_receive {n, :hello_echo_server}
-    [other_node] = nodes -- [n]
-    refute_receive {^other_node, :hello_echo_server}, 1000
+      Process.sleep(1000)
 
-    Schism.partition([node1])
+      Logger.info("CREATING SCHISM")
 
-    assert_receive {^node1, :hello_echo_server}, 60_000
-    assert_receive {^node2, :hello_echo_server}, 60_000
+      g1 = [n1, n2]
+      Schism.partition(g1)
 
-    Schism.heal(nodes)
+      Process.sleep(2000)
 
-    assert_receive {^other_node, :hello_echo_server}, 1100
-    refute_receive {^n, :hello_echo_server}, 1100
+      Logger.debug("CHECKING NODE 1")
+
+      pids =
+        Enum.map(1..num_procs, fn x ->
+          pid =
+            :rpc.call(n1, Horde.Registry, :whereis_name, [
+              {TestReg2, :"test_netsplit_server_#{x}"}
+            ])
+
+          assert {:"server_#{x}", pid, is_pid(pid)} == {:"server_#{x}", pid, true}
+          pid
+        end)
+
+      assert pids |> Enum.uniq() |> length == num_procs
+      assert Enum.all?(pids, &is_pid/1)
+
+      Logger.debug("CHECKING NODE 3")
+
+      pids =
+        Enum.map(1..num_procs, fn x ->
+          pid =
+            :rpc.call(n3, Horde.Registry, :whereis_name, [
+              {TestReg2, :"test_netsplit_server_#{x}"}
+            ])
+
+          assert {:"server_#{x}", pid, is_pid(pid)} == {:"server_#{x}", pid, true}
+          pid
+        end)
+
+      assert pids |> Enum.uniq() |> length == num_procs
+      assert Enum.all?(pids, &is_pid/1)
+
+      Logger.info("HEALING SCHISM")
+
+      Schism.heal(nodes)
+
+      Process.sleep(2000)
+
+      pids =
+        Enum.map(1..num_procs, fn x ->
+          pid =
+            :rpc.call(hd(nodes), Horde.Registry, :whereis_name, [
+              {TestReg2, :"test_netsplit_server_#{x}"}
+            ])
+
+          assert {:"server_#{x}", pid, is_pid(pid)} == {:"server_#{x}", pid, true}
+          pid
+        end)
+
+      :rpc.call(hd(nodes), Horde.DynamicSupervisor, :which_children, [TestNetSplitSup])
+
+      assert pids |> Enum.uniq() |> length == num_procs
+      assert Enum.all?(pids, &is_pid/1)
+    end
+  end)
+
+  def setup_horde(nodes) do
+    {:ok, _} = Application.ensure_all_started(:horde)
+
+    registries = for n <- nodes, do: {TestReg2, n}
+    supervisors = for n <- nodes, do: {TestNetSplitSup, n}
+
+    {:ok, _} =
+      Horde.Registry.start_link(
+        name: TestReg2,
+        keys: :unique,
+        delta_crdt_options: [sync_interval: 250],
+        members: registries
+      )
+
+    {:ok, _} =
+      Horde.DynamicSupervisor.start_link(
+        name: TestNetSplitSup,
+        strategy: :one_for_one,
+        delta_crdt_options: [sync_interval: 200],
+        members: supervisors
+      )
+
+    :telemetry.attach(
+      "delta-crdt-syncs",
+      [:delta_crdt, :sync, :done],
+      fn _, %{keys_updated_count: count}, _, _ ->
+        Logger.debug("#{inspect(node())} delta_crdt synced #{count} keys")
+      end,
+      nil
+    )
+
+    receive do
+    end
+  end
+end
+
+defmodule TestNetSplitServer do
+  require Logger
+  use GenServer, restart: :transient
+
+  def start_link(args) do
+    GenServer.start_link(__MODULE__, args,
+      name: {:via, Horde.Registry, {TestReg2, Keyword.get(args, :name)}}
+    )
+    |> case do
+      {:ok, pid} ->
+        {:ok, pid}
+
+      {:error, {:already_started, pid}} ->
+        Logger.debug(
+          "#{inspect(node())} #{inspect(pid)} server_#{Keyword.get(args, :name)} already started"
+        )
+
+        :ignore
+    end
   end
 
-  test "name conflict after healing netsplit" do
-    cluster_name = "cluster"
-    server_name = "server"
-    sleep_millis = 2000
+  def init(args) do
+    Process.flag(:trap_exit, true)
 
-    [node1, node2, node3] = nodes = LocalCluster.start_nodes(cluster_name, 3)
+    Logger.debug(
+      "#{inspect(node())} #{inspect(self())} server_#{Keyword.get(args, :name)} started"
+    )
 
-    Enum.each(nodes, fn node ->
-      assert :pong = Node.ping(node)
-    end)
+    do_ping(args)
 
-    # Start a test supervision tree in all three nodes
-    Enum.each(nodes, fn node ->
-      Node.spawn(node, LocalClusterHelper, :start, [
-        MySupervisionTree,
-        :start_link,
-        [[cluster: cluster_name, distribution: Horde.UniformQuorumDistribution, sync_interval: 5]]
-      ])
-    end)
+    {:ok, args}
+  end
 
-    # Wait for supervisor and registry in all nodes
-    Process.sleep(sleep_millis)
+  def handle_info(:ping, state) do
+    do_ping(state)
+    {:noreply, state}
+  end
 
-    Enum.each(nodes, fn node ->
-      assert MySupervisor.alive?(node)
-      assert MyRegistry.alive?(node)
-    end)
+  defp do_ping(state) do
+    Logger.debug(
+      "#{inspect(node())} #{inspect(self())} server_#{Keyword.get(state, :name)} still running"
+    )
 
-    Schism.partition([node1, node2])
-    Schism.partition([node3])
+    Process.send_after(self(), :ping, 100)
+  end
 
-    Process.sleep(sleep_millis)
+  def handle_info({:EXIT, _, {:name_conflict, _, _, _}} = msg, state) do
+    Logger.debug(
+      "#{inspect(node())} #{inspect(self())} server_#{Keyword.get(state, :name)} stopped because of name conflict"
+    )
 
-    Enum.each(nodes, fn node ->
-      assert MySupervisor.alive?(node)
-      assert MyRegistry.alive?(node)
-    end)
+    {:stop, :normal, state}
+  end
 
-    # Create a server with the same name in both partitions
-    {:ok, pid1} = MyCluster.start_server(node1, server_name)
-    {:ok, pid2} = MyCluster.start_server(node3, server_name)
-
-    assert Enum.member?([node1, node2], node(pid1))
-    assert node3 == node(pid2)
-
-    Process.sleep(sleep_millis)
-
-    # Heal the cluster
-    Schism.heal(nodes)
-    Process.sleep(sleep_millis)
-
-    Enum.each(nodes, fn node ->
-      assert MySupervisor.alive?(node)
-      assert MyRegistry.alive?(node)
-    end)
-
-    # Verify all nodes are able to see the same pid for that server
-    pid1 = MyCluster.whereis_server(node1, server_name)
-    pid2 = MyCluster.whereis_server(node2, server_name)
-    pid3 = MyCluster.whereis_server(node3, server_name)
-
-    assert is_pid(pid1)
-    assert pid1 == pid2
-    assert pid1 == pid3
-    assert pid2 == pid3
+  def terminate(state) do
+    Logger.debug(
+      "#{inspect(node())} #{inspect(self())} server_#{Keyword.get(state, :name)} terminated normally"
+    )
   end
 end
