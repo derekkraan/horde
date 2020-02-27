@@ -381,10 +381,10 @@ defmodule Horde.DynamicSupervisorImpl do
     {:noreply, new_state}
   end
 
-  def has_membership_changed?([{:add, {:member_node_info, _}, _} = diff | _diffs]), do: true
-  def has_membership_changed?([{:remove, {:member_node_info, _}} = diff | _diffs]), do: true
-  def has_membership_changed?([{:add, {:member, _}, _} = diff | _diffs]), do: true
-  def has_membership_changed?([{:remove, {:member, _}} = diff | _diffs]), do: true
+  def has_membership_changed?([{:add, {:member_node_info, _}, _} = _diff | _diffs]), do: true
+  def has_membership_changed?([{:remove, {:member_node_info, _}} = _diff | _diffs]), do: true
+  def has_membership_changed?([{:add, {:member, _}, _} = _diff | _diffs]), do: true
+  def has_membership_changed?([{:remove, {:member, _}} = _diff | _diffs]), do: true
 
   def has_membership_changed?([_diff | diffs]) do
     has_membership_changed?(diffs)
@@ -402,7 +402,7 @@ defmodule Horde.DynamicSupervisorImpl do
           current_member = Map.get(state.members_info, current_node)
 
           case {current_node, chosen_node} do
-            {_same_node, _same_node} ->
+            {same_node, same_node} ->
               # process is running on the node on which it belongs
 
               state
@@ -418,12 +418,12 @@ defmodule Horde.DynamicSupervisorImpl do
                   state
               end
 
-            {current_node, ^this_node} ->
+            {_current_node, ^this_node} ->
               # process is running on another node but belongs here
 
               case current_member do
                 %{status: :dead} ->
-                  {response, state} = add_child(randomize_child_id(child_spec), state)
+                  {_response, state} = add_child(randomize_child_id(child_spec), state)
 
                   state
 
@@ -469,8 +469,6 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp update_process(state, {:add, {:process, child_id}, {node, child_spec, child_pid}}) do
-    this_node = fully_qualified_name(state.name)
-
     new_process_pid_to_id =
       case Map.get(state.processes_by_id, child_id) do
         {_, _, old_pid} -> Map.delete(state.process_pid_to_id, old_pid)
