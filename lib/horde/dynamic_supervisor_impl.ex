@@ -276,6 +276,11 @@ defmodule Horde.DynamicSupervisorImpl do
     {:noreply, new_state}
   end
 
+  def handle_cast({:redistribute_children, enabled}, state) do
+    DeltaCrdt.mutate(crdt_name(state.name), :add, [:redistribute_children, enabled], :infinity)
+    {:noreply, state}
+  end
+
   defp randomize_child_id(child) do
     Map.put(child, :id, :rand.uniform(@big_number))
   end
@@ -426,6 +431,13 @@ defmodule Horde.DynamicSupervisorImpl do
                 :active ->
                   handoff_child(child_spec, state)
 
+                :manual ->
+                  if Map.get(state, :redistribute_children, false) do
+                    handoff_child(child_spec, state)
+                  else
+                    state
+                  end
+
                 :passive ->
                   state
               end
@@ -541,6 +553,18 @@ defmodule Horde.DynamicSupervisorImpl do
     new_members = Map.delete(state.members_info, member)
 
     Map.put(state, :members_info, new_members)
+  end
+
+  defp update_member(state, {:add, :redistribute_children, enabled}) do
+    state
+    |> Map.put(:redistribute_children, enabled)
+    |> handoff_processes()
+  end
+
+  defp update_member(state, {:remove, :redistribute_children}) do
+    state
+    |> Map.delete(:redistribute_children)
+    |> handoff_processes()
   end
 
   defp update_member(state, _), do: state

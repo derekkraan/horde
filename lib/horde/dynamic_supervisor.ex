@@ -63,7 +63,7 @@ defmodule Horde.DynamicSupervisor do
           | {:shutdown, integer()}
           | {:members, [Horde.Cluster.member()] | :auto}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
-          | {:process_redistribution, :active | :passive}
+          | {:process_redistribution, :active | :manual | :passive}
 
   @callback init(options()) :: {:ok, options()} | :ignore
   @callback child_spec(options :: options()) :: Supervisor.child_spec()
@@ -261,6 +261,16 @@ defmodule Horde.DynamicSupervisor do
   This function delegates to all supervisors in the cluster and returns the aggregated output.
   """
   def count_children(supervisor), do: call(supervisor, :count_children)
+
+  @doc """
+  Enable/disable redistribution of the supervisor's children when process redistribution is set to manual.
+
+  When redistribute_children is true, children will be rebalanced to new nodes as they come up.
+  Calling this function also triggers the process if new nodes came up while the flag was false.
+  Setting redistribute_children to false disables redistribution when new nodes come up.
+  """
+  @spec redistribute_children(Supervisor.supervisor(), true | false) :: :ok
+  def redistribute_children(supervisor, enabled), do: GenServer.cast(supervisor, {:redistribute_children, enabled})
 
   @doc """
   Waits for Horde.DynamicSupervisor to have quorum.

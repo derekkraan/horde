@@ -94,9 +94,12 @@ defmodule DynamicSupervisorTest do
     n2 = :horde_redistribute_2
     n3 = :horde_redistribute_3_passive
     n4 = :horde_redistribute_4_passive
+    n5 = :horde_redistribute_5_manual
+    n6 = :horde_redistribute_6_manual
 
     members = [{n1, Node.self()}, {n2, Node.self()}]
     members_passive = [{n3, Node.self()}, {n4, Node.self()}]
+    members_manual = [{n5, Node.self()}, {n6, Node.self()}]
 
     # Spawn one supervisor and add processes to it, then spawn another and redistribute
     # the processes between the two.
@@ -104,6 +107,8 @@ defmodule DynamicSupervisorTest do
     {:ok, pid_n2} = start_supervised(redistribute_child_spec(n2, :active))
     {:ok, pid_n3} = start_supervised(redistribute_child_spec(n3, :passive))
     {:ok, pid_n4} = start_supervised(redistribute_child_spec(n4, :passive))
+    {:ok, pid_n5} = start_supervised(redistribute_child_spec(n5, :manual))
+    {:ok, pid_n6} = start_supervised(redistribute_child_spec(n6, :manual))
 
     # Start 5 child processes with randomized names
     num_workers = 10
@@ -122,6 +127,13 @@ defmodule DynamicSupervisorTest do
       assert Kernel.match?({:ok, _}, Horde.DynamicSupervisor.start_child(n3, spec))
     end)
 
+    cspecs_manual = generate_child_spec(num_workers, :manual)
+
+    cspecs_manual
+    |> Enum.each(fn spec ->
+      assert Kernel.match?({:ok, _}, Horde.DynamicSupervisor.start_child(n5, spec))
+    end)
+
     [
       active: [
         n1: n1,
@@ -138,6 +150,14 @@ defmodule DynamicSupervisorTest do
         pid_n2: pid_n4,
         children: cspecs_passive,
         members: members_passive
+      ],
+      manual: [
+        n1: n5,
+        n2: n6,
+        pid_n1: pid_n5,
+        pid_n2: pid_n6,
+        children: cspecs_manual,
+        members: members_manual
       ],
       num_workers: num_workers
     ]
@@ -378,8 +398,8 @@ defmodule DynamicSupervisorTest do
 
   describe "graceful shutdown" do
     test "stopping a node moves processes over when they are ready" do
-      # NOTE: here I had to disable redistribution on node :up, otherwise 
-      # sometimes horde would kill the :fast process for redistribution when 
+      # NOTE: here I had to disable redistribution on node :up, otherwise
+      # sometimes horde would kill the :fast process for redistribution when
       # :horde_2_graceful is marked as :alive
 
       {:ok, _} =
@@ -617,6 +637,101 @@ defmodule DynamicSupervisorTest do
                context.passive[:n2],
                context.passive[:children]
              )
+    end
+
+    test "should only redistribute on member :down but not on :alive if config is set to :manual and redistribution flag is unset",
+         context do
+      Horde.Cluster.set_members(context.manual[:n1], [context.manual[:n1], context.manual[:n2]])
+
+      Process.sleep(500)
+
+      # verify nothing redistributed on :alive
+      assert Kernel.match?([], LocalClusterHelper.running_children(context.manual[:n2]))
+
+      Process.unlink(context.manual[:pid_n1])
+      Horde.DynamicSupervisor.stop(context.manual[:n1])
+
+      Process.sleep(500)
+
+      # n4 should now be running all of the children
+      assert LocalClusterHelper.supervisor_has_children?(
+               context.manual[:n2],
+               context.manual[:children]
+             )
+    end
+
+    test "should only redistribute on member :down but not on :alive if config is set to :manual and redistribution flag is set to false",
+         context do
+      Horde.Cluster.set_members(context.manual[:n1], [context.manual[:n1], context.manual[:n2]])
+      Horde.DynamicSupervisor.redistribute_children(context.manual[:n1], false)
+      Horde.DynamicSupervisor.redistribute_children(context.manual[:n2], false)
+
+      Process.sleep(500)
+
+      # verify nothing redistributed on :alive
+      assert Kernel.match?([], LocalClusterHelper.running_children(context.manual[:n2]))
+
+      Process.unlink(context.manual[:pid_n1])
+      Horde.DynamicSupervisor.stop(context.manual[:n1])
+
+      Process.sleep(500)
+
+      # n4 should now be running all of the children
+      assert LocalClusterHelper.supervisor_has_children?(
+               context.manual[:n2],
+               context.manual[:children]
+             )
+    end
+
+    test "processes should redistribute to new member nodes as they are added when config is :manual and the redistribution flag is set to true", context do
+      n2_cspecs =
+        LocalClusterHelper.expected_distribution_for(
+          context.manual[:children],
+          context.manual[:members],
+          context.manual[:n2]
+        )
+
+      Horde.Cluster.set_members(context.manual[:n1], [context.manual[:n1], context.manual[:n2]])
+      Horde.DynamicSupervisor.redistribute_children(context.manual[:n1], true)
+      Horde.DynamicSupervisor.redistribute_children(context.manual[:n2], true)
+
+      Process.sleep(500)
+
+      assert_receive {:shutdown, :manual, {:shutdown, :process_redistribution}}, 100
+      refute_receive {:shutdown, :manual, :shutdown}, 100
+
+      # :sys.get_state(Process.whereis(context.n2)).processes_by_id |> IO.inspect()
+
+      assert LocalClusterHelper.supervisor_has_children?(context.manual[:n2], n2_cspecs)
+    end
+
+    test "processes should redistribute to new member nodes when config is :manual and the redistribution flag is changed to true", context do
+      n2_cspecs =
+        LocalClusterHelper.expected_distribution_for(
+          context.manual[:children],
+          context.manual[:members],
+          context.manual[:n2]
+        )
+
+      Horde.Cluster.set_members(context.manual[:n1], [context.manual[:n1], context.manual[:n2]])
+      Horde.DynamicSupervisor.redistribute_children(context.manual[:n1], false)
+      Horde.DynamicSupervisor.redistribute_children(context.manual[:n2], false)
+
+      Process.sleep(500)
+
+      # verify nothing redistributed on :alive
+      assert Kernel.match?([], LocalClusterHelper.running_children(context.manual[:n2]))
+
+      Horde.DynamicSupervisor.redistribute_children(context.manual[:n1], true)
+
+      Process.sleep(500)
+
+      assert_receive {:shutdown, :manual, {:shutdown, :process_redistribution}}, 100
+      refute_receive {:shutdown, :manual, :shutdown}, 100
+
+      # :sys.get_state(Process.whereis(context.n2)).processes_by_id |> IO.inspect()
+
+      assert LocalClusterHelper.supervisor_has_children?(context.manual[:n2], n2_cspecs)
     end
   end
 end
