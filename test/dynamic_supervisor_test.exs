@@ -683,7 +683,8 @@ defmodule DynamicSupervisorTest do
              )
     end
 
-    test "processes should redistribute to new member nodes as they are added when config is :manual and the redistribution flag is set to true", context do
+    test "processes should redistribute to new member nodes as they are added when config is :manual and the redistribution flag is set to true",
+         context do
       n2_cspecs =
         LocalClusterHelper.expected_distribution_for(
           context.manual[:children],
@@ -705,7 +706,8 @@ defmodule DynamicSupervisorTest do
       assert LocalClusterHelper.supervisor_has_children?(context.manual[:n2], n2_cspecs)
     end
 
-    test "processes should redistribute to new member nodes when config is :manual and the redistribution flag is changed to true", context do
+    test "processes should redistribute to new member nodes when config is :manual and the redistribution flag is changed to true",
+         context do
       n2_cspecs =
         LocalClusterHelper.expected_distribution_for(
           context.manual[:children],

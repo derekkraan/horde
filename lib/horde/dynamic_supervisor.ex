@@ -270,7 +270,8 @@ defmodule Horde.DynamicSupervisor do
   Setting redistribute_children to false disables redistribution when new nodes come up.
   """
   @spec redistribute_children(Supervisor.supervisor(), true | false) :: :ok
-  def redistribute_children(supervisor, enabled), do: GenServer.cast(supervisor, {:redistribute_children, enabled})
+  def redistribute_children(supervisor, enabled),
+    do: GenServer.cast(supervisor, {:redistribute_children, enabled})
 
   @doc """
   Waits for Horde.DynamicSupervisor to have quorum.
