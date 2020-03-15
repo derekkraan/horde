@@ -50,7 +50,7 @@ See the documentation for `Horde.DynamicSupervisor` for more information.
 
 ## Starting Horde.Registry
 
-Horde.DynamicSupervisor is spreading your processes out over the cluster, but how do you know where all these processes are? Horde.Registry is the answer. We want Horde.Registry to be above Horde.Supervisor in the start-up order. 
+Horde.DynamicSupervisor is spreading your processes out over the cluster, but how do you know where all these processes are? Horde.Registry is the answer. We want Horde.Registry to be above Horde.DynamicSupervisor in the start-up order.
 
 This is what our example above looks like with Horde.Registry added in:
 
