@@ -3,4 +3,4 @@
 
 Application.ensure_all_started(:horde)
 
-ExUnit.start()
+ExUnit.start(exclude: [:skip])

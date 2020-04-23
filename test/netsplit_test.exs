@@ -2,90 +2,89 @@ defmodule NetSplitTest do
   use ExUnit.Case
   require Logger
 
-  Enum.each(1..1, fn x ->
-    test "test #{x}" do
-      nodes = LocalCluster.start_nodes("loner-cluster", 4, files: [__ENV__.file])
+  @tag :skip
+  test "test netsplit" do
+    nodes = LocalCluster.start_nodes("loner-cluster", 4, files: [__ENV__.file])
 
-      [n1, n2, n3, n4] = nodes
+    [n1, n2, n3, n4] = nodes
 
-      Enum.each(nodes, &Node.spawn(&1, __MODULE__, :setup_horde, [nodes]))
+    Enum.each(nodes, &Node.spawn(&1, __MODULE__, :setup_horde, [nodes]))
 
-      Process.sleep(1000)
+    Process.sleep(1000)
 
-      num_procs = 1000
+    num_procs = 1000
 
-      Enum.each(1..num_procs, fn x ->
-        {:ok, _pid} =
-          :rpc.call(n1, Horde.DynamicSupervisor, :start_child, [
-            TestNetSplitSup,
-            {TestNetSplitServer, name: :"test_netsplit_server_#{x}"}
+    Enum.each(1..num_procs, fn x ->
+      {:ok, _pid} =
+        :rpc.call(n1, Horde.DynamicSupervisor, :start_child, [
+          TestNetSplitSup,
+          {TestNetSplitServer, name: :"test_netsplit_server_#{x}"}
+        ])
+    end)
+
+    Process.sleep(1000)
+
+    Logger.info("CREATING SCHISM")
+
+    g1 = [n1, n2]
+    Schism.partition(g1)
+
+    Process.sleep(2000)
+
+    Logger.debug("CHECKING NODE 1")
+
+    pids =
+      Enum.map(1..num_procs, fn x ->
+        pid =
+          :rpc.call(n1, Horde.Registry, :whereis_name, [
+            {TestReg2, :"test_netsplit_server_#{x}"}
           ])
+
+        assert {:"server_#{x}", pid, is_pid(pid)} == {:"server_#{x}", pid, true}
+        pid
       end)
 
-      Process.sleep(1000)
+    assert pids |> Enum.uniq() |> length == num_procs
+    assert Enum.all?(pids, &is_pid/1)
 
-      Logger.info("CREATING SCHISM")
+    Logger.debug("CHECKING NODE 3")
 
-      g1 = [n1, n2]
-      Schism.partition(g1)
+    pids =
+      Enum.map(1..num_procs, fn x ->
+        pid =
+          :rpc.call(n3, Horde.Registry, :whereis_name, [
+            {TestReg2, :"test_netsplit_server_#{x}"}
+          ])
 
-      Process.sleep(2000)
+        assert {:"server_#{x}", pid, is_pid(pid)} == {:"server_#{x}", pid, true}
+        pid
+      end)
 
-      Logger.debug("CHECKING NODE 1")
+    assert pids |> Enum.uniq() |> length == num_procs
+    assert Enum.all?(pids, &is_pid/1)
 
-      pids =
-        Enum.map(1..num_procs, fn x ->
-          pid =
-            :rpc.call(n1, Horde.Registry, :whereis_name, [
-              {TestReg2, :"test_netsplit_server_#{x}"}
-            ])
+    Logger.info("HEALING SCHISM")
 
-          assert {:"server_#{x}", pid, is_pid(pid)} == {:"server_#{x}", pid, true}
-          pid
-        end)
+    Schism.heal(nodes)
 
-      assert pids |> Enum.uniq() |> length == num_procs
-      assert Enum.all?(pids, &is_pid/1)
+    Process.sleep(2000)
 
-      Logger.debug("CHECKING NODE 3")
+    pids =
+      Enum.map(1..num_procs, fn x ->
+        pid =
+          :rpc.call(hd(nodes), Horde.Registry, :whereis_name, [
+            {TestReg2, :"test_netsplit_server_#{x}"}
+          ])
 
-      pids =
-        Enum.map(1..num_procs, fn x ->
-          pid =
-            :rpc.call(n3, Horde.Registry, :whereis_name, [
-              {TestReg2, :"test_netsplit_server_#{x}"}
-            ])
+        assert {:"server_#{x}", pid, is_pid(pid)} == {:"server_#{x}", pid, true}
+        pid
+      end)
 
-          assert {:"server_#{x}", pid, is_pid(pid)} == {:"server_#{x}", pid, true}
-          pid
-        end)
+    :rpc.call(hd(nodes), Horde.DynamicSupervisor, :which_children, [TestNetSplitSup])
 
-      assert pids |> Enum.uniq() |> length == num_procs
-      assert Enum.all?(pids, &is_pid/1)
-
-      Logger.info("HEALING SCHISM")
-
-      Schism.heal(nodes)
-
-      Process.sleep(2000)
-
-      pids =
-        Enum.map(1..num_procs, fn x ->
-          pid =
-            :rpc.call(hd(nodes), Horde.Registry, :whereis_name, [
-              {TestReg2, :"test_netsplit_server_#{x}"}
-            ])
-
-          assert {:"server_#{x}", pid, is_pid(pid)} == {:"server_#{x}", pid, true}
-          pid
-        end)
-
-      :rpc.call(hd(nodes), Horde.DynamicSupervisor, :which_children, [TestNetSplitSup])
-
-      assert pids |> Enum.uniq() |> length == num_procs
-      assert Enum.all?(pids, &is_pid/1)
-    end
-  end)
+    assert pids |> Enum.uniq() |> length == num_procs
+    assert Enum.all?(pids, &is_pid/1)
+  end
 
   def setup_horde(nodes) do
     {:ok, _} = Application.ensure_all_started(:horde)
