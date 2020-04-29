@@ -113,8 +113,10 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_info({:EXIT, pid, _reason}, state) do
-    case :ets.take(state.pids_ets_table, pid) do
-      [{_pid, keys}] ->
+    case :ets.match(state.pids_ets_table, {{:"$1", pid}, :"$2"}) do
+      [[member, keys]] ->
+        :ets.delete(state.pids_ets_table, {member, pid})
+
         Enum.each(keys, fn key ->
           DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
           :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
@@ -174,6 +176,25 @@ defmodule Horde.RegistryImpl do
   defp process_diff(state, {:remove, {:member, member}}) do
     :ets.match_delete(state.members_ets_table, {member, 1})
 
+    case :ets.match(state.pids_ets_table, {{member, :"$1"}, :"$2"}) do
+      [] ->
+        :ok
+
+      pairs ->
+        Enum.each(pairs, fn [pid, keys] ->
+          :ets.delete(state.pids_ets_table, {member, pid})
+
+          Enum.each(keys, fn key ->
+            DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
+            :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
+
+            for listener <- state.listeners do
+              send(listener, {:unregister, state.name, key, pid})
+            end
+          end)
+        end)
+    end
+
     new_members = MapSet.delete(state.members, member)
     new_nodes = Enum.map(new_members, fn {_name, node} -> node end) |> MapSet.new()
 
@@ -183,7 +204,7 @@ defmodule Horde.RegistryImpl do
   defp process_diff(state, {:add, {:key, key}, {member, pid, value}}) do
     link_local_pid(pid)
 
-    add_key_to_pids_table(state, pid, key)
+    add_key_to_pids_table(state, member, pid, key)
 
     with [{^key, _member, {other_pid, other_value}}] when other_pid != pid <-
            :ets.lookup(state.keys_ets_table, key) do
@@ -231,28 +252,28 @@ defmodule Horde.RegistryImpl do
     state
   end
 
-  defp add_key_to_pids_table(state, pid, key) do
-    case :ets.lookup(state.pids_ets_table, pid) do
+  defp add_key_to_pids_table(state, member, pid, key) do
+    case :ets.lookup(state.pids_ets_table, {member, pid}) do
       [] ->
-        :ets.insert(state.pids_ets_table, {pid, [key]})
+        :ets.insert(state.pids_ets_table, {{member, pid}, [key]})
 
-      [{^pid, keys}] ->
-        :ets.insert(state.pids_ets_table, {pid, Enum.uniq([key | keys])})
+      [{{^member, ^pid}, keys}] ->
+        :ets.insert(state.pids_ets_table, {{member, pid}, Enum.uniq([key | keys])})
     end
   end
 
   defp remove_key_from_pids_table(state, pid, key) do
-    case :ets.lookup(state.pids_ets_table, pid) do
+    case :ets.match_object(state.pids_ets_table, {{:_, pid}, :_}) do
       [] ->
         :ok
 
-      [{^pid, keys}] ->
+      [{{member, ^pid}, keys}] ->
         case List.delete(keys, key) do
           [] ->
-            :ets.match_delete(state.pids_ets_table, {pid, :_})
+            :ets.delete(state.pids_ets_table, {member, pid})
 
           new_keys ->
-            :ets.insert(state.pids_ets_table, {pid, new_keys})
+            :ets.insert(state.pids_ets_table, {{member, pid}, new_keys})
         end
     end
   end
@@ -286,14 +307,16 @@ defmodule Horde.RegistryImpl do
   def handle_call({:register, key, value, pid}, _from, state) do
     Process.link(pid)
 
+    member = fully_qualified_name(state.name)
+
     DeltaCrdt.mutate(
       crdt_name(state.name),
       :add,
-      [{:key, key}, {fully_qualified_name(state.name), pid, value}],
+      [{:key, key}, {member, pid, value}],
       :infinity
     )
 
-    add_key_to_pids_table(state, pid, key)
+    add_key_to_pids_table(state, member, pid, key)
 
     :ets.insert(state.keys_ets_table, {key, fully_qualified_name(state.name), {pid, value}})
 

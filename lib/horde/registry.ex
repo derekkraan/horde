@@ -313,9 +313,9 @@ defmodule Horde.Registry do
   @spec keys(registry :: Registry.registry(), pid()) :: [Registry.key()]
   @doc "See `Registry.keys/2`."
   def keys(registry, pid) when is_atom(registry) do
-    case :ets.lookup(pids_ets_table(registry), pid) do
+    case :ets.match(pids_ets_table(registry), {{:_, pid}, :"$1"}) do
       [] -> []
-      [{_pid, matches}] -> matches
+      matches -> Enum.flat_map(matches, fn [keys] -> keys end)
     end
   end
 
