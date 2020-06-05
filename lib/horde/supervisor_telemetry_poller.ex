@@ -1,5 +1,8 @@
 defmodule Horde.DynamicSupervisorTelemetryPoller do
   @moduledoc false
+
+  require Logger
+
   def child_spec(supervisor_impl_name) do
     %{
       id: :"#{supervisor_impl_name}_telemetry_poller",
@@ -29,5 +32,13 @@ defmodule Horde.DynamicSupervisorTelemetryPoller do
     :telemetry.execute([:horde, :supervisor, :supervised_process_count], metrics, %{
       name: supervisor_impl_name
     })
+  catch
+    :exit, reason ->
+      Logger.warn("""
+      Exit while fetching metrics from #{inspect(supervisor_impl_name)}.
+      Skip poll action. Reason: #{inspect(reason)}.
+      """)
+
+      :ok
   end
 end
