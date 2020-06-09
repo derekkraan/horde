@@ -285,9 +285,9 @@ defmodule Horde.DynamicSupervisor do
     }
   end
 
-  def members(:auto, _name), do: :auto
+  defp members(:auto, _name), do: :auto
 
-  def members(options, name) do
+  defp members(options, name) do
     if name in options do
       options
     else
