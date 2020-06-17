@@ -53,7 +53,7 @@ def init(arg) do
   case Horde.Registry.register(:my_registry, "key", "value") do
     {:ok, _pid} ->
       {:ok, arg}
-    {:error, {:already_started, _pid}} ->
+    {:error, {:already_registered, _pid}} ->
       :ignore
   end
 end
