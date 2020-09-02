@@ -274,7 +274,7 @@ defmodule DynamicSupervisorTest do
 
       supervisor_pids =
         Enum.map(1..10, fn x ->
-          assert_receive {:process_started, x, task_pid}
+          assert_receive {:process_started, ^x, task_pid}
           {:links, [supervisor_pid]} = task_pid |> Process.info(:links)
           supervisor_pid
         end)

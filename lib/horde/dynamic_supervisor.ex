@@ -184,14 +184,6 @@ defmodule Horde.DynamicSupervisor do
              on_diffs: {Horde.DynamicSupervisorImpl, :on_diffs, [name]},
              name: crdt_name(name)
            ]},
-          {Horde.ProcessesSupervisor,
-           [
-             shutdown: :infinity,
-             root_name: name,
-             type: :supervisor,
-             name: supervisor_name(name),
-             strategy: flags.strategy
-           ]},
           {Horde.DynamicSupervisorImpl,
            [
              name: name,
@@ -206,6 +198,14 @@ defmodule Horde.DynamicSupervisor do
              distribution_strategy: flags.distribution_strategy,
              process_redistribution: flags.process_redistribution,
              members: members(flags.members, name)
+           ]},
+          {Horde.ProcessesSupervisor,
+           [
+             shutdown: :infinity,
+             root_name: name,
+             type: :supervisor,
+             name: supervisor_name(name),
+             strategy: flags.strategy
            ]},
           {Horde.SignalShutdown,
            [
