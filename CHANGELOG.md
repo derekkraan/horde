@@ -1,4 +1,4 @@
-## master
+## 0.8.0
 - `Horde.DynamicSupervisor` behaviour in a netsplit has changed. Previously, when a netsplit heals, `Horde.DynamicSupervisor` would try to clean up any duplicate processes. It no longer does this, leaving that responsibility to `Horde.Registry`.
 - `Horde.DynamicSupervisor` and `Horde.Registry` now support the option `members: :auto` to automatically detect other identically-named supervisors or registries.
 - `Horde.DynamicSupervisor` now supports the option `process_redistribution: :active` to rebalance processes actively (aka, when a node joins or leaves the cluster). The default is `:passive`, which only redistributes processes when a node dies or loses quorum. [#164](https://github.com/derekkraan/horde/pull/164).
