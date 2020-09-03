@@ -642,7 +642,7 @@ defmodule RegistryTest do
     end
   end
 
-  describe ".meta/2 and .put_meta/3" do
+  describe ".meta/2, .put_meta/3 and .delete_meta/2" do
     test "can set meta in start_link/3" do
       registry = Horde.Registry.ClusterH
 
@@ -709,6 +709,32 @@ defmodule RegistryTest do
       Horde.Registry.put_meta(r1, :a_key, "a_value")
       Process.sleep(200)
       assert {:ok, "a_value"} = Horde.Registry.meta(r2, :a_key)
+    end
+
+    test "delete_meta is propagated" do
+      r1 = Horde.Registry.PropagateMeta1
+      r2 = Horde.Registry.PropagateMeta2
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: r1,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
+      {:ok, _horde} =
+        Horde.Registry.start_link(
+          name: r2,
+          keys: :unique,
+          delta_crdt_options: [sync_interval: 20]
+        )
+
+      Horde.Cluster.set_members(r1, [r1, r2])
+      Horde.Registry.put_meta(r1, :a_key, "a_value")
+      Process.sleep(200)
+      assert :ok = Horde.Registry.delete_meta(r1, :a_key)
+      Process.sleep(200)
+      assert :error = Horde.Registry.meta(r2, :a_key)
     end
   end
 

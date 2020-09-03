@@ -235,6 +235,12 @@ defmodule Horde.Registry do
     GenServer.call(registry, {:unregister, name, self()})
   end
 
+  @doc "See `Registry.delete_meta/2`."
+  @spec delete_meta(registry :: Registry.registry(), name :: Registry.key()) :: :ok
+  def delete_meta(registry, name) when is_atom(registry) do
+    GenServer.call(registry, {:delete_meta, name, self()})
+  end
+
   @doc false
   def whereis(search), do: lookup(search)
 

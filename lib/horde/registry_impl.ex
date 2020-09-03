@@ -180,6 +180,12 @@ defmodule Horde.RegistryImpl do
     %{state | members: new_members, nodes: new_nodes}
   end
 
+  defp process_diff(state, {:remove, {:registry, key}}) do
+    :ets.match_delete(state.name, {key, :_})
+
+    state
+  end
+
   defp process_diff(state, {:add, {:key, key}, {member, pid, value}}) do
     link_local_pid(pid)
 
@@ -323,6 +329,18 @@ defmodule Horde.RegistryImpl do
     end
 
     :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
+
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:delete_meta, key, pid}, _from, state) do
+    DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:registry, key}], :infinity)
+
+    for listener <- state.listeners do
+      send(listener, {:delete_meta, state.name, key, pid})
+    end
+
+    :ets.delete(state.name, key)
 
     {:reply, :ok, state}
   end
