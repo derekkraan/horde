@@ -1,3 +1,6 @@
+## 0.8.1
+- `Horde.Registry.delete_meta/2` has been added to reflect its addition in `Elixir.Registry` in upcoming release 1.11.0 [#208](https://github.com/derekkraan/horde/pull/208)
+
 ## 0.8.0
 - `Horde.DynamicSupervisor` behaviour in a netsplit has changed. Previously, when a netsplit heals, `Horde.DynamicSupervisor` would try to clean up any duplicate processes. It no longer does this, leaving that responsibility to `Horde.Registry`. [#196](https://github.com/derekkraan/horde/pull/196)
 - `Horde.DynamicSupervisor` and `Horde.Registry` now support the option `members: :auto` to automatically detect other identically-named supervisors or registries. [#184](https://github.com/derekkraan/horde/pull/184)
