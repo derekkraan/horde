@@ -238,7 +238,7 @@ defmodule Horde.Registry do
   @doc "See `Registry.delete_meta/2`."
   @spec delete_meta(registry :: Registry.registry(), name :: Registry.key()) :: :ok
   def delete_meta(registry, name) when is_atom(registry) do
-    GenServer.call(registry, {:delete_meta, name, self()})
+    GenServer.call(registry, {:delete_meta, name})
   end
 
   @doc false
