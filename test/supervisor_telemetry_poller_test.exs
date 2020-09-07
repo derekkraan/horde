@@ -29,7 +29,7 @@ defmodule SupervisorTelemetryPollerTest do
     end
   end
 
-  describe "when failes to poll supervisors metrics" do
+  describe "when fails to poll supervisors metrics" do
     test "it handles exit and logs reason" do
       assert capture_log(fn -> :ok = Poller.poll(nil) end) =~ "Exit while fetching metrics from"
     end
