@@ -1,3 +1,6 @@
+## 0.8.2
+- Bump version of `telemetry_poller` dependency. [#212](https://github.com/derekkraan/horde/pull/212)
+
 ## 0.8.1
 - `Horde.Registry.delete_meta/2` has been added to reflect its addition in `Elixir.Registry` in upcoming release 1.11.0 [#208](https://github.com/derekkraan/horde/pull/208)
 
