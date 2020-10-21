@@ -14,7 +14,6 @@ defmodule NestedSupervisionTest do
     end
 
     def handle_cast(:boom, _) do
-      IO.inspect("crashing")
       {:stop, :normal, []}
     end
   end
