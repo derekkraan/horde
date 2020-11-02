@@ -1063,7 +1063,7 @@ defmodule Horde.ProcessesSupervisor do
 
     case child_id_to_pid do
       %{^child_id => new_pid} ->
-        GenServer.call(state.root_name, {:update_child_pid, child_id, new_pid}, :infinity)
+        GenServer.cast(state.root_name, {:update_child_pid, child_id, new_pid})
 
       _pid_deleted ->
         GenServer.cast(state.root_name, {:disown_child_process, child_id})
