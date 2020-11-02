@@ -206,8 +206,38 @@ defmodule Horde.DynamicSupervisorImpl do
     {:reply, count, state}
   end
 
-  def handle_call({:update_child_pid, child_id, new_pid}, _from, state) do
-    {:reply, :ok, set_child_pid(state, child_id, new_pid)}
+  def handle_cast({:update_child_pid, child_id, new_pid}, state) do
+    {:noreply, set_child_pid(state, child_id, new_pid)}
+  end
+
+  def handle_cast({:relinquish_child_process, child_id}, state) do
+    # signal to the rest of the nodes that this process has been relinquished
+    # (to the Horde!) by its parent
+    {_, child, _} = Map.get(state.processes_by_id, child_id)
+
+    :ok =
+      DeltaCrdt.mutate(
+        crdt_name(state.name),
+        :add,
+        [{:process, child.id}, {nil, child}]
+      )
+
+    {:noreply, state}
+  end
+
+  # TODO think of a better name than "disown_child_process"
+  def handle_cast({:disown_child_process, child_id}, state) do
+    {{_, _, child_pid}, new_processes_by_id} = Map.pop(state.processes_by_id, child_id)
+
+    new_state = %{
+      state
+      | processes_by_id: new_processes_by_id,
+        process_pid_to_id: Map.delete(state.process_pid_to_id, child_pid),
+        local_process_count: state.local_process_count - 1
+    }
+
+    :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
+    {:noreply, new_state}
   end
 
   defp set_child_pid(state, child_id, new_child_pid) do
@@ -239,36 +269,6 @@ defmodule Horde.DynamicSupervisorImpl do
       nil ->
         state
     end
-  end
-
-  def handle_cast({:relinquish_child_process, child_id}, state) do
-    # signal to the rest of the nodes that this process has been relinquished
-    # (to the Horde!) by its parent
-    {_, child, _} = Map.get(state.processes_by_id, child_id)
-
-    :ok =
-      DeltaCrdt.mutate(
-        crdt_name(state.name),
-        :add,
-        [{:process, child.id}, {nil, child}]
-      )
-
-    {:noreply, state}
-  end
-
-  # TODO think of a better name than "disown_child_process"
-  def handle_cast({:disown_child_process, child_id}, state) do
-    {{_, _, child_pid}, new_processes_by_id} = Map.pop(state.processes_by_id, child_id)
-
-    new_state = %{
-      state
-      | processes_by_id: new_processes_by_id,
-        process_pid_to_id: Map.delete(state.process_pid_to_id, child_pid),
-        local_process_count: state.local_process_count - 1
-    }
-
-    :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
-    {:noreply, new_state}
   end
 
   defp randomize_child_id(child) do
