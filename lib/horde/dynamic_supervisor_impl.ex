@@ -11,6 +11,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
   require Logger
   use GenServer
+  import Horde.TableUtils
 
   defstruct name: nil,
             members: %{},
@@ -26,6 +27,7 @@ defmodule Horde.DynamicSupervisorImpl do
             distribution_strategy: Horde.UniformDistribution
 
   def start_link(opts) do
+    IO.inspect("##########HORDE MODIFICADO2!!!###########")
     GenServer.start_link(__MODULE__, opts, Keyword.take(opts, [:name]))
   end
 
@@ -47,6 +49,8 @@ defmodule Horde.DynamicSupervisorImpl do
     state =
       %__MODULE__{
         supervisor_options: options,
+        processes_by_id: new_table(:processes_by_id),
+        process_pid_to_id: new_table(:process_pid_to_id),
         name: name
       }
       |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
@@ -102,7 +106,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
   def handle_call(:get_telemetry, _from, state) do
     telemetry = %{
-      global_supervised_process_count: map_size(state.processes_by_id),
+      global_supervised_process_count: size_of(state.processes_by_id),
       local_supervised_process_count: state.local_process_count
     }
 
@@ -128,8 +132,8 @@ defmodule Horde.DynamicSupervisorImpl do
   def handle_call({:terminate_child, child_pid} = msg, from, state) do
     this_name = fully_qualified_name(state.name)
 
-    with child_id when not is_nil(child_id) <- Map.get(state.process_pid_to_id, child_pid),
-         {^this_name, child, _child_pid} <- Map.get(state.processes_by_id, child_id),
+    with child_id when not is_nil(child_id) <- get_item(state.process_pid_to_id, child_pid),
+         {^this_name, child, _child_pid} <- get_item(state.processes_by_id, child_id),
          {reply, new_state} <- terminate_child(child, state) do
       {:reply, reply, new_state}
     else
@@ -213,7 +217,7 @@ defmodule Horde.DynamicSupervisorImpl do
   def handle_cast({:relinquish_child_process, child_id}, state) do
     # signal to the rest of the nodes that this process has been relinquished
     # (to the Horde!) by its parent
-    {_, child, _} = Map.get(state.processes_by_id, child_id)
+    {_, child, _} = get_item(state.processes_by_id, child_id)
 
     :ok =
       DeltaCrdt.mutate(
@@ -227,12 +231,12 @@ defmodule Horde.DynamicSupervisorImpl do
 
   # TODO think of a better name than "disown_child_process"
   def handle_cast({:disown_child_process, child_id}, state) do
-    {{_, _, child_pid}, new_processes_by_id} = Map.pop(state.processes_by_id, child_id)
+    {{_, _, child_pid}, new_processes_by_id} = pop_item(state.processes_by_id, child_id)
 
     new_state = %{
       state
       | processes_by_id: new_processes_by_id,
-        process_pid_to_id: Map.delete(state.process_pid_to_id, child_pid),
+        process_pid_to_id: delete_item(state.process_pid_to_id, child_pid),
         local_process_count: state.local_process_count - 1
     }
 
@@ -241,7 +245,7 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp set_child_pid(state, child_id, new_child_pid) do
-    case Map.get(state.processes_by_id, child_id) do
+    case get_item(state.processes_by_id, child_id) do
       {name, child_spec, old_pid} ->
         :ok =
           DeltaCrdt.mutate(
@@ -255,10 +259,10 @@ defmodule Horde.DynamicSupervisorImpl do
           )
 
         new_processes_by_id =
-          Map.put(state.processes_by_id, child_id, {name, child_spec, new_child_pid})
+          put_item(state.processes_by_id, child_id, {name, child_spec, new_child_pid})
 
         new_process_pid_to_id =
-          Map.put(state.process_pid_to_id, new_child_pid, child_id) |> Map.delete(old_pid)
+          put_item(state.process_pid_to_id, new_child_pid, child_id) |> delete_item(old_pid)
 
         %{
           state
@@ -395,7 +399,7 @@ defmodule Horde.DynamicSupervisorImpl do
   defp handoff_processes(state) do
     this_node = fully_qualified_name(state.name)
 
-    Map.values(state.processes_by_id)
+    all_items_values(state.processes_by_id)
     |> Enum.reduce(state, fn {current_node, child_spec, _child_pid}, state ->
       case choose_node(child_spec, state) do
         {:ok, %{name: chosen_node}} ->
@@ -470,25 +474,25 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp update_process(state, {:add, {:process, child_id}, {node, child_spec, child_pid}}) do
     new_process_pid_to_id =
-      case Map.get(state.processes_by_id, child_id) do
-        {_, _, old_pid} -> Map.delete(state.process_pid_to_id, old_pid)
+      case get_item(state.processes_by_id, child_id) do
+        {_, _, old_pid} -> delete_item(state.process_pid_to_id, old_pid)
         nil -> state.process_pid_to_id
       end
-      |> Map.put(child_pid, child_id)
+      |> put_item(child_pid, child_id)
 
-    new_processes_by_id = Map.put(state.processes_by_id, child_id, {node, child_spec, child_pid})
+    new_processes_by_id = put_item(state.processes_by_id, child_id, {node, child_spec, child_pid})
 
     Map.put(state, :processes_by_id, new_processes_by_id)
     |> Map.put(:process_pid_to_id, new_process_pid_to_id)
   end
 
   defp update_process(state, {:remove, {:process, child_id}}) do
-    {value, new_processes_by_id} = Map.pop(state.processes_by_id, child_id)
+    {value, new_processes_by_id} = pop_item(state.processes_by_id, child_id)
 
     new_process_pid_to_id =
       case value do
         {_node_name, _child_spec, child_pid} ->
-          Map.delete(state.process_pid_to_id, child_pid)
+          delete_item(state.process_pid_to_id, child_pid)
 
         nil ->
           state.process_pid_to_id
@@ -597,7 +601,7 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp shut_down_all_processes(state) do
-    case Enum.any?(state.processes_by_id, processes_for_node(fully_qualified_name(state.name))) do
+    case any_item(state.processes_by_id, processes_for_node(fully_qualified_name(state.name))) do
       false ->
         state
 
@@ -662,13 +666,13 @@ defmodule Horde.DynamicSupervisorImpl do
       )
 
     new_processes_by_id =
-      Map.put(
+      put_item(
         state.processes_by_id,
         child.id,
         {fully_qualified_name(state.name), child, child_pid}
       )
 
-    new_process_pid_to_id = Map.put(state.process_pid_to_id, child_pid, child.id)
+    new_process_pid_to_id = put_item(state.process_pid_to_id, child_pid, child.id)
     new_local_process_count = state.local_process_count + 1
 
     Map.put(state, :processes_by_id, new_processes_by_id)
@@ -677,7 +681,7 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp handoff_child(child, state) do
-    {_, _, child_pid} = Map.get(state.processes_by_id, child.id)
+    {_, _, child_pid} = get_item(state.processes_by_id, child.id)
 
     # we send a special exit signal to the process here.
     # when the process has exited, Horde.ProcessSupervisor
@@ -705,7 +709,7 @@ defmodule Horde.DynamicSupervisorImpl do
       )
 
     new_state =
-      Map.put(state, :processes_by_id, Map.delete(state.processes_by_id, child_id))
+      Map.put(state, :processes_by_id, delete_item(state.processes_by_id, child_id))
       |> Map.put(:local_process_count, state.local_process_count - 1)
 
     :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)

@@ -466,7 +466,7 @@ defmodule DynamicSupervisorTest do
 
       Process.sleep(50)
 
-      assert :sys.get_state(:horde_transient).processes_by_id == %{}
+      assert Horde.TableUtils.size_of(:sys.get_state(:horde_transient).processes_by_id) == 0
     end
 
     test "transient process get removed from supervisor after exit" do
@@ -485,7 +485,7 @@ defmodule DynamicSupervisorTest do
 
       Process.sleep(200)
 
-      assert :sys.get_state(:horde_transient).processes_by_id == %{}
+      assert Horde.TableUtils.size_of(:sys.get_state(:horde_transient).processes_by_id) == 0
     end
 
     test "transient process does not get removed from supervisor after failed exit" do
@@ -503,7 +503,7 @@ defmodule DynamicSupervisorTest do
       Horde.DynamicSupervisor.start_child(:horde_transient, child_spec)
 
       processes = :sys.get_state(:horde_transient).processes_by_id
-      assert Enum.count(processes) == 1
+      assert Horde.TableUtils.size_of(processes) == 1
     end
   end
 
