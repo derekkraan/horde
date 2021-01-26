@@ -16,8 +16,8 @@ defmodule Horde.DynamicSupervisorImpl do
   defstruct name: nil,
             members: %{},
             members_info: %{},
-            processes_by_id: %{},
-            process_pid_to_id: %{},
+            processes_by_id: nil,
+            process_pid_to_id: nil,
             local_process_count: 0,
             waiting_for_quorum: [],
             supervisor_ref_to_name: %{},
@@ -27,7 +27,6 @@ defmodule Horde.DynamicSupervisorImpl do
             distribution_strategy: Horde.UniformDistribution
 
   def start_link(opts) do
-    IO.inspect("##########HORDE MODIFICADO2!!!###########")
     GenServer.start_link(__MODULE__, opts, Keyword.take(opts, [:name]))
   end
 

@@ -46,7 +46,8 @@ defmodule LocalClusterHelper do
   def running_children(name) do
     sup_state = :sys.get_state(Process.whereis(name))
 
-    sup_state.processes_by_id |> :ets.tab2list()
+    sup_state.processes_by_id
+    |> :ets.tab2list()
     |> Enum.filter(fn {_id, {{sup_name, _}, _cspec, _pid}} ->
       Kernel.match?(^name, sup_name)
     end)
