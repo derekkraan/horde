@@ -2,6 +2,10 @@ defmodule RegistryTest do
   use ExUnit.Case
   doctest Horde.Registry
 
+  def processes(registry) when is_atom(registry) do
+    :ets.match(:"keys_#{registry}", :"$1") |> Map.new(fn [{k, _m, v}] -> {k, v} end)
+  end
+
   describe "`use Horde.Registry, inline_options`" do
     test "accepts inline options" do
       assert {:ok, _} = Supervisor.start_link([TestRegistry4], strategy: :one_for_one)
@@ -119,8 +123,8 @@ defmodule RegistryTest do
       Process.flag(:trap_exit, false)
 
       # only the winner process is registered
-      assert %{"hello" => {winner_pid, :value}} == Horde.Registry.processes(horde1)
-      assert %{"hello" => {winner_pid, :value}} == Horde.Registry.processes(horde2)
+      assert %{"hello" => {winner_pid, :value}} == processes(horde1)
+      assert %{"hello" => {winner_pid, :value}} == processes(horde2)
     end
 
     test "name conflicts in separate processes" do
@@ -137,7 +141,7 @@ defmodule RegistryTest do
 
       pid1 = spawn(process.(horde1))
       Process.sleep(10)
-      pid2 = spawn(process.(horde2))
+      _pid2 = spawn(process.(horde2))
 
       Horde.Cluster.set_members(horde1, [horde1, horde2])
 
@@ -146,8 +150,8 @@ defmodule RegistryTest do
       # pid1 has lost
       refute Process.alive?(pid1)
 
-      assert [{:other, _}, "name"] = Map.keys(Horde.Registry.processes(horde1)) |> Enum.sort()
-      assert [{:other, _}, "name"] = Map.keys(Horde.Registry.processes(horde2)) |> Enum.sort()
+      assert [{:other, _}, "name"] = Map.keys(processes(horde1)) |> Enum.sort()
+      assert [{:other, _}, "name"] = Map.keys(processes(horde2)) |> Enum.sort()
     end
 
     test "via callbacks" do
@@ -357,14 +361,14 @@ defmodule RegistryTest do
       Horde.Cluster.set_members(horde, [horde, horde2])
 
       Horde.Registry.register(horde, :one_day_fly, "value")
-      assert %{one_day_fly: _id} = Horde.Registry.processes(horde)
+      assert %{one_day_fly: _id} = processes(horde)
       Process.sleep(200)
-      assert %{one_day_fly: _id} = Horde.Registry.processes(horde2)
+      assert %{one_day_fly: _id} = processes(horde2)
 
       Horde.Registry.unregister(horde, :one_day_fly)
-      assert %{} == Horde.Registry.processes(horde)
+      assert %{} == processes(horde)
       Process.sleep(200)
-      assert %{} == Horde.Registry.processes(horde2)
+      assert %{} == processes(horde2)
     end
   end
 
@@ -712,8 +716,8 @@ defmodule RegistryTest do
     end
 
     test "delete_meta is propagated" do
-      r1 = Horde.Registry.PropagateMeta1
-      r2 = Horde.Registry.PropagateMeta2
+      r1 = Horde.Registry.PropagateMeta3
+      r2 = Horde.Registry.PropagateMeta4
 
       {:ok, _horde} =
         Horde.Registry.start_link(
@@ -797,6 +801,9 @@ defmodule RegistryTest do
 
       Horde.Cluster.set_members(reg2, [reg2])
 
+      Process.sleep(200)
+
+      assert %{} == processes(reg2)
       assert [] = Horde.Registry.lookup(reg2, "key")
     end
   end
