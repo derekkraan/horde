@@ -353,12 +353,6 @@ defmodule Horde.Registry do
     end
   end
 
-  @doc false
-  @deprecated "Use `select/2` instead."
-  def processes(registry) when is_atom(registry) do
-    :ets.match(keys_ets_table(registry), :"$1") |> Map.new(fn [{k, _m, v}] -> {k, v} end)
-  end
-
   @doc "See `Registry.select/2`."
   def select(registry, spec) when is_atom(registry) and is_list(spec) do
     spec =

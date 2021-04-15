@@ -176,13 +176,8 @@ defmodule Horde.RegistryImpl do
 
     :ets.match(state.keys_ets_table, {:"$1", member, {:"$2", :_}})
     |> Enum.each(fn [key, pid] ->
-      remove_key_from_pids_table(state, pid, key)
-
-      for listener <- state.listeners do
-        send(listener, {:unregister, state.name, key, pid})
-      end
-
-      :ets.match_delete(state.keys_ets_table, {key, :_, :_})
+      DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
+      unregister_local(state, key, pid)
     end)
 
     new_members = MapSet.delete(state.members, member)
@@ -207,11 +202,7 @@ defmodule Horde.RegistryImpl do
       # There was a conflict in the name registry, send the  losing PID
       # an exit signal indicating it has lost the name registration.
 
-      remove_key_from_pids_table(state, other_pid, key)
-
-      for listener <- state.listeners do
-        send(listener, {:unregister, state.name, key, other_pid})
-      end
+      unregister_local(state, key, other_pid)
 
       Process.exit(other_pid, {:name_conflict, {key, other_value}, state.name, pid})
     end
@@ -226,19 +217,7 @@ defmodule Horde.RegistryImpl do
   end
 
   defp process_diff(state, {:remove, {:key, key}}) do
-    case :ets.lookup(state.keys_ets_table, key) do
-      [] ->
-        nil
-
-      [{key, _member, {pid, _val}}] ->
-        remove_key_from_pids_table(state, pid, key)
-
-        for listener <- state.listeners do
-          send(listener, {:unregister, state.name, key, pid})
-        end
-    end
-
-    :ets.match_delete(state.keys_ets_table, {key, :_, :_})
+    unregister_local(state, key)
 
     state
   end
@@ -333,13 +312,7 @@ defmodule Horde.RegistryImpl do
   def handle_call({:unregister, key, pid}, _from, state) do
     DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
 
-    remove_key_from_pids_table(state, pid, key)
-
-    for listener <- state.listeners do
-      send(listener, {:unregister, state.name, key, pid})
-    end
-
-    :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
+    unregister_local(state, key, pid)
 
     {:reply, :ok, state}
   end
@@ -360,6 +333,32 @@ defmodule Horde.RegistryImpl do
 
   def handle_call(:members, _from, state) do
     {:reply, MapSet.to_list(state.members), state}
+  end
+
+  defp unregister_local(state, key) do
+    case :ets.lookup(state.keys_ets_table, key) do
+      [] ->
+        nil
+
+      [{key, _member, {pid, _val}}] ->
+        remove_key_from_pids_table(state, pid, key)
+
+        for listener <- state.listeners do
+          send(listener, {:unregister, state.name, key, pid})
+        end
+    end
+
+    :ets.match_delete(state.keys_ets_table, {key, :_, :_})
+  end
+
+  defp unregister_local(state, key, pid) do
+    remove_key_from_pids_table(state, pid, key)
+
+    for listener <- state.listeners do
+      send(listener, {:unregister, state.name, key, pid})
+    end
+
+    :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
   end
 
   defp member_names(names) do
