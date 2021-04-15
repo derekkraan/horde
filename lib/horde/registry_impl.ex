@@ -174,6 +174,17 @@ defmodule Horde.RegistryImpl do
   defp process_diff(state, {:remove, {:member, member}}) do
     :ets.match_delete(state.members_ets_table, {member, 1})
 
+    :ets.match(state.keys_ets_table, {:"$1", member, {:"$2", :_}})
+    |> Enum.each(fn [key, pid] ->
+      remove_key_from_pids_table(state, pid, key)
+
+      for listener <- state.listeners do
+        send(listener, {:unregister, state.name, key, pid})
+      end
+
+      :ets.match_delete(state.keys_ets_table, {key, :_, :_})
+    end)
+
     new_members = MapSet.delete(state.members, member)
     new_nodes = Enum.map(new_members, fn {_name, node} -> node end) |> MapSet.new()
 

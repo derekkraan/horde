@@ -797,6 +797,7 @@ defmodule RegistryTest do
 
       Horde.Cluster.set_members(reg2, [reg2])
 
+      assert %{} == Horde.Registry.processes(reg2)
       assert [] = Horde.Registry.lookup(reg2, "key")
     end
   end
