@@ -37,6 +37,26 @@ defmodule Horde.TableUtils do
   end
 
   def any_item(table, predicate) do
-    :ets.tab2list(table) |> Enum.any?(predicate)
+    try do
+      :ets.safe_fixtable(table, true)
+      first_key = :ets.first(table)
+      ets_any?(table, predicate, first_key)
+    after
+      :ets.safe_fixtable(table, false)
+    end
+  end
+
+  def ets_any?(_table, _predicate, :"$end_of_table") do
+    false
+  end
+
+  def ets_any?(table, predicate, key) do
+    entry = get_item(table, key)
+
+    if predicate.(entry) do
+      true
+    else
+      ets_any?(table, predicate, :ets.next(table, key))
+    end
   end
 end
