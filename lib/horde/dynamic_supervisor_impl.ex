@@ -426,6 +426,10 @@ defmodule Horde.DynamicSupervisorImpl do
 
               case current_member do
                 %{status: :dead} ->
+                  if state.supervisor_options[:process_redistribution] == :passive do
+                    GenServer.cast(self(), {:disown_child_process, child_spec.id})
+                  end
+
                   {_response, state} = add_child(randomize_child_id(child_spec), state)
 
                   state
