@@ -422,7 +422,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
               case current_member do
                 %{status: :dead} ->
-                  {_response, state} = add_child(randomize_child_id(child_spec), state)
+                  {_response, state} = add_child(child_spec, state)
 
                   state
 
