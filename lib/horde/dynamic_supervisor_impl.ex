@@ -218,12 +218,12 @@ defmodule Horde.DynamicSupervisorImpl do
     # (to the Horde!) by its parent
     {_, child, _} = get_item(state.processes_by_id, child_id)
 
-    :ok =
-      DeltaCrdt.mutate(
-        crdt_name(state.name),
-        :add,
-        [{:process, child.id}, {nil, child}]
-      )
+    DeltaCrdt.put(
+      crdt_name(state.name),
+      {:process, child.id},
+      {nil, child},
+      :infinity
+    )
 
     {:noreply, state}
   end
@@ -239,23 +239,19 @@ defmodule Horde.DynamicSupervisorImpl do
         local_process_count: state.local_process_count - 1
     }
 
-    :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
+    DeltaCrdt.delete(crdt_name(state.name), {:process, child_id}, :infinity)
     {:noreply, new_state}
   end
 
   defp set_child_pid(state, child_id, new_child_pid) do
     case get_item(state.processes_by_id, child_id) do
       {name, child_spec, old_pid} ->
-        :ok =
-          DeltaCrdt.mutate(
-            crdt_name(state.name),
-            :add,
-            [
-              {:process, child_spec.id},
-              {fully_qualified_name(state.name), child_spec, new_child_pid}
-            ],
-            :infinity
-          )
+        DeltaCrdt.put(
+          crdt_name(state.name),
+          {:process, child_spec.id},
+          {fully_qualified_name(state.name), child_spec, new_child_pid},
+          :infinity
+        )
 
         new_processes_by_id =
           put_item(state.processes_by_id, child_id, {name, child_spec, new_child_pid})
@@ -304,10 +300,10 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp set_own_node_status(state, true) do
-    DeltaCrdt.mutate(
+    DeltaCrdt.put(
       crdt_name(state.name),
-      :add,
-      [{:member_node_info, fully_qualified_name(state.name)}, node_info(state)],
+      {:member_node_info, fully_qualified_name(state.name)},
+      node_info(state),
       :infinity
     )
 
@@ -318,10 +314,10 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp mark_dead(state, name) do
-    DeltaCrdt.mutate(
+    DeltaCrdt.put(
       crdt_name(state.name),
-      :add,
-      [{:member_node_info, name}, %Horde.DynamicSupervisor.Member{name: name, status: :dead}],
+      {:member_node_info, name},
+      %Horde.DynamicSupervisor.Member{name: name, status: :dead},
       :infinity
     )
 
@@ -569,20 +565,23 @@ defmodule Horde.DynamicSupervisorImpl do
     new_member_names = Map.keys(new_members_info) |> MapSet.new()
     existing_member_names = Map.keys(state.members) |> MapSet.new()
 
-    Enum.each(MapSet.difference(existing_member_names, new_member_names), fn removed_member ->
-      DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:member, removed_member}], :infinity)
+    keys_to_remove =
+      MapSet.difference(existing_member_names, new_member_names)
+      |> Enum.flat_map(fn removed_member ->
+        [{:member, removed_member}, {:member_node_info, removed_member}]
+      end)
 
-      DeltaCrdt.mutate(
-        crdt_name(state.name),
-        :remove,
-        [{:member_node_info, removed_member}],
-        :infinity
-      )
-    end)
+    DeltaCrdt.drop(
+      crdt_name(state.name),
+      keys_to_remove,
+      :infinity
+    )
 
-    Enum.each(MapSet.difference(new_member_names, existing_member_names), fn added_member ->
-      DeltaCrdt.mutate(crdt_name(state.name), :add, [{:member, added_member}, 1], :infinity)
-    end)
+    map_to_add =
+      MapSet.difference(new_member_names, existing_member_names)
+      |> Map.new(fn added_member -> {{:member, added_member}, 1} end)
+
+    DeltaCrdt.merge(crdt_name(state.name), map_to_add, :infinity)
 
     %{state | members: new_members, members_info: new_members_info}
     |> monitor_supervisors()
@@ -656,13 +655,12 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp update_state_with_child(child, child_pid, state) do
-    :ok =
-      DeltaCrdt.mutate(
-        crdt_name(state.name),
-        :add,
-        [{:process, child.id}, {fully_qualified_name(state.name), child, child_pid}],
-        :infinity
-      )
+    DeltaCrdt.put(
+      crdt_name(state.name),
+      {:process, child.id},
+      {fully_qualified_name(state.name), child, child_pid},
+      :infinity
+    )
 
     new_processes_by_id =
       put_item(
@@ -711,7 +709,7 @@ defmodule Horde.DynamicSupervisorImpl do
       Map.put(state, :processes_by_id, delete_item(state.processes_by_id, child_id))
       |> Map.put(:local_process_count, state.local_process_count - 1)
 
-    :ok = DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:process, child_id}], :infinity)
+    DeltaCrdt.delete(crdt_name(state.name), {:process, child_id}, :infinity)
 
     {reply, new_state}
   end
