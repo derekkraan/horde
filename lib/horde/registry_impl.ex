@@ -115,8 +115,13 @@ defmodule Horde.RegistryImpl do
   def handle_info({:EXIT, pid, _reason}, state) do
     case :ets.take(state.pids_ets_table, pid) do
       [{_pid, keys}] ->
+        DeltaCrdt.drop(
+          crdt_name(state.name),
+          Enum.map(keys, fn key -> {:key, key} end),
+          :infinity
+        )
+
         Enum.each(keys, fn key ->
-          DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
           :ets.match_delete(state.keys_ets_table, {key, :_, {pid, :_}})
 
           for listener <- state.listeners do
@@ -134,8 +139,13 @@ defmodule Horde.RegistryImpl do
   def set_initial_members(members, state) do
     members = Enum.map(members, &fully_qualified_name/1)
 
+    DeltaCrdt.merge(
+      crdt_name(state.name),
+      Map.new(members, fn member -> {{:member, member}, 1} end),
+      :infinity
+    )
+
     Enum.each(members, fn member ->
-      DeltaCrdt.mutate(crdt_name(state.name), :add, [{:member, member}, 1], :infinity)
       :ets.insert(state.members_ets_table, {member, 1})
     end)
 
@@ -174,9 +184,15 @@ defmodule Horde.RegistryImpl do
   defp process_diff(state, {:remove, {:member, member}}) do
     :ets.match_delete(state.members_ets_table, {member, 1})
 
-    :ets.match(state.keys_ets_table, {:"$1", member, {:"$2", :_}})
-    |> Enum.each(fn [key, pid] ->
-      DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
+    removed_keys = :ets.match(state.keys_ets_table, {:"$1", member, {:"$2", :_}})
+
+    DeltaCrdt.drop(
+      crdt_name(state.name),
+      Enum.map(removed_keys, fn [key, _pid] -> {:key, key} end),
+      :infinity
+    )
+
+    Enum.each(removed_keys, fn [key, pid] ->
       unregister_local(state, key, pid)
     end)
 
@@ -262,13 +278,20 @@ defmodule Horde.RegistryImpl do
   def handle_call({:set_members, members}, _from, state) do
     new_members = MapSet.new(member_names(members))
 
-    Enum.each(MapSet.difference(state.members, new_members), fn removed_member ->
-      DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:member, removed_member}], :infinity)
-    end)
+    removed_members = MapSet.difference(state.members, new_members)
+    added_members = MapSet.difference(new_members, state.members)
 
-    Enum.each(MapSet.difference(new_members, state.members), fn added_member ->
-      DeltaCrdt.mutate(crdt_name(state.name), :add, [{:member, added_member}, 1], :infinity)
-    end)
+    DeltaCrdt.drop(
+      crdt_name(state.name),
+      Enum.map(removed_members, fn removed_member -> {:member, removed_member} end),
+      :infinity
+    )
+
+    DeltaCrdt.merge(
+      crdt_name(state.name),
+      Map.new(added_members, fn added_member -> {{:member, added_member}, 1} end),
+      :infinity
+    )
 
     neighbours =
       MapSet.delete(new_members, fully_qualified_name(state.name))
@@ -282,10 +305,10 @@ defmodule Horde.RegistryImpl do
   def handle_call({:register, key, value, pid}, _from, state) do
     Process.link(pid)
 
-    DeltaCrdt.mutate(
+    DeltaCrdt.put(
       crdt_name(state.name),
-      :add,
-      [{:key, key}, {fully_qualified_name(state.name), pid, value}],
+      {:key, key},
+      {fully_qualified_name(state.name), pid, value},
       :infinity
     )
 
@@ -297,10 +320,10 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_call({:update_value, key, pid, value}, _from, state) do
-    DeltaCrdt.mutate(
+    DeltaCrdt.put(
       crdt_name(state.name),
-      :add,
-      [{:key, key}, {fully_qualified_name(state.name), pid, value}],
+      {:key, key},
+      {fully_qualified_name(state.name), pid, value},
       :infinity
     )
 
@@ -310,7 +333,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_call({:unregister, key, pid}, _from, state) do
-    DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:key, key}], :infinity)
+    DeltaCrdt.delete(crdt_name(state.name), {:key, key}, :infinity)
 
     unregister_local(state, key, pid)
 
@@ -318,7 +341,7 @@ defmodule Horde.RegistryImpl do
   end
 
   def handle_call({:delete_meta, key}, _from, state) do
-    DeltaCrdt.mutate(crdt_name(state.name), :remove, [{:registry, key}], :infinity)
+    DeltaCrdt.delete(crdt_name(state.name), {:registry, key}, :infinity)
 
     :ets.delete(state.name, key)
 
@@ -378,7 +401,7 @@ defmodule Horde.RegistryImpl do
   defp fully_qualified_name(name) when is_atom(name), do: {name, node()}
 
   defp put_meta(state, key, value) do
-    DeltaCrdt.mutate(crdt_name(state.name), :add, [{:registry, key}, value], :infinity)
+    DeltaCrdt.put(crdt_name(state.name), {:registry, key}, value, :infinity)
 
     :ets.insert(state.registry_ets_table, {key, value})
   end
