@@ -221,7 +221,8 @@ defmodule Horde.DynamicSupervisorImpl do
     DeltaCrdt.put(
       crdt_name(state.name),
       {:process, child.id},
-      {nil, child}
+      {nil, child},
+      :infinity
     )
 
     {:noreply, state}
