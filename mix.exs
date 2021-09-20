@@ -29,10 +29,11 @@ defmodule Horde.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:delta_crdt, "~> 0.6.2"},
+    ## Gotta adjust delta_crdt version after my PR is approved there
+      {:delta_crdt, "~> 0.6"},
       {:libring, "~> 1.4"},
-      {:telemetry, "~> 0.4.0"},
-      {:telemetry_poller, "~> 0.5.0"},
+      {:telemetry, "~> 1.0"},
+      {:telemetry_poller, "~> 1.0"},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
       {:benchee, "> 0.0.1", only: :dev, runtime: false},
       {:stream_data, "~> 0.4", only: :test},

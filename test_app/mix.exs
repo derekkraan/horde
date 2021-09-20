@@ -21,6 +21,6 @@ defmodule TestApp.MixProject do
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
-    [{:telemetry, "~> 0.4.0"}]
+    [{:telemetry, "~> 1.0.0"}]
   end
 end
