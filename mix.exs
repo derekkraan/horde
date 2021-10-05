@@ -29,10 +29,7 @@ defmodule Horde.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      ## Gotta adjust delta_crdt version after my PR is approved there
-      ##  {:delta_crdt, "~> 0.6"},
-      {:delta_crdt,
-       github: "fmbraga/delta_crdt_ex", tag: "0cbe86b963ffafd7ddbd68d0ded3523452417e19"},
+      {:delta_crdt, "~> 0.6.4"},
       {:libring, "~> 1.4"},
       {:telemetry, "~> 0.4 or ~> 1.0"},
       {:telemetry_poller, "~> 0.5 or ~> 1.0"},
