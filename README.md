@@ -32,7 +32,7 @@ _NOTE: Since Horde 0.6.0, Horde.DynamicSupervisor ignores the `id` of a child sp
 
 ## Graceful shutdown
 
-Using `Horde.DynamicSupervisor.stop/3` will cause the local supervisor to stop and any processes it was running will be shut down and redistributed to remaining supervisers in the horde. (This should happen automatically if `:init.stop()` is called).
+Using `Horde.DynamicSupervisor.stop/3` will cause the local supervisor to stop and any processes it was running will be shut down and redistributed to remaining supervisors in the horde. (This should happen automatically if `:init.stop()` is called).
 
 ## Installation
 
