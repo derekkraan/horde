@@ -6,9 +6,9 @@ defmodule Horde.UniformQuorumDistribution do
   """
   require Integer
 
-  def choose_node(identifier, members) do
+  def choose_node(child_spec, members) do
     if has_quorum?(members) do
-      Horde.UniformDistribution.choose_node(identifier, members)
+      Horde.UniformDistribution.choose_node(child_spec, members)
     else
       {:error, :quorum_not_met}
     end

@@ -751,10 +751,10 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp choose_node(child_spec, state) do
-    distribution_id = :erlang.phash2(Map.drop(child_spec, [:id]))
+    #distribution_id = :erlang.phash2(Map.drop(child_spec, [:id]))
 
     state.distribution_strategy.choose_node(
-      distribution_id,
+      child_spec, #distribution_id,
       Map.values(members(state))
     )
   end
