@@ -5,9 +5,7 @@ defmodule Horde.UniformDistribution do
   Distributes processes to nodes uniformly using a hash ring
   """
 
-  def choose_node(child_spec, members) do
-    identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
-
+  def choose_node(identifier, _child_spec, members) do
     members
     |> Enum.filter(&match?(%{status: :alive}, &1))
     |> Map.new(fn member -> {member.name, member} end)

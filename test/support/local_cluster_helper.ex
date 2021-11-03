@@ -13,7 +13,7 @@ defmodule LocalClusterHelper do
   def expected_distribution(cspecs, members) do
     cspecs
     |> Enum.reduce(%{}, fn child_spec, acc ->
-      # precalculate which processes should end up on which nodes 
+      # precalculate which processes should end up on which nodes
       identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
 
       ds_members =
@@ -26,7 +26,7 @@ defmodule LocalClusterHelper do
         end)
 
       {:ok, %Horde.DynamicSupervisor.Member{name: {new_sup_name, _}}} =
-        Horde.UniformDistribution.choose_node(identifier, ds_members)
+        Horde.UniformDistribution.choose_node(identifier, child_spec, ds_members)
 
       Map.put(acc, Map.delete(child_spec, [:id]), new_sup_name)
     end)
