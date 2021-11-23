@@ -19,8 +19,9 @@ defmodule UniformQuorumDistributionTest do
                 min_length: 2,
                 uniq_fun: fn %{node_id: node_id} -> node_id end
               ),
-            identifier <- string(:alphanumeric)
+              identifier <- string(:alphanumeric)
           ) do
+      child_spec = %{ id: identifier, start: {identifier}}
       partition_a = members
 
       partition_b =
@@ -36,9 +37,9 @@ defmodule UniformQuorumDistributionTest do
             node_spec
         end)
 
-      chosen_a = Horde.UniformQuorumDistribution.choose_node(identifier, partition_a)
+      chosen_a = Horde.UniformQuorumDistribution.choose_node(child_spec, partition_a)
 
-      chosen_b = Horde.UniformQuorumDistribution.choose_node(identifier, partition_b)
+      chosen_b = Horde.UniformQuorumDistribution.choose_node(child_spec, partition_b)
 
       partitions_succeeded =
         [chosen_a, chosen_b]

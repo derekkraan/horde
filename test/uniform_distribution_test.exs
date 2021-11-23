@@ -18,8 +18,9 @@ defmodule UniformDistributionTest do
             own_node_id <- integer(),
             identifier <- string(:alphanumeric)
           ) do
+      child_spec = %{ id: identifier, start: {identifier}}
       members = [%{node_id: own_node_id, status: :alive, name: :name, pid: :pid} | members]
-      choice = Horde.UniformDistribution.choose_node(identifier, members)
+      choice = Horde.UniformDistribution.choose_node(child_spec, members)
 
       # it always chooses a node that's alive
       assert {:ok, %{status: :alive} = chosen_member} = choice
@@ -46,7 +47,8 @@ defmodule UniformDistributionTest do
             members <- list_of(member),
             identifier <- string(:alphanumeric)
           ) do
-      choice = Horde.UniformDistribution.choose_node(identifier, members)
+      child_spec = %{ id: identifier, start: {identifier}}
+      choice = Horde.UniformDistribution.choose_node(child_spec, members)
 
       assert {:error, :no_alive_nodes} = choice
     end
