@@ -19,7 +19,7 @@ defmodule UniformQuorumDistributionTest do
                 min_length: 2,
                 uniq_fun: fn %{node_id: node_id} -> node_id end
               ),
-              identifier <- string(:alphanumeric)
+            identifier <- string(:alphanumeric)
           ) do
       child_spec = %{ id: identifier, start: {identifier}}
       partition_a = members
