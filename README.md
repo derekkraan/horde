@@ -44,7 +44,7 @@ The package can be installed by adding `horde` to your list of dependencies in `
 ```elixir
 def deps do
   [
-    {:horde, "~> 0.7.0"}
+    {:horde, "~> 0.8.5"}
   ]
 end
 ```
