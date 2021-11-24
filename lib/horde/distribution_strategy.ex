@@ -6,7 +6,10 @@ defmodule Horde.DistributionStrategy do
 
   See `Horde.UniformQuorumDistribution` and `Horde.UniformDistribution` for examples.
   """
-  @callback choose_node(spec :: Supervisor.child_spec(), members :: [Horde.DynamicSupervisor.Member.t()]) ::
+  @callback choose_node(
+              spec :: Supervisor.child_spec(),
+              members :: [Horde.DynamicSupervisor.Member.t()]
+            ) ::
               {:ok, Horde.DynamicSupervisor.Member.t()} | {:error, reason :: String.t()}
   @callback has_quorum?(members :: [Horde.DynamicSupervisor.Member.t()]) :: boolean()
 end

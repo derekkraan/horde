@@ -21,7 +21,7 @@ defmodule UniformQuorumDistributionTest do
               ),
             identifier <- string(:alphanumeric)
           ) do
-      child_spec = %{ id: identifier, start: {identifier}}
+      child_spec = %{id: identifier, start: {identifier}}
       partition_a = members
 
       partition_b =
