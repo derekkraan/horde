@@ -12,9 +12,7 @@ defmodule IgnoreWorker do
 
       {:error, {:already_started, pid}} ->
         Logger.error(
-          "#{__MODULE__} already started! local node is #{node()}, registered pid is #{
-            inspect(pid)
-          }, returning :ignore"
+          "#{__MODULE__} already started! local node is #{node()}, registered pid is #{inspect(pid)}, returning :ignore"
         )
 
         :ignore
