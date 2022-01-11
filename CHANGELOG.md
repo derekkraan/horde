@@ -1,3 +1,9 @@
+## 0.8.6
+- Fix an issue with `members: :auto`
+
+## 0.8.5
+- Add support for telemetry version 1.0.0
+
 ## 0.8.3
 - Fix a deadlock that occurred if a process was being restarted while `Horde.DynamicSupervisor.start_child/2` was being called. [#218](https://github.com/derekkraan/horde/pull/218)
 - Respect `max_restarts` and `max_seconds` when given as options to `Horde.DynamicSupervisor.child_spec/1`. [#216](https://github.com/derekkraan/horde/pull/216)
