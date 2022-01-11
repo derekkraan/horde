@@ -4,7 +4,7 @@ defmodule Horde.MixProject do
   def project do
     [
       app: :horde,
-      version: "0.8.5",
+      version: "0.8.6",
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
