@@ -46,7 +46,7 @@ def start_link(arg) do
 end
 ```
 
-If you are using `Horde.Registry.register/3` in `init/1`, then you must handle `{:error, {:already_started, pid}}`.
+If you are using `Horde.Registry.register/3` in `init/1`, then you must handle `{:error, {:already_registered, pid}}`.
 
 ```elixir
 def init(arg) do
