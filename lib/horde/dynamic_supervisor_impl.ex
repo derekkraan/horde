@@ -513,7 +513,9 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp update_member(state, {:add, {:member, member}, 1}) do
     new_members = Map.put_new(state.members, member, 1)
-    new_members_info = Map.put_new(state.members_info, member, uninitialized_member(member, state.metadata))
+
+    new_members_info =
+      Map.put_new(state.members_info, member, uninitialized_member(member, state.metadata))
 
     Map.put(state, :members, new_members)
     |> Map.put(:members_info, new_members_info)
@@ -556,7 +558,12 @@ defmodule Horde.DynamicSupervisorImpl do
     uninitialized_new_members_info =
       member_names(members)
       |> Map.new(fn name ->
-        {name, %Horde.DynamicSupervisor.Member{name: name, status: :uninitialized, metadata: state.metadata}}
+        {name,
+         %Horde.DynamicSupervisor.Member{
+           name: name,
+           status: :uninitialized,
+           metadata: state.metadata
+         }}
       end)
 
     new_members_info =
