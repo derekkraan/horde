@@ -3,7 +3,8 @@ defmodule Horde.DynamicSupervisor.Member do
 
   @type t :: %Horde.DynamicSupervisor.Member{}
   @type status :: :uninitialized | :alive | :shutting_down | :dead
-  defstruct [:status, :name]
+  @type metadata :: %{atom() => any()} | %{}
+  defstruct [:status, :name, :metadata]
 end
 
 defmodule Horde.DynamicSupervisorImpl do
@@ -24,6 +25,7 @@ defmodule Horde.DynamicSupervisorImpl do
             name_to_supervisor_ref: %{},
             shutting_down: false,
             supervisor_options: [],
+            metadata: %{},
             distribution_strategy: Horde.UniformDistribution
 
   def start_link(opts) do
@@ -40,6 +42,7 @@ defmodule Horde.DynamicSupervisorImpl do
   @doc false
   def init(options) do
     name = Keyword.get(options, :name)
+    metadata = Keyword.get(options, :metadata)
 
     Logger.info("Starting #{inspect(__MODULE__)} with name #{inspect(name)}")
 
@@ -50,7 +53,8 @@ defmodule Horde.DynamicSupervisorImpl do
         supervisor_options: options,
         processes_by_id: new_table(:processes_by_id),
         process_pid_to_id: new_table(:process_pid_to_id),
-        name: name
+        name: name,
+        metadata: metadata
       }
       |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
 
@@ -87,7 +91,8 @@ defmodule Horde.DynamicSupervisorImpl do
   defp node_info(state) do
     %Horde.DynamicSupervisor.Member{
       status: node_status(state),
-      name: fully_qualified_name(state.name)
+      name: fully_qualified_name(state.name),
+      metadata: state.metadata
     }
   end
 
@@ -317,7 +322,7 @@ defmodule Horde.DynamicSupervisorImpl do
     DeltaCrdt.put(
       crdt_name(state.name),
       {:member_node_info, name},
-      %Horde.DynamicSupervisor.Member{name: name, status: :dead},
+      %Horde.DynamicSupervisor.Member{name: name, status: :dead, metadata: state.metadata},
       :infinity
     )
 
@@ -508,7 +513,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp update_member(state, {:add, {:member, member}, 1}) do
     new_members = Map.put_new(state.members, member, 1)
-    new_members_info = Map.put_new(state.members_info, member, uninitialized_member(member))
+    new_members_info = Map.put_new(state.members_info, member, uninitialized_member(member, state.metadata))
 
     Map.put(state, :members, new_members)
     |> Map.put(:members_info, new_members_info)
@@ -534,8 +539,8 @@ defmodule Horde.DynamicSupervisorImpl do
 
   defp update_member(state, _), do: state
 
-  defp uninitialized_member(member) do
-    %Horde.DynamicSupervisor.Member{status: :uninitialized, name: member}
+  defp uninitialized_member(member, metadata) do
+    %Horde.DynamicSupervisor.Member{status: :uninitialized, name: member, metadata: metadata}
   end
 
   defp member_names(names) do
@@ -551,7 +556,7 @@ defmodule Horde.DynamicSupervisorImpl do
     uninitialized_new_members_info =
       member_names(members)
       |> Map.new(fn name ->
-        {name, %Horde.DynamicSupervisor.Member{name: name, status: :uninitialized}}
+        {name, %Horde.DynamicSupervisor.Member{name: name, status: :uninitialized, metadata: state.metadata}}
       end)
 
     new_members_info =
