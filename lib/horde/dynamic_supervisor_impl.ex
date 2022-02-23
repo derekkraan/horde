@@ -216,30 +216,39 @@ defmodule Horde.DynamicSupervisorImpl do
   def handle_cast({:relinquish_child_process, child_id}, state) do
     # signal to the rest of the nodes that this process has been relinquished
     # (to the Horde!) by its parent
-    {_, child, _} = get_item(state.processes_by_id, child_id)
-
-    DeltaCrdt.put(
-      crdt_name(state.name),
-      {:process, child.id},
-      {nil, child},
-      :infinity
-    )
+    with {_, child, _} <- get_item(state.processes_by_id, child_id) do
+      DeltaCrdt.put(
+        crdt_name(state.name),
+        {:process, child.id},
+        {nil, child},
+        :infinity
+      )
+    end
 
     {:noreply, state}
   end
 
   # TODO think of a better name than "disown_child_process"
   def handle_cast({:disown_child_process, child_id}, state) do
-    {{_, _, child_pid}, new_processes_by_id} = pop_item(state.processes_by_id, child_id)
+    {value, new_processes_by_id} = pop_item(state.processes_by_id, child_id)
 
-    new_state = %{
-      state
-      | processes_by_id: new_processes_by_id,
-        process_pid_to_id: delete_item(state.process_pid_to_id, child_pid),
-        local_process_count: state.local_process_count - 1
-    }
+    new_state =
+      case value do
+        {_, _, child_pid} ->
+          DeltaCrdt.delete(crdt_name(state.name), {:process, child_id}, :infinity)
 
-    DeltaCrdt.delete(crdt_name(state.name), {:process, child_id}, :infinity)
+          %{
+            state
+            | processes_by_id: new_processes_by_id,
+              process_pid_to_id: delete_item(state.process_pid_to_id, child_pid),
+              local_process_count: state.local_process_count - 1
+          }
+
+        nil ->
+          # Item not found
+          state
+      end
+
     {:noreply, new_state}
   end
 
@@ -678,22 +687,24 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   defp handoff_child(child, state) do
-    {_, _, child_pid} = get_item(state.processes_by_id, child.id)
+    case get_item(state.processes_by_id, child.id) do
+      {_, _, child_pid} ->
+        # we send a special exit signal to the process here.
+        # when the process has exited, Horde.ProcessSupervisor
+        # will cast `{:relinquish_child_process, child_id}`
+        # to this process for cleanup.
 
-    # we send a special exit signal to the process here.
-    # when the process has exited, Horde.ProcessSupervisor
-    # will cast `{:relinquish_child_process, child_id}`
-    # to this process for cleanup.
+        Horde.ProcessesSupervisor.send_exit_signal(
+          supervisor_name(state.name),
+          child_pid,
+          {:shutdown, :process_redistribution}
+        )
 
-    Horde.ProcessesSupervisor.send_exit_signal(
-      supervisor_name(state.name),
-      child_pid,
-      {:shutdown, :process_redistribution}
-    )
+        Map.put(state, :local_process_count, state.local_process_count - 1)
 
-    new_state = Map.put(state, :local_process_count, state.local_process_count - 1)
-
-    new_state
+      nil ->
+        state
+    end
   end
 
   defp terminate_child(child, state) do
