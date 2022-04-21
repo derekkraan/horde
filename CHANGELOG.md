@@ -1,3 +1,6 @@
+## 0.8.7
+- Tweak dependency on `:telemetry`
+
 ## 0.8.6
 - Fix an issue with `members: :auto`
 
