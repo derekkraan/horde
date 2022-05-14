@@ -3,6 +3,8 @@ defmodule Horde.UniformQuorumDistribution do
 
   @moduledoc """
   Distributes processes to nodes uniformly using a hash ring. Contains a quorum mechanism to handle netsplits.
+
+  It enforces a quorum and will shut down all processes on a node if it is split from the rest of the cluster.
   """
   require Integer
 

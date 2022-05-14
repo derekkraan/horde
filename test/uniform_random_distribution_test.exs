@@ -1,0 +1,54 @@
+defmodule UniformRandomDistributionTest do
+  use ExUnit.Case, async: true
+  use ExUnitProperties
+
+  property "chooses one of the members that is alive" do
+    member =
+      ExUnitProperties.gen all(
+                             node_id <- integer(10..100_000),
+                             status <- StreamData.member_of([:alive, :dead, :shutting_down]),
+                             name <- binary(),
+                             pid <- atom(:alias)
+                           ) do
+        %{node_id: node_id, status: status, pid: pid, name: "A#{name}"}
+      end
+
+    check all(
+            members <- list_of(member),
+            own_node_id <- integer(1..5),
+            identifier <- string(:alphanumeric)
+          ) do
+      members = [%{node_id: own_node_id, status: :alive, name: :name, pid: :pid} | members]
+      choice = Horde.UniformRandomDistribution.choose_node(identifier, members)
+
+      # it always chooses a node that is :alive
+      assert {:ok, %{status: :alive} = chosen_member} = choice
+
+      assert Enum.any?(members, fn
+               ^chosen_member -> true
+               _ -> false
+             end)
+    end
+  end
+
+  property "returns error if no alive nodes are available" do
+    member =
+      ExUnitProperties.gen all(
+                             node_id <- integer(1..100_000),
+                             status <- StreamData.member_of([:dead, :shutting_down]),
+                             name <- binary(),
+                             pid <- atom(:alias)
+                           ) do
+        %{node_id: node_id, status: status, pid: pid, name: name}
+      end
+
+    check all(
+            members <- list_of(member),
+            identifier <- string(:alphanumeric)
+          ) do
+      choice = Horde.UniformRandomDistribution.choose_node(identifier, members)
+
+      assert {:error, :no_alive_nodes} = choice
+    end
+  end
+end

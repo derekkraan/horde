@@ -4,7 +4,11 @@ defmodule Horde.DistributionStrategy do
   @moduledoc """
   Define your own distribution strategy by implementing this behaviour and configuring Horde to use it.
 
-  See `Horde.UniformQuorumDistribution` and `Horde.UniformDistribution` for examples.
+  A few distribution stategies are included in Horde, namely:
+
+  - `Horde.UniformDistribution`
+  - `Horde.UniformQuorumDistribution`
+  - `Horde.UniformRandomDistribution`
   """
   @callback choose_node(identifier :: String.t(), members :: [Horde.DynamicSupervisor.Member.t()]) ::
               {:ok, Horde.DynamicSupervisor.Member.t()} | {:error, reason :: String.t()}

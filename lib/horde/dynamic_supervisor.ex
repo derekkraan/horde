@@ -108,7 +108,7 @@ defmodule Horde.DynamicSupervisor do
 
   @doc """
   Works like `DynamicSupervisor.start_link/1`. Extra options are documented here:
-  - `:distribution_strategy`, defaults to `Horde.UniformDistribution` but can also be set to `Horde.UniformQuorumDistribution`. `Horde.UniformQuorumDistribution` enforces a quorum and will shut down all processes on a node if it is split from the rest of the cluster.
+  - `:distribution_strategy`, defaults to `Horde.UniformDistribution`, but more are available - see `Horde.DistributionStrategy`
   """
   def start_link(options) when is_list(options) do
     keys = [
