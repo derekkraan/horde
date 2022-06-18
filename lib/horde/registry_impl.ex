@@ -312,10 +312,6 @@ defmodule Horde.RegistryImpl do
       :infinity
     )
 
-    add_key_to_pids_table(state, pid, key)
-
-    :ets.insert(state.keys_ets_table, {key, fully_qualified_name(state.name), {pid, value}})
-
     {:reply, {:ok, self()}, state}
   end
 
