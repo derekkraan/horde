@@ -1,4 +1,5 @@
-# Horde [![Hex pm](http://img.shields.io/hexpm/v/horde.svg?style=flat)](https://hex.pm/packages/horde) [![CircleCI badge](https://circleci.com/gh/derekkraan/horde.png?circle-token=:circle-token)](https://circleci.com/gh/derekkraan/horde)
+# Horde [![Hex pm](http://img.shields.io/hexpm/v/horde.svg?style=flat)](https://hex.pm/packages/horde) [![CircleCI badge](https://circleci.com/gh/derekkraan/horde.png?circle-token=:circle-token)](https://circleci.com/gh/derekkraan/horde) [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/horde)
+
 
 Distribute your application over multiple servers with Horde.
 
@@ -43,7 +44,7 @@ The package can be installed by adding `horde` to your list of dependencies in `
 ```elixir
 def deps do
   [
-    {:horde, "~> 0.7.0"}
+    {:horde, "~> 0.8.5"}
   ]
 end
 ```
