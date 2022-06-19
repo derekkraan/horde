@@ -2,7 +2,10 @@ defmodule Horde.UniformDistribution do
   @behaviour Horde.DistributionStrategy
 
   @moduledoc """
-  Distributes processes to nodes uniformly using a hash ring
+  Distributes processes to nodes uniformly using a hash ring.
+
+  Given the *same* set of members, it will always start
+  the same process on the same node.
   """
 
   def choose_node(identifier, members) do
