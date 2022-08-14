@@ -243,6 +243,19 @@ defmodule Horde.DynamicSupervisorImpl do
     {:noreply, new_state}
   end
 
+  def handle_cast(:redistribute_children, state) do
+    handle_cast({:redistribute_children, default_allowhandoff(state)}, state)
+  end
+
+  def handle_cast({:redistribute_children, nil}, state) do
+    handle_cast({:redistribute_children, default_allowhandoff(state)}, state)
+  end
+
+  def handle_cast({:redistribute_children, fn_allowhandoff}, state)
+      when is_function(fn_allowhandoff) do
+    {:noreply, handoff_processes(state, allowhandoff: fn_allowhandoff)}
+  end
+
   defp set_child_pid(state, child_id, new_child_pid) do
     case get_item(state.processes_by_id, child_id) do
       {name, child_spec, old_pid} ->
@@ -391,11 +404,25 @@ defmodule Horde.DynamicSupervisorImpl do
 
   def has_membership_changed?([]), do: false
 
-  defp handoff_processes(state) do
+  defp default_allowhandoff(state) do
+    case state.supervisor_options[:process_redistribution] do
+      :active ->
+        fn _ -> true end
+
+      :passive ->
+        fn _ -> false end
+
+      somefunction when is_function(somefunction) ->
+        somefunction
+    end
+  end
+
+  defp handoff_processes(state, opts \\ []) do
     this_node = fully_qualified_name(state.name)
+    fn_allowhandoff = Keyword.get(opts, :allowhandoff, default_allowhandoff(state))
 
     all_items_values(state.processes_by_id)
-    |> Enum.reduce(state, fn {current_node, child_spec, _child_pid}, state ->
+    |> Enum.reduce(state, fn {current_node, child_spec, child_pid}, state ->
       case choose_node(child_spec, state) do
         {:ok, %{name: chosen_node}} ->
           current_member = Map.get(state.members_info, current_node)
@@ -408,13 +435,10 @@ defmodule Horde.DynamicSupervisorImpl do
 
             {^this_node, _other_node} ->
               # process is running here but belongs somewhere else
-
-              case state.supervisor_options[:process_redistribution] do
-                :active ->
-                  handoff_child(child_spec, state)
-
-                :passive ->
-                  state
+              if fn_allowhandoff.({current_node, chosen_node, child_spec, child_pid}) do
+                handoff_child(child_spec, state)
+              else
+                state
               end
 
             {_current_node, ^this_node} ->

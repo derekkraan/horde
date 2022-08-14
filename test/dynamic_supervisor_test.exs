@@ -378,8 +378,8 @@ defmodule DynamicSupervisorTest do
 
   describe "graceful shutdown" do
     test "stopping a node moves processes over when they are ready" do
-      # NOTE: here I had to disable redistribution on node :up, otherwise 
-      # sometimes horde would kill the :fast process for redistribution when 
+      # NOTE: here I had to disable redistribution on node :up, otherwise
+      # sometimes horde would kill the :fast process for redistribution when
       # :horde_2_graceful is marked as :alive
 
       {:ok, _} =
@@ -617,6 +617,30 @@ defmodule DynamicSupervisorTest do
                context.passive[:n2],
                context.passive[:children]
              )
+    end
+
+    test "redistribution can be triggered manually", context do
+      n2_cspecs =
+        LocalClusterHelper.expected_distribution_for(
+          context.passive[:children],
+          context.passive[:members],
+          context.passive[:n2]
+        )
+
+      Horde.Cluster.set_members(context.passive[:n1], [context.passive[:n1], context.passive[:n2]])
+
+      Process.sleep(500)
+
+      # verify nothing redistributed on :alive
+      assert Kernel.match?([], LocalClusterHelper.running_children(context.passive[:n2]))
+
+      Horde.DynamicSupervisor.redistribute_children(context.passive[:n1], fn _ -> true end)
+      Process.sleep(500)
+
+      assert_receive {:shutdown, :passive, {:shutdown, :process_redistribution}}, 100
+      refute_receive {:shutdown, :passive, :shutdown}, 100
+
+      assert LocalClusterHelper.supervisor_has_children?(context.passive[:n2], n2_cspecs)
     end
   end
 end
