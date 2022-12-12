@@ -133,7 +133,7 @@ defmodule NodeListener do
 end
 ```
 
-Note that the funcionality provided in this example is essentially the same as
+Note that the functionality provided in this example is essentially the same as
 the [`members: :auto` setting](#automatic-cluster-membership), however setting
-it up yourself allows greater flexability to modify it if `:auto` mode doesn't
+it up yourself allows greater flexibility to modify it if `:auto` mode doesn't
 meet your requirements.
