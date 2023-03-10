@@ -806,9 +806,7 @@ defmodule Horde.ProcessesSupervisor do
     %{children: children} = state
 
     case children do
-      %{^pid => restarting_args} ->
-        {:restarting, child} = restarting_args
-
+      %{^pid => {:restarting, child}} ->
         case restart_child(pid, child, state) do
           {:ok, state} -> {:noreply, state}
           {:shutdown, state} -> {:stop, :shutdown, state}
