@@ -1,4 +1,4 @@
-# Horde [![Hex pm](http://img.shields.io/hexpm/v/horde.svg?style=flat)](https://hex.pm/packages/horde) [![CircleCI badge](https://circleci.com/gh/derekkraan/horde.png?circle-token=:circle-token)](https://circleci.com/gh/derekkraan/horde) [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/horde)
+# Horde [![Hex pm](http://img.shields.io/hexpm/v/horde.svg?style=flat)](https://hex.pm/packages/horde) [![CircleCI badge](https://circleci.com/gh/derekkraan/horde.svg?style=svg)](https://circleci.com/gh/derekkraan/horde) [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/horde)
 
 
 Distribute your application over multiple servers with Horde.
