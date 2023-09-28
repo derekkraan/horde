@@ -446,6 +446,18 @@ defmodule DynamicSupervisorTest do
 
       Process.sleep(5000)
       assert_receive {:starting, 5000}, 100
+
+      # we have 2 supervised processes
+      processes = :sys.get_state(:horde_2_graceful).processes_by_id
+      assert Horde.TableUtils.size_of(processes) == 2
+
+      # peek into the remaining supervisor, getting the supervised pids
+      pids =
+        :sys.get_state(:horde_2_graceful).processes_by_id
+        |> :ets.tab2list()
+        |> Enum.map(&(elem(&1, 1) |> elem(2)))
+
+      assert Enum.all?(pids, &Process.alive?/1)
     end
   end
 
