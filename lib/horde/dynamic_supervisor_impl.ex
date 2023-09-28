@@ -431,6 +431,7 @@ defmodule Horde.DynamicSupervisorImpl do
 
               case current_member do
                 %{status: :dead} ->
+                  DeltaCrdt.delete(crdt_name(state.name), {:process, child_spec.id}, :infinity)
                   {_response, state} = add_child(randomize_child_id(child_spec), state)
 
                   state
