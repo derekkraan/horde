@@ -2,7 +2,7 @@ defmodule NetworkPartitionTest do
   use ExUnit.Case
 
   setup do
-    nodes = LocalCluster.start_nodes("cluster-#{:rand.uniform(9_999_999)}", 2)
+    nodes = LocalCluster.start_nodes("cluster#{:erlang.unique_integer()}", 2)
 
     for n <- nodes do
       :rpc.call(n, Application, :ensure_all_started, [:test_app])
@@ -12,13 +12,13 @@ defmodule NetworkPartitionTest do
   end
 
   test "recovers as expected in case of network partition", %{nodes: [n1, n2] = nodes} do
-    assert {:ok, pid1} =
+    assert {:ok, _pid1} =
              Horde.DynamicSupervisor.start_child(
                {TestSup, n1},
                {IgnoreWorker, {:via, Horde.Registry, {TestReg, IgnoreWorker}}}
              )
 
-    assert {:ok, pid2} =
+    assert {:ok, _pid2} =
              Horde.DynamicSupervisor.start_child(
                {TestSup, n2},
                {IgnoreWorker, {:via, Horde.Registry, {TestReg, IgnoreWorker}}}
@@ -48,13 +48,13 @@ defmodule NetworkPartitionTest do
   end
 
   test "recovers as expected in case of node stopping", %{nodes: [n1, n2] = nodes} do
-    assert {:ok, pid1} =
+    assert {:ok, _pid1} =
              Horde.DynamicSupervisor.start_child(
                {TestSup, n1},
                {IgnoreWorker, {:via, Horde.Registry, {TestReg, IgnoreWorker}}}
              )
 
-    assert {:ok, pid2} =
+    assert {:ok, _pid2} =
              Horde.DynamicSupervisor.start_child(
                {TestSup, n2},
                {IgnoreWorker, {:via, Horde.Registry, {TestReg, IgnoreWorker}}}

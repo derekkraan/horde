@@ -38,7 +38,7 @@ defmodule Horde.MixProject do
       {:stream_data, "~> 0.4", only: :test},
       {:local_cluster, "~> 1.1", only: :test},
       {:schism, "~> 1.0.1", only: :test},
-      {:dialyxir, "~> 1.0.0-rc.6", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.0.0-rc.6", only: [:dev], runtime: false},
       {:test_app, path: "test_app", only: [:test]}
     ]
   end

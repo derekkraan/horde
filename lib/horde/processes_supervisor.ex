@@ -822,7 +822,8 @@ defmodule Horde.ProcessesSupervisor do
   end
 
   def handle_info(msg, state) do
-    :error_logger.error_msg('Horde.ProcessesSupervisor received unexpected message: ~p~n', [msg])
+    :error_logger.error_msg(~c"Horde.ProcessesSupervisor received unexpected message: ~p~n", [msg])
+
     {:noreply, state}
   end
 
