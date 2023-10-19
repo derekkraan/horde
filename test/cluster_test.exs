@@ -206,7 +206,7 @@ defmodule ClusterTest do
       nodes = LocalCluster.start_nodes(cluster, 2)
 
       on_exit(fn ->
-        :rpc.multicall(Node.list([:visible, :this]), Horde.NodeListener, :clear_all, [])
+        :erpc.multicall(Node.list([:visible, :this]), Horde.NodeListener, :clear_all, [])
       end)
 
       {:ok, cluster: cluster, nodes: nodes, all_nodes: Enum.sort([node() | nodes])}

@@ -47,7 +47,7 @@ defmodule MyCluster do
   end
 
   def start_server(node, name) do
-    :rpc.call(node, MyCluster, :start_server, [name])
+    :erpc.call(node, MyCluster, :start_server, [name])
   end
 
   def start_server(name) do
@@ -59,7 +59,7 @@ defmodule MyCluster do
   end
 
   def whereis_server(node, name) do
-    :rpc.call(node, MyCluster, :whereis_server, [name])
+    :erpc.call(node, MyCluster, :whereis_server, [name])
   end
 end
 
@@ -103,7 +103,7 @@ defmodule MyRegistry do
   end
 
   def alive?(node) do
-    :rpc.call(node, MyRegistry, :alive?, [])
+    :erpc.call(node, MyRegistry, :alive?, [])
   end
 
   def alive?() do
@@ -145,7 +145,7 @@ defmodule MySupervisor do
   end
 
   def alive?(node) do
-    :rpc.call(node, MySupervisor, :alive?, [])
+    :erpc.call(node, MySupervisor, :alive?, [])
   end
 
   def alive?() do
