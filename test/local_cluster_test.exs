@@ -82,7 +82,7 @@ defmodule LocalClusterTest do
       pid when is_pid(pid) ->
         pid
 
-      x ->
+      _ ->
         Process.sleep(200)
         do_await_replication(target, id)
     end
@@ -101,7 +101,7 @@ defmodule LocalClusterTest do
             nodes = rpc(target, Node, :list, [])
 
             Logger.info(
-              "found #{inspect(pid)} on node: #{inspect(node(pid))}, target #{inspect(node)}, nodes: #{inspect(nodes)}"
+              "found #{inspect(pid)} on node: #{inspect(node(pid))}, target #{inspect(node())}, nodes: #{inspect(nodes)}"
             )
 
             Process.sleep(200)

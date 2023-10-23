@@ -6,7 +6,7 @@ defmodule NetSplitTest do
   test "test netsplit" do
     nodes = LocalCluster.start_nodes("loner-cluster", 4, files: [__ENV__.file])
 
-    [n1, n2, n3, n4] = nodes
+    [n1, n2, n3, _n4] = nodes
 
     Enum.each(nodes, &Node.spawn(&1, __MODULE__, :setup_horde, [nodes]))
 
@@ -16,7 +16,7 @@ defmodule NetSplitTest do
 
     Enum.each(1..num_procs, fn x ->
       {:ok, _pid} =
-        :rpc.call(n1, Horde.DynamicSupervisor, :start_child, [
+        :erpc.call(n1, Horde.DynamicSupervisor, :start_child, [
           TestNetSplitSup,
           {TestNetSplitServer, name: :"test_netsplit_server_#{x}"}
         ])
@@ -36,7 +36,7 @@ defmodule NetSplitTest do
     pids =
       Enum.map(1..num_procs, fn x ->
         pid =
-          :rpc.call(n1, Horde.Registry, :whereis_name, [
+          :erpc.call(n1, Horde.Registry, :whereis_name, [
             {TestReg2, :"test_netsplit_server_#{x}"}
           ])
 
@@ -52,7 +52,7 @@ defmodule NetSplitTest do
     pids =
       Enum.map(1..num_procs, fn x ->
         pid =
-          :rpc.call(n3, Horde.Registry, :whereis_name, [
+          :erpc.call(n3, Horde.Registry, :whereis_name, [
             {TestReg2, :"test_netsplit_server_#{x}"}
           ])
 
@@ -72,7 +72,7 @@ defmodule NetSplitTest do
     pids =
       Enum.map(1..num_procs, fn x ->
         pid =
-          :rpc.call(hd(nodes), Horde.Registry, :whereis_name, [
+          :erpc.call(hd(nodes), Horde.Registry, :whereis_name, [
             {TestReg2, :"test_netsplit_server_#{x}"}
           ])
 
@@ -80,7 +80,7 @@ defmodule NetSplitTest do
         pid
       end)
 
-    :rpc.call(hd(nodes), Horde.DynamicSupervisor, :which_children, [TestNetSplitSup])
+    :erpc.call(hd(nodes), Horde.DynamicSupervisor, :which_children, [TestNetSplitSup])
 
     assert pids |> Enum.uniq() |> length == num_procs
     assert Enum.all?(pids, &is_pid/1)
@@ -160,20 +160,20 @@ defmodule TestNetSplitServer do
     {:noreply, state}
   end
 
+  def handle_info({:EXIT, _, {:name_conflict, _, _, _}} = _msg, state) do
+    Logger.debug(
+      "#{inspect(node())} #{inspect(self())} server_#{Keyword.get(state, :name)} stopped because of name conflict"
+    )
+
+    {:stop, :normal, state}
+  end
+
   defp do_ping(state) do
     Logger.debug(
       "#{inspect(node())} #{inspect(self())} server_#{Keyword.get(state, :name)} still running"
     )
 
     Process.send_after(self(), :ping, 100)
-  end
-
-  def handle_info({:EXIT, _, {:name_conflict, _, _, _}} = msg, state) do
-    Logger.debug(
-      "#{inspect(node())} #{inspect(self())} server_#{Keyword.get(state, :name)} stopped because of name conflict"
-    )
-
-    {:stop, :normal, state}
   end
 
   def terminate(state) do

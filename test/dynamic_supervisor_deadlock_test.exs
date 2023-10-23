@@ -40,7 +40,7 @@ defmodule DynamicSupervisorDeadlockTest do
       {:ok, {}}
     end
 
-    def handle_info(:timeout, state) do
+    def handle_info(:timeout, _state) do
       raise "crash!"
     end
   end

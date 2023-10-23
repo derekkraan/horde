@@ -5,20 +5,20 @@ defmodule NetworkPartitionTest do
     nodes = LocalCluster.start_nodes("cluster-#{:rand.uniform(9_999_999)}", 2)
 
     for n <- nodes do
-      :rpc.call(n, Application, :ensure_all_started, [:test_app])
+      :erpc.call(n, Application, :ensure_all_started, [:test_app])
     end
 
     [nodes: nodes]
   end
 
   test "recovers as expected in case of network partition", %{nodes: [n1, n2] = nodes} do
-    assert {:ok, pid1} =
+    assert {:ok, _pid1} =
              Horde.DynamicSupervisor.start_child(
                {TestSup, n1},
                {IgnoreWorker, {:via, Horde.Registry, {TestReg, IgnoreWorker}}}
              )
 
-    assert {:ok, pid2} =
+    assert {:ok, _pid2} =
              Horde.DynamicSupervisor.start_child(
                {TestSup, n2},
                {IgnoreWorker, {:via, Horde.Registry, {TestReg, IgnoreWorker}}}
@@ -28,8 +28,8 @@ defmodule NetworkPartitionTest do
     sup_members = for n <- nodes, do: {TestSup, n}
 
     for n <- nodes do
-      :ok = :rpc.call(n, Horde.Cluster, :set_members, [TestReg, reg_members])
-      :ok = :rpc.call(n, Horde.Cluster, :set_members, [TestSup, sup_members])
+      :ok = :erpc.call(n, Horde.Cluster, :set_members, [TestReg, reg_members])
+      :ok = :erpc.call(n, Horde.Cluster, :set_members, [TestSup, sup_members])
     end
 
     Schism.partition([n1])
@@ -44,17 +44,17 @@ defmodule NetworkPartitionTest do
     assert [{_, pid, _, _}] = Horde.DynamicSupervisor.which_children({TestSup, n1})
     assert [{_, ^pid, _, _}] = Horde.DynamicSupervisor.which_children({TestSup, n2})
 
-    assert true = :rpc.call(node(pid), Process, :alive?, [pid])
+    assert true = :erpc.call(node(pid), Process, :alive?, [pid])
   end
 
   test "recovers as expected in case of node stopping", %{nodes: [n1, n2] = nodes} do
-    assert {:ok, pid1} =
+    assert {:ok, _pid1} =
              Horde.DynamicSupervisor.start_child(
                {TestSup, n1},
                {IgnoreWorker, {:via, Horde.Registry, {TestReg, IgnoreWorker}}}
              )
 
-    assert {:ok, pid2} =
+    assert {:ok, _pid2} =
              Horde.DynamicSupervisor.start_child(
                {TestSup, n2},
                {IgnoreWorker, {:via, Horde.Registry, {TestReg, IgnoreWorker}}}
@@ -67,8 +67,8 @@ defmodule NetworkPartitionTest do
     sup_members = for n <- nodes, do: {TestSup, n}
 
     for n <- nodes do
-      :ok = :rpc.call(n, Horde.Cluster, :set_members, [TestReg, reg_members])
-      :ok = :rpc.call(n, Horde.Cluster, :set_members, [TestSup, sup_members])
+      :ok = :erpc.call(n, Horde.Cluster, :set_members, [TestReg, reg_members])
+      :ok = :erpc.call(n, Horde.Cluster, :set_members, [TestSup, sup_members])
     end
 
     Process.sleep(100)
@@ -80,6 +80,6 @@ defmodule NetworkPartitionTest do
 
     assert [{_, pid, _, _}] = Horde.DynamicSupervisor.which_children({TestSup, n1})
 
-    assert true = :rpc.call(node(pid), Process, :alive?, [pid])
+    assert true = :erpc.call(node(pid), Process, :alive?, [pid])
   end
 end
