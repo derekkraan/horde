@@ -2,7 +2,7 @@ defmodule NetworkPartitionTest do
   use ExUnit.Case
 
   setup do
-    nodes = LocalCluster.start_nodes("cluster-#{:rand.uniform(9_999_999)}", 2)
+    nodes = LocalCluster.start_nodes("cluster#{:erlang.unique_integer()}", 2)
 
     for n <- nodes do
       :erpc.call(n, Application, :ensure_all_started, [:test_app])

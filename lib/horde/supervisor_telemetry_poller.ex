@@ -34,7 +34,7 @@ defmodule Horde.DynamicSupervisorTelemetryPoller do
     })
   catch
     :exit, reason ->
-      Logger.warn("""
+      Logger.warning("""
       Exit while fetching metrics from #{inspect(supervisor_impl_name)}.
       Skip poll action. Reason: #{inspect(reason)}.
       """)
