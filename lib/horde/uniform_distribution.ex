@@ -8,7 +8,9 @@ defmodule Horde.UniformDistribution do
   the same process on the same node.
   """
 
-  def choose_node(identifier, members) do
+  def choose_node(child_spec, members) do
+    identifier = :erlang.phash2(Map.drop(child_spec, [:id]))
+
     members
     |> Enum.filter(&match?(%{status: :alive}, &1))
     |> Map.new(fn member -> {member.name, member} end)
