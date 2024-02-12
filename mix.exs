@@ -4,7 +4,7 @@ defmodule Horde.MixProject do
   def project do
     [
       app: :horde,
-      version: "0.8.7",
+      version: "0.9.0",
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -38,14 +38,14 @@ defmodule Horde.MixProject do
       {:stream_data, "~> 0.4", only: :test},
       {:local_cluster, "~> 1.1", only: :test},
       {:schism, "~> 1.0.1", only: :test},
-      {:dialyxir, "~> 1.0.0-rc.6", only: [:dev], runtime: false},
+      {:dialyxir, "~> 1.4.3", only: [:dev, :test], runtime: false},
       {:test_app, path: "test_app", only: [:test]}
     ]
   end
 
   defp package do
     [
-      description: "Distributed supervisor & process registry built with δ-CRDTs",
+      description: "Distributed supervisor & process registry built with DELTA-CRDTs",
       licenses: ["MIT"],
       maintainers: ["Derek Kraan"],
       links: %{GitHub: "https://github.com/derekkraan/horde"}
