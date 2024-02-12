@@ -285,6 +285,10 @@ defmodule DynamicSupervisorTest do
   end
 
   describe ".which_children/1" do
+    test "is empty", context do
+      assert [] = Horde.DynamicSupervisor.which_children(context.horde_1)
+    end
+
     test "collects results from all horde nodes", context do
       Horde.DynamicSupervisor.start_child(context.horde_1, %{context.task_def | id: :proc_1})
       Horde.DynamicSupervisor.start_child(context.horde_1, %{context.task_def | id: :proc_2})
