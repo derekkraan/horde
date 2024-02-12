@@ -1,3 +1,13 @@
+# Changelog
+
+## 0.9.0
+
+- Bugfixes for scenarios causing Horde to crash. See [#266](https://github.com/derekkraan/horde/pull/266) and [#263](https://github.com/derekkraan/horde/pull/263).
+- [BREAKING] The first parameter of `Horde.DistributionStrategy.choose_node/2` has changed from the identifier to the full child spec. See [#239](https://github.com/derekkraan/horde/pull/239).
+- Use `:erpc` instead of `:rpc`. See [#265](https://github.com/derekkraan/horde/pull/265).
+- Stop eagerly registering processes in Horde.Registry. This solves [#250](https://github.com/derekkraan/horde/issues/250).
+- Add `Horde.UniformRandomDistribution` process distribution strategy. See [#252](https://github.com/derekkraan/horde/pull/252).
+
 ## 0.8.7
 - Tweak dependency on `:telemetry`
 
