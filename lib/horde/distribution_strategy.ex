@@ -10,10 +10,11 @@ defmodule Horde.DistributionStrategy do
   - `Horde.UniformQuorumDistribution`
   - `Horde.UniformRandomDistribution`
   """
+  @type member :: Horde.DynamicSupervisor.Member.t()
   @callback choose_node(
               spec :: Supervisor.child_spec(),
-              members :: [Horde.DynamicSupervisor.Member.t()]
+              members :: [member()]
             ) ::
-              {:ok, Horde.DynamicSupervisor.Member.t()} | {:error, reason :: String.t()}
-  @callback has_quorum?(members :: [Horde.DynamicSupervisor.Member.t()]) :: boolean()
+              {:ok, member()} | {:error, reason :: String.t()}
+  @callback has_quorum?(members :: [member()]) :: boolean()
 end

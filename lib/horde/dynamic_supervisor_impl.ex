@@ -1,6 +1,4 @@
 defmodule Horde.DynamicSupervisor.Member do
-  @moduledoc false
-
   @type t :: %Horde.DynamicSupervisor.Member{}
   @type status :: :uninitialized | :alive | :shutting_down | :dead
   defstruct [:status, :name]
