@@ -15,6 +15,10 @@ Since Horde is built on CRDTs, it is eventually (as opposed to immediately) cons
 
 `Horde.Registry` is API-compatible with Elixir's own Registry, although it does not yet support the `keys: :duplicate` option. For many use cases, it will be a drop-in replacement. `Horde.DynamicSupervisor` follows the API and behaviour of `DynamicSupervisor` as closely as possible. There will always be some difference between Horde and its standard library equivalents, if not in their APIs, then in their functionality. This is a necessary consequence of Horde's distributed nature.
 
+## Running a single global process
+
+If you simply need to run a single process as a singleton in your cluster, I would encourage you to look at [Highlander](https://github.com/derekkraan/highlander) or [HighlanderPG](https://hex.codecodeship.com/package/highlander_pg) instead, as one of these may fit your use case better.
+
 ## 1.0 release
 
 Help us get to 1.0, please fill out our [very short survey](https://docs.google.com/forms/d/e/1FAIpQLSd0fGMuELJIKAiaR1XlvHKjpSo024cojktXjp4ASM7MSXTYfg/viewform?usp=sf_link) and report any issues you encounter when using Horde.
