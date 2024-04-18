@@ -205,6 +205,7 @@ defmodule Horde.DynamicSupervisor do
              type: :supervisor,
              name: supervisor_name(name),
              strategy: flags.strategy,
+             max_children: flags.max_children,
              max_restarts: flags.max_restarts,
              max_seconds: flags.max_seconds
            ]},
