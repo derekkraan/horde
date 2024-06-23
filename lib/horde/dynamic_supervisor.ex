@@ -49,6 +49,20 @@ defmodule Horde.DynamicSupervisor do
   ```
 
   Then you can use `MySupervisor.child_spec/1` and `MySupervisor.start_link/1` in the same way as you'd use `Horde.DynamicSupervisor.child_spec/1` and `Horde.DynamicSupervisor.start_link/1`.
+
+  ## Warning: Names and pids are not interchangeable
+
+  In general, the API for Horde.DynamicSupervisor works the same way as the stdlib DynamicSupervisor.
+
+  Howerver, one major difference is that the pid returned by the `start_link` function is not interchangeable with the name of the supervisor.
+
+  This is because a Horde DynamicSupervisor is actually composed of a set of processes that perform necessary functionality, whereas a standard DynamicSupervisor is only one process.
+
+  So, always use the name of the Horde.DynamicSupervisor as the input to functions in this module, and not the pid.
+
+  Using the pid directly will cause undefined behaviour.
+
+  See here for more info: https://github.com/derekkraan/horde/issues/269
   """
   use Supervisor
 
