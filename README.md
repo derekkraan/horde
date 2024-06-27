@@ -100,6 +100,14 @@ Horde.Cluster.set_members(:distributed_supervisor_1, [:distributed_supervisor_1,
 # supervisor_1, supervisor_2 and supervisor_3 will be joined in a single cluster.
 ```
 
+# Other projects
+
+Useful libraries that use or extend Horde functionalities.
+
+## [Horde.Process](https://github.com/tyler-eon/horde-process)
+
+An opinionated but configurable means of quickly creating GenServer modules that are intended to be managed and distributed via Horde.
+
 # Contributing
 
 Contributions are welcome! Feel free to open an issue if you'd like to discuss a problem or a possible solution. Pull requests are much appreciated.
