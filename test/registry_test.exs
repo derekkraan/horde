@@ -688,7 +688,7 @@ defmodule RegistryTest do
 
       :ok = Horde.Registry.put_meta(registry, :custom_key, "custom_value")
 
-      assert :error = Horde.Registry.meta(registry, :non_existant)
+      assert :error = Horde.Registry.meta(registry, :non_existent)
     end
 
     test "meta is propagated" do
@@ -825,7 +825,7 @@ defmodule RegistryTest do
       assert_receive {:unregister, ^reg, :task, ^task_pid}, 200
     end
 
-    test "recieves :register and :unregister from another node" do
+    test "receives :register and :unregister from another node" do
       Process.register(self(), :test_process)
       reg = start_registry(listeners: [:test_process], keys: :unique)
       reg2 = start_registry(keys: :unique)
