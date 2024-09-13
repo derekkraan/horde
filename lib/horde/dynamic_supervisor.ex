@@ -60,6 +60,7 @@ defmodule Horde.DynamicSupervisor do
           | {:max_seconds, integer()}
           | {:extra_arguments, [term()]}
           | {:distribution_strategy, Horde.DistributionStrategy.t()}
+          | {:proxy_message_ttl, integer() | :infinity}
           | {:shutdown, integer()}
           | {:members, [Horde.Cluster.member()] | :auto}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
@@ -119,6 +120,7 @@ defmodule Horde.DynamicSupervisor do
       :strategy,
       :distribution_strategy,
       :process_redistribution,
+      :proxy_message_ttl,
       :members,
       :delta_crdt_options
     ]
@@ -156,6 +158,13 @@ defmodule Horde.DynamicSupervisor do
         Horde.UniformDistribution
       )
 
+    proxy_message_ttl =
+      Keyword.get(
+        options,
+        :proxy_message_ttl,
+        :infinity
+      )
+
     flags = %{
       strategy: strategy,
       max_restarts: max_restarts,
@@ -163,6 +172,7 @@ defmodule Horde.DynamicSupervisor do
       max_children: max_children,
       extra_arguments: extra_arguments,
       distribution_strategy: distribution_strategy,
+      proxy_message_ttl: proxy_message_ttl,
       members: members,
       delta_crdt_options: delta_crdt_options(delta_crdt_options),
       process_redistribution: process_redistribution
@@ -194,6 +204,7 @@ defmodule Horde.DynamicSupervisor do
              period: flags.max_seconds,
              distribution_strategy: flags.distribution_strategy,
              process_redistribution: flags.process_redistribution,
+             proxy_message_ttl: flags.proxy_message_ttl,
              members: members(flags.members, name)
            ]},
           {Horde.ProcessesSupervisor,

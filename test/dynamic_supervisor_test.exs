@@ -2,7 +2,7 @@ defmodule DynamicSupervisorTest do
   require Logger
   use ExUnit.Case
 
-  defp do_setup() do
+  defp do_setup(_context) do
     n1 = :"horde_#{:rand.uniform(100_000_000)}"
     n2 = :"horde_#{:rand.uniform(100_000_000)}"
     n3 = :"horde_#{:rand.uniform(100_000_000)}"
@@ -143,7 +143,52 @@ defmodule DynamicSupervisorTest do
     ]
   end
 
-  setup %{describe: describe} do
+  defp proxy_ttl_spec(name, redist, %{distribution_strategy: dist_strat, proxy_message_ttl: ttl}) do
+    %{
+      id: name,
+      start: {
+        Horde.DynamicSupervisor,
+        :start_link,
+        [
+          [
+            name: name,
+            strategy: :one_for_one,
+            process_redistribution: redist,
+            delta_crdt_options: [sync_interval: 20],
+            distribution_strategy: dist_strat,
+            proxy_message_ttl: ttl
+          ]
+        ]
+      },
+      restart: :transient
+    }
+  end
+
+  defp proxy_ttl_setup(context) do
+    n1 = :horde_proxy_ttl_1
+    n2 = :horde_proxy_ttl_2
+    n3 = :horde_proxy_ttl_3
+
+    members = [{n1, Node.self()}, {n2, Node.self()}, {n3, Node.self()}]
+
+    # Spawn one supervisor and add processes to it, then spawn another and redistribute
+    # the processes between the two.
+    {:ok, _pid_n1} = start_supervised(proxy_ttl_spec(n1, :active, context))
+    {:ok, _pid_n2} = start_supervised(proxy_ttl_spec(n2, :active, context))
+    {:ok, _pid_n3} = start_supervised(proxy_ttl_spec(n3, :active, context))
+
+    Horde.Cluster.set_members(n1, [n1, n2, n3])
+
+    [
+      n1: n1,
+      n2: n2,
+      n3: n3,
+      names: [n1, n2, n3],
+      members: members
+    ]
+  end
+
+  setup %{describe: describe} = context do
     case describe do
       "redistribute" ->
         redistribute_setup()
@@ -151,8 +196,11 @@ defmodule DynamicSupervisorTest do
       "graceful shutdown" ->
         Logger.info("Skip setup for \"#{describe}\" context")
 
+      "proxy ttl" ->
+        proxy_ttl_setup(context)
+
       _ ->
-        do_setup()
+        do_setup(context)
     end
   end
 
@@ -633,6 +681,112 @@ defmodule DynamicSupervisorTest do
                context.passive[:n2],
                context.passive[:children]
              )
+    end
+  end
+
+  defp wait_until_cluster_synced(names) do
+    Stream.iterate(false, fn _ ->
+      Process.sleep(100)
+
+      1 ==
+        names
+        |> Enum.map(&Horde.Cluster.members(&1))
+        |> Enum.uniq()
+        |> length
+    end)
+    |> Enum.find(&(&1 == true))
+  end
+
+  defmodule HotPotatoDistribution do
+    @behaviour Horde.DistributionStrategy
+
+    @moduledoc """
+    Distributes processes to any alive node except itself
+    """
+
+    def choose_node(_child_spec, members) do
+      members
+      |> Enum.filter(&match?(%{status: :alive}, &1))
+      |> Enum.find(fn %{name: {name, _node}} -> Process.whereis(name) != self() end)
+      |> case do
+        nil ->
+          {:error, :no_other_nodes_alive}
+
+        member ->
+          {:ok, member}
+      end
+    end
+
+    def has_quorum?(_members), do: true
+  end
+
+  defp async_simple_task(name) do
+    exunit = self()
+    task_spec = Task.child_spec(fn -> send(exunit, "child alive") end)
+
+    Task.async(fn ->
+      Horde.DynamicSupervisor.start_child(name, task_spec)
+    end)
+  end
+
+  defp flush_messages() do
+    receive do
+      _ -> flush_messages()
+    after
+      0 -> :ok
+    end
+  end
+
+  describe "proxy ttl" do
+    @tag proxy_message_ttl: :infinity
+    @tag distribution_strategy: HotPotatoDistribution
+    test "message will proxy forever if nodes disagree on member", context do
+      wait_until_cluster_synced(context.names)
+
+      assert %Task{} = task = async_simple_task(context.n1)
+
+      refute_receive "child alive", 200
+      assert nil == Task.shutdown(task)
+    end
+
+    @tag proxy_message_ttl: 10
+    @tag distribution_strategy: HotPotatoDistribution
+    test "message expire if proxy_message_ttl is set when nodes disagree on member", context do
+      wait_until_cluster_synced(context.names)
+
+      assert %Task{} = task = async_simple_task(context.n1)
+
+      refute_receive "child alive", 200
+      assert {:ok, {:error, :proxy_operation_ttl_expired, _}} = Task.shutdown(task)
+    end
+
+    @tag proxy_message_ttl: 1
+    @tag distribution_strategy: Horde.UniformDistribution
+    test "message will be picked if nodes agree on member", context do
+      wait_until_cluster_synced(context.names)
+
+      assert %Task{} = task = async_simple_task(context.n1)
+
+      assert_receive "child alive", 200
+      assert {:ok, {:ok, _pid}} = Task.yield(task)
+    end
+
+    @tag proxy_message_ttl: 1
+    @tag distribution_strategy: Horde.UniformRandomDistribution
+    test "lots of messages expire if random member is chosen", context do
+      wait_until_cluster_synced(context.names)
+
+      result_count =
+        Enum.map(1..200, fn _ -> async_simple_task(context.n1) end)
+        |> Task.yield_many(1_000)
+        |> Enum.frequencies_by(fn {_task, {:ok, outcome}} -> elem(outcome, 0) end)
+
+      assert_receive "child alive", 200
+      flush_messages()
+      # Depending on the run, a random number will have failed.
+      # It is unlikely that all will have failed or succeeded (but not impossible)
+      assert result_count.error >= 10
+      assert result_count.ok >= 10
     end
   end
 end
