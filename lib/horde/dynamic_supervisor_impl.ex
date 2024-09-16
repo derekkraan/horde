@@ -294,8 +294,10 @@ defmodule Horde.DynamicSupervisorImpl do
   defp proxy_to_node(node_name, message, reply_to, state) do
     case Map.get(members(state), node_name) do
       %{status: :alive} ->
-        ttl = proxy_message_ttl(state, reply_to)
-        send(node_name, {:proxy_operation, message, reply_to, ttl})
+        case(proxy_message_ttl(state, reply_to)) do
+          :infinity -> send(node_name, {:proxy_operation, message, reply_to})
+          ttl -> send(node_name, {:proxy_operation, message, reply_to, ttl})
+        end
         {:noreply, state}
 
       _ ->
@@ -350,6 +352,10 @@ defmodule Horde.DynamicSupervisorImpl do
 
   def handle_info({:set_members, members}, state) do
     {:noreply, set_members(members, state)}
+  end
+
+  def handle_info({:proxy_operation, msg, reply_to}, state) do
+    handle_info({:proxy_operation, msg, reply_to, :infinity}, state)
   end
 
   def handle_info({:proxy_operation, msg, reply_to, ttl}, state) do
