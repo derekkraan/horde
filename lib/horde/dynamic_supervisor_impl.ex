@@ -147,15 +147,14 @@ defmodule Horde.DynamicSupervisorImpl do
   def handle_call({:start_child, _child_spec}, _from, %{shutting_down: true} = state),
     do: {:reply, {:error, {:shutting_down, "this node is shutting down."}}, state}
 
-  @big_number round(:math.pow(2, 128))
-
   def handle_call({:start_child, child_spec} = msg, from, state) do
     this_name = fully_qualified_name(state.name)
+    proxy_ttl_expired? = proxy_message_ttl(state, from) == 0
 
     child_spec = randomize_child_id(child_spec)
 
     case choose_node(child_spec, state) do
-      {:ok, %{name: ^this_name}} ->
+      {:ok, %{name: node_name}} when node_name == this_name or proxy_ttl_expired? ->
         {reply, new_state} = add_child(child_spec, state)
         {:reply, reply, new_state}
 
@@ -278,6 +277,8 @@ defmodule Horde.DynamicSupervisorImpl do
         state
     end
   end
+
+  @big_number round(:math.pow(2, 128))
 
   defp randomize_child_id(child) do
     Map.put(child, :id, :rand.uniform(@big_number))

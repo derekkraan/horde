@@ -1,10 +1,16 @@
 # Changelog
 
+## 0.10.0
+
+- Added optional TTL to Horde.DynamicSupervisor's `:proxy_operation` messages. The Time-to-Live defaults to :infinity for full backwards compatibility. This TTL helps prevent potential issues where messages could loop forever between a set of nodes which disagree on which node should execute the task.
+- [BREAKING] Horde.DynamicSupervisor's new `:proxy_message_ttl` option configures the maximum TTL for proxy messages. It takes an integer denoting the maximum number of hops a message can travel, or the atom :infinity (default). This can be a breaking change: when upgrading do not set this option to an integer. You can explicity set it to :infinity or leave it default. If this is set to an integer, upgraded nodes won't be able to proxy to non-upgrade nodes.
+
 ## 0.9.1
 
 - Fix race condition in registry when node disconnects
 - Pass `extra_arguments` flag to the ProcessSupervisor
 - Updating libring dependency to ~> 1.7. Needed for upgrade to OTP 27. See [this PR to libring](https://github.com/bitwalker/libring/pull/37) for details.
+
 
 ## 0.9.0
 

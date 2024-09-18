@@ -729,14 +729,6 @@ defmodule DynamicSupervisorTest do
     end)
   end
 
-  defp flush_messages() do
-    receive do
-      _ -> flush_messages()
-    after
-      0 -> :ok
-    end
-  end
-
   describe "proxy ttl" do
     @tag proxy_message_ttl: :infinity
     @tag distribution_strategy: HotPotatoDistribution
@@ -751,42 +743,39 @@ defmodule DynamicSupervisorTest do
 
     @tag proxy_message_ttl: 10
     @tag distribution_strategy: HotPotatoDistribution
-    test "message expire if proxy_message_ttl is set when nodes disagree on member", context do
+    test "start_child will add child on any node when proxy TTL expires", context do
       wait_until_cluster_synced(context.names)
 
-      assert %Task{} = task = async_simple_task(context.n1)
-
-      refute_receive "child alive", 200
-      assert {:ok, {:error, :proxy_operation_ttl_expired, _}} = Task.shutdown(task)
+      assert {:ok, {:ok, _pid}} = Task.yield(async_simple_task(context.n1))
+      assert_receive "child alive", 200
     end
 
     @tag proxy_message_ttl: 1
     @tag distribution_strategy: Horde.UniformDistribution
-    test "message will be picked if nodes agree on member", context do
+    test "message will be picked up if nodes agree on member", context do
       wait_until_cluster_synced(context.names)
 
-      assert %Task{} = task = async_simple_task(context.n1)
-
+      assert {:ok, {:ok, _pid}} = Task.yield(async_simple_task(context.n1))
       assert_receive "child alive", 200
-      assert {:ok, {:ok, _pid}} = Task.yield(task)
     end
 
     @tag proxy_message_ttl: 1
     @tag distribution_strategy: Horde.UniformRandomDistribution
-    test "lots of messages expire if random member is chosen", context do
+    test "random distribution start_child with TTL of 1 will not bounce around", context do
       wait_until_cluster_synced(context.names)
 
+      process_count = 200
+
       result_count =
-        Enum.map(1..200, fn _ -> async_simple_task(context.n1) end)
+        Enum.map(1..process_count, fn _ -> async_simple_task(context.n1) end)
         |> Task.yield_many(1_000)
         |> Enum.frequencies_by(fn {_task, {:ok, outcome}} -> elem(outcome, 0) end)
 
-      assert_receive "child alive", 200
-      flush_messages()
-      # Depending on the run, a random number will have failed.
-      # It is unlikely that all will have failed or succeeded (but not impossible)
-      assert result_count.error >= 10
-      assert result_count.ok >= 10
+      Enum.each(1..process_count, fn _n ->
+        assert_receive "child alive", 200
+      end)
+
+      assert %{ok: process_count} == result_count
     end
   end
 end
