@@ -13,7 +13,7 @@ Daniel Azuma gave [a great talk](https://www.youtube.com/watch?v=nLApFANtkHs) at
 
 Since Horde is built on CRDTs, it is eventually (as opposed to immediately) consistent, although it does sync its state with its neighbours rather aggressively. Cluster membership in Horde is fully dynamic; nodes can be added and removed at any time and Horde will continue to operate as expected. `Horde.DynamicSupervisor` also uses a hash ring to limit any possible race conditions to times when cluster membership is changing. 
 
-`Horde.Registry` is API-compatible with Elixir's own Registry, although it does not yet support the `keys: :duplicate` option. For many use cases, it will be a drop-in replacement. `Horde.DynamicSupervisor` follows the API and behaviour of `DynamicSupervisor` as closely as possible. There will always be some difference between Horde and its standard library equivalents, if not in their APIs, then in their functionality. This is a necessary consequence of Horde's distributed nature.
+`Horde.Registry` is API-compatible with Elixir's own Registry, although it does not yet support the `keys: :duplicate` option. For many use cases, it will be a drop-in replacement. `Horde.DynamicSupervisor` follows the API and behaviour of `DynamicSupervisor` as closely as possible. There will always be some difference between Horde and its standard library equivalents, if not in their APIs, then in their functionality. This is a necessary consequence of Horde's distributed nature. See [documentation of Horde.DynamicSupervisor.start_link/1](https://hexdocs.pm/horde/Horde.DynamicSupervisor.html#start_link/1) for details.
 
 ## Running a single global process
 
@@ -99,6 +99,7 @@ Joining supervisors into a single distributed supervisor can be done using `Hord
 Horde.Cluster.set_members(:distributed_supervisor_1, [:distributed_supervisor_1, :distributed_supervisor_2, :distributed_supervisor_3])
 # supervisor_1, supervisor_2 and supervisor_3 will be joined in a single cluster.
 ```
+
 
 # Other projects
 

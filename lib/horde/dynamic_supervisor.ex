@@ -110,6 +110,7 @@ defmodule Horde.DynamicSupervisor do
   @doc """
   Works like `DynamicSupervisor.start_link/1`. Extra options are documented here:
   - `:distribution_strategy`, defaults to `Horde.UniformDistribution`, but more are available - see `Horde.DistributionStrategy`
+  - `:proxy_message_ttl`, defaults to `:infinity`. Can be set to an integer indicating the maximum number of times a message may be forwarded in a Horde.DynamicSupervisor cluster. Leaving it at infinity is genrally fine when using a stable distribution strategy such as `Horde.UniformDistribution`. Setting a TTL is helpful when migrating to a different distribution_strategy, or when using an algorithm with random distribution such as `Horde.UniformRandomDistribution`, as it will prevent messages from looping (near) infinitely.
   """
   def start_link(options) when is_list(options) do
     keys = [
