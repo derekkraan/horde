@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.0
+
+- Added optional TTL to Horde.DynamicSupervisor's `:proxy_operation` messages. The Time-to-Live defaults to :infinity for full backwards compatibility. This TTL helps prevent potential issues where messages could loop forever between a set of nodes which disagree on which node should execute the task.
+- [BREAKING] Horde.DynamicSupervisor's new `:proxy_message_ttl` option configures the maximum TTL for proxy messages. It takes an integer denoting the maximum number of hops a message can travel, or the atom :infinity (default). This can be a breaking change: when upgrading do not set this option to an integer. You can explicity set it to :infinity or leave it default. If this is set to an integer, upgraded nodes won't be able to proxy to non-upgrade nodes.
+
 ## 0.9.0
 
 - Bugfixes for scenarios causing Horde to crash. See [#266](https://github.com/derekkraan/horde/pull/266) and [#263](https://github.com/derekkraan/horde/pull/263).
