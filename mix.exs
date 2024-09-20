@@ -30,7 +30,7 @@ defmodule Horde.MixProject do
   defp deps do
     [
       {:delta_crdt, "~> 0.6.2"},
-      {:libring, "~> 1.4"},
+      {:libring, "~> 1.7"},
       {:telemetry, "~> 1.0 or ~> 0.4.0"},
       {:telemetry_poller, "~> 1.0 or ~> 0.5.0"},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false},
