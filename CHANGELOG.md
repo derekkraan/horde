@@ -1,5 +1,9 @@
 # Changelog
 
+## NEXT_VERSION
+
+- Updating libring dependency to ~> 1.7. Needed for upgrade to OTP 27. See [this PR to libring](https://github.com/bitwalker/libring/pull/37) for details.
+
 ## 0.9.0
 
 - Bugfixes for scenarios causing Horde to crash. See [#266](https://github.com/derekkraan/horde/pull/266) and [#263](https://github.com/derekkraan/horde/pull/263).
