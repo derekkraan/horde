@@ -563,6 +563,8 @@ defmodule RegistryTest do
           delta_crdt_options: [sync_interval: 20]
         )
 
+      Process.sleep(40)
+
       Horde.Registry.register(horde, :carmen, "foo")
 
       assert [{self(), "foo"}] == Horde.Registry.lookup(horde, :carmen)
@@ -579,6 +581,8 @@ defmodule RegistryTest do
         )
 
       Horde.Registry.register(horde, :carmen, "bar")
+
+      Process.sleep(40)
 
       name = {:via, Horde.Registry, {horde, :carmen}}
       assert [{self(), "bar"}] == Horde.Registry.lookup(name)
