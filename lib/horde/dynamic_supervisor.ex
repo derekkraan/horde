@@ -192,8 +192,6 @@ defmodule Horde.DynamicSupervisor do
              strategy: flags.strategy,
              intensity: flags.max_restarts,
              period: flags.max_seconds,
-             max_children: flags.max_children,
-             extra_arguments: flags.extra_arguments,
              distribution_strategy: flags.distribution_strategy,
              process_redistribution: flags.process_redistribution,
              members: members(flags.members, name)
