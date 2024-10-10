@@ -75,6 +75,7 @@ defmodule RegistryTest do
       horde = start_registry()
 
       {:ok, pid} = Horde.Registry.register(horde, "hello", :value)
+      Process.sleep(20)
       assert is_pid(pid)
       assert Horde.Registry.keys(horde, self()) == ["hello"]
 
@@ -85,6 +86,7 @@ defmodule RegistryTest do
       assert Horde.Registry.keys(horde, self()) == ["hello"]
 
       {:ok, pid} = Horde.Registry.register(horde, "world", :value)
+      Process.sleep(20)
       assert is_pid(pid)
       assert Horde.Registry.keys(horde, self()) |> Enum.sort() == ["hello", "world"]
     end
@@ -98,6 +100,8 @@ defmodule RegistryTest do
       assert {:error, {:already_registered, ^task}} =
                Horde.Registry.register(horde, "hello", :recent)
 
+      Process.sleep(20)
+
       assert Horde.Registry.keys(horde, self()) == []
       {:links, links} = Process.info(self(), :links)
       assert Process.whereis(horde) in links
@@ -108,6 +112,7 @@ defmodule RegistryTest do
       horde2 = start_registry()
 
       {:ok, _} = Horde.Registry.register(horde1, "hello", :value)
+      Process.sleep(20)
 
       winner_pid =
         spawn_link(fn ->
@@ -212,6 +217,7 @@ defmodule RegistryTest do
       name = {:via, Horde.Registry, {horde, "hello"}}
       {:ok, pid} = Agent.start_link(fn -> 0 end, name: name)
       {:ok, _} = Horde.Registry.register(horde, "world", :value)
+      Process.sleep(20)
 
       assert Horde.Registry.select(horde, [
                {{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$2", :"$3"}}]}
@@ -224,6 +230,8 @@ defmodule RegistryTest do
 
       value = {1, :atom, 1}
       {:ok, _} = Horde.Registry.register(horde, "hello", value)
+
+      Process.sleep(20)
 
       assert [{"hello", self(), value}] ==
                Horde.Registry.select(horde, [
@@ -262,6 +270,8 @@ defmodule RegistryTest do
       value2 = %{a: "a", b: "b"}
       {:ok, _} = Horde.Registry.register(horde, "world", value2)
 
+      Process.sleep(20)
+
       assert [:match] ==
                Horde.Registry.select(horde, [{{"world", self(), %{b: "b"}}, [], [:match]}])
 
@@ -274,6 +284,7 @@ defmodule RegistryTest do
 
       value = {1, :atom, 2}
       {:ok, _} = Horde.Registry.register(horde, "hello", value)
+      Process.sleep(20)
 
       assert [{"hello", self(), {1, :atom, 2}}] ==
                Horde.Registry.select(horde, [
@@ -297,6 +308,7 @@ defmodule RegistryTest do
 
       {:ok, _} = Horde.Registry.register(horde, "hello", :value)
       {:ok, _} = Horde.Registry.register(horde, "world", :value)
+      Process.sleep(20)
 
       assert ["hello", "world"] ==
                Horde.Registry.select(horde, [
@@ -378,6 +390,7 @@ defmodule RegistryTest do
 
       Horde.Registry.register(horde, "to_unregister", "match_unregister")
       Horde.Registry.register(horde, "another_key", value: 12)
+      Process.sleep(20)
 
       :ok =
         Horde.Registry.unregister_match(
@@ -386,6 +399,8 @@ defmodule RegistryTest do
           [value: :"$1"],
           [{:>, :"$1", 12}]
         )
+
+      Process.sleep(20)
 
       assert Enum.sort(["another_key", "to_unregister"]) ==
                Enum.sort(Horde.Registry.keys(horde, self()))
@@ -398,6 +413,8 @@ defmodule RegistryTest do
           [{:>, :"$1", 11}]
         )
 
+      Process.sleep(20)
+
       assert ["to_unregister"] = Horde.Registry.keys(horde, self())
 
       :ok =
@@ -406,6 +423,8 @@ defmodule RegistryTest do
           "to_unregister",
           "doesn't match"
         )
+
+      Process.sleep(20)
 
       assert [{self(), "match_unregister"}] == Horde.Registry.lookup(horde, "to_unregister")
 
@@ -431,6 +450,7 @@ defmodule RegistryTest do
 
       Horde.Registry.register(horde, "d1", "value1")
       Horde.Registry.register(horde, "d2", "value2")
+      Process.sleep(20)
 
       assert :ok =
                Horde.Registry.dispatch(horde, "d1", fn [{pid, value}] ->
@@ -455,6 +475,7 @@ defmodule RegistryTest do
 
       Horde.Registry.register(horde, "foo", "foo")
       Horde.Registry.register(horde, "bar", "bar")
+      Process.sleep(20)
       assert 2 = Horde.Registry.count(horde)
     end
   end
@@ -465,6 +486,7 @@ defmodule RegistryTest do
 
       Horde.Registry.register(horde, "foo", "foo")
       Horde.Registry.register(horde, "bar", bar: 33)
+      Process.sleep(20)
 
       assert 1 = Horde.Registry.count_match(horde, "foo", :_)
       assert 0 = Horde.Registry.count_match(horde, "bar", bar: 34)
@@ -493,6 +515,7 @@ defmodule RegistryTest do
 
       Horde.Registry.register(:match_horde, "foo", "foo")
       Horde.Registry.register(:match_horde, "bar", bar: 33)
+      Process.sleep(20)
 
       self = self()
       assert [{^self, "foo"}] = Horde.Registry.match(:match_horde, "foo", :_)
@@ -521,6 +544,7 @@ defmodule RegistryTest do
         )
 
       Horde.Registry.register(:update_value_horde, "foo", "foo")
+      Process.sleep(20)
 
       assert {"bar", "foo"} =
                Horde.Registry.update_value(:update_value_horde, "foo", fn "foo" -> "bar" end)
@@ -566,6 +590,7 @@ defmodule RegistryTest do
       Process.sleep(40)
 
       Horde.Registry.register(horde, :carmen, "foo")
+      Process.sleep(20)
 
       assert [{self(), "foo"}] == Horde.Registry.lookup(horde, :carmen)
     end
@@ -601,6 +626,7 @@ defmodule RegistryTest do
         )
 
       Horde.Registry.register(horde, :carmen, "carmen")
+      Process.sleep(20)
 
       assert_raise ArgumentError, fn ->
         Horde.Registry.send({horde, :santiago}, "Where are you?")
