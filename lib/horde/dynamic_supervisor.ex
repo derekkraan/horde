@@ -52,6 +52,10 @@ defmodule Horde.DynamicSupervisor do
   """
   use Supervisor
 
+  @type allow_handoff_function ::
+          ({current_node :: term(), chosen_node :: term(), child_spec :: term(),
+            child_pid :: pid()} ->
+             true | false)
   @type options() :: [option()]
   @type option ::
           {:name, name :: atom()}
@@ -63,7 +67,7 @@ defmodule Horde.DynamicSupervisor do
           | {:shutdown, integer()}
           | {:members, [Horde.Cluster.member()] | :auto}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
-          | {:process_redistribution, :active | :passive}
+          | {:process_redistribution, :active | :passive | allow_handoff_function()}
 
   @callback init(options()) :: {:ok, options()} | :ignore
   @callback child_spec(options :: options()) :: Supervisor.child_spec()
@@ -262,6 +266,17 @@ defmodule Horde.DynamicSupervisor do
   This function delegates to all supervisors in the cluster and returns the aggregated output.
   """
   def count_children(supervisor), do: call(supervisor, :count_children)
+
+  @doc """
+  This function triggers redistribution similar to when a node joins or leaves.
+
+  The allow_handoff argument is a function that gates whether a process is allowed to be transfered.
+  By default, it uses the same action as defined in the "process_redistribution" option.
+  When a process will be moved allow_handoff is called with the argument {current_node, chosen_node, child_spec, child_pid}
+  """
+  def redistribute_children(horde, allow_handoff \\ nil) do
+    GenServer.cast(horde, {:redistribute_children, allow_handoff})
+  end
 
   @doc """
   Waits for Horde.DynamicSupervisor to have quorum.
