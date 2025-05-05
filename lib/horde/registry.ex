@@ -414,7 +414,7 @@ defmodule Horde.Registry do
   end
 
   defp maybe_add_node_manager(children, :auto, name),
-    do: [{Horde.NodeListener, name} | children]
+    do: children ++ [{Horde.NodeListener, name}]
 
   defp maybe_add_node_manager(children, _, _), do: children
 
