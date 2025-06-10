@@ -421,7 +421,6 @@ defmodule Horde.Registry do
       :erpc.call(n, Process, :alive?, [pid])
   catch
     :error, {:erpc, :noconnection} -> false
-    :error, reason -> reraise reason, __STACKTRACE__
     type, reason -> :erlang.raise(type, reason, __STACKTRACE__)
   end
 
