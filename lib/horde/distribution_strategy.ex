@@ -4,7 +4,7 @@ defmodule Horde.DistributionStrategy do
   @moduledoc """
   Define your own distribution strategy by implementing this behaviour and configuring Horde to use it.
 
-  A few distribution stategies are included in Horde, namely:
+  A few distribution strategies are included in Horde, namely:
 
   - `Horde.UniformDistribution`
   - `Horde.UniformQuorumDistribution`
