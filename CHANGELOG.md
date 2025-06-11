@@ -1,7 +1,9 @@
 # Changelog
 
-## NEXT_VERSION
+## 0.9.1
 
+- Fix race condition in registry when node disconnects
+- Pass `extra_arguments` flag to the ProcessSupervisor
 - Updating libring dependency to ~> 1.7. Needed for upgrade to OTP 27. See [this PR to libring](https://github.com/bitwalker/libring/pull/37) for details.
 
 ## 0.9.0
