@@ -299,6 +299,7 @@ defmodule Horde.DynamicSupervisorImpl do
           :infinity -> send(node_name, {:proxy_operation, message, reply_to})
           ttl -> send(node_name, {:proxy_operation, message, reply_to, ttl})
         end
+
         {:noreply, state}
 
       _ ->
