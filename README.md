@@ -13,7 +13,11 @@ Daniel Azuma gave [a great talk](https://www.youtube.com/watch?v=nLApFANtkHs) at
 
 Since Horde is built on CRDTs, it is eventually (as opposed to immediately) consistent, although it does sync its state with its neighbours rather aggressively. Cluster membership in Horde is fully dynamic; nodes can be added and removed at any time and Horde will continue to operate as expected. `Horde.DynamicSupervisor` also uses a hash ring to limit any possible race conditions to times when cluster membership is changing. 
 
-`Horde.Registry` is API-compatible with Elixir's own Registry, although it does not yet support the `keys: :duplicate` option. For many use cases, it will be a drop-in replacement. `Horde.DynamicSupervisor` follows the API and behaviour of `DynamicSupervisor` as closely as possible. There will always be some difference between Horde and its standard library equivalents, if not in their APIs, then in their functionality. This is a necessary consequence of Horde's distributed nature. See [documentation of Horde.DynamicSupervisor.start_link/1](https://hexdocs.pm/horde/Horde.DynamicSupervisor.html#start_link/1) for details.
+`Horde.Registry` and `Horde.DynamicSupervisor` are both designed to stay as close as possible to the API and behavior of their counterparts in Elixir’s standard library. For most scenarios, they can be used as drop-in replacements with minimal changes required.
+
+Some differences do exist — such as the current lack of support for keys: :duplicate in Horde.Registry — but these divergences occur only when standard library behavior does not translate well to a system that is inherently distributed.
+
+Our goal is to keep these differences to the absolute minimum necessary, while ensuring that Horde remains reliable, consistent, and optimized for distributed environments. See [documentation of Horde.DynamicSupervisor.start_link/1](https://hexdocs.pm/horde/Horde.DynamicSupervisor.html#start_link/1) for details.
 
 ## Running a single global process
 
