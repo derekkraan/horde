@@ -277,7 +277,7 @@ defmodule Horde.Registry do
     GenServer.call(registry, {:put_meta, key, value})
   end
 
-  @spec count(registry :: Registry.registry()) :: non_neg_integer()
+  @spec count(registry :: Registry.registry()) :: non_neg_integer() | :undefined
   @doc "See `Registry.count/1`."
   def count(registry) when is_atom(registry) do
     :ets.info(keys_ets_table(registry), :size)
