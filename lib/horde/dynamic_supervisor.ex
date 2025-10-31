@@ -60,6 +60,7 @@ defmodule Horde.DynamicSupervisor do
           | {:max_seconds, integer()}
           | {:extra_arguments, [term()]}
           | {:distribution_strategy, Horde.DistributionStrategy.t()}
+          | {:proxy_message_ttl, integer() | :infinity}
           | {:shutdown, integer()}
           | {:members, [Horde.Cluster.member()] | :auto}
           | {:delta_crdt_options, [DeltaCrdt.crdt_option()]}
@@ -109,6 +110,7 @@ defmodule Horde.DynamicSupervisor do
   @doc """
   Works like `DynamicSupervisor.start_link/1`. Extra options are documented here:
   - `:distribution_strategy`, defaults to `Horde.UniformDistribution`, but more are available - see `Horde.DistributionStrategy`
+  - `:proxy_message_ttl`, defaults to `:infinity`. Can be set to an integer indicating the maximum number of times a message may be forwarded in a Horde.DynamicSupervisor cluster. Leaving it at infinity is genrally fine when using a stable distribution strategy such as `Horde.UniformDistribution`. Setting a TTL is helpful when migrating to a different distribution_strategy, or when using an algorithm with random distribution such as `Horde.UniformRandomDistribution`, as it will prevent messages from looping (near) infinitely.
   """
   def start_link(options) when is_list(options) do
     keys = [
@@ -119,6 +121,7 @@ defmodule Horde.DynamicSupervisor do
       :strategy,
       :distribution_strategy,
       :process_redistribution,
+      :proxy_message_ttl,
       :members,
       :delta_crdt_options
     ]
@@ -156,6 +159,13 @@ defmodule Horde.DynamicSupervisor do
         Horde.UniformDistribution
       )
 
+    proxy_message_ttl =
+      Keyword.get(
+        options,
+        :proxy_message_ttl,
+        :infinity
+      )
+
     flags = %{
       strategy: strategy,
       max_restarts: max_restarts,
@@ -163,6 +173,7 @@ defmodule Horde.DynamicSupervisor do
       max_children: max_children,
       extra_arguments: extra_arguments,
       distribution_strategy: distribution_strategy,
+      proxy_message_ttl: proxy_message_ttl,
       members: members,
       delta_crdt_options: delta_crdt_options(delta_crdt_options),
       process_redistribution: process_redistribution
@@ -194,6 +205,7 @@ defmodule Horde.DynamicSupervisor do
              period: flags.max_seconds,
              distribution_strategy: flags.distribution_strategy,
              process_redistribution: flags.process_redistribution,
+             proxy_message_ttl: flags.proxy_message_ttl,
              members: members(flags.members, name)
            ]},
           {Horde.ProcessesSupervisor,

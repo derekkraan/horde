@@ -22,6 +22,8 @@ defmodule Horde.DynamicSupervisorImpl do
             name_to_supervisor_ref: %{},
             shutting_down: false,
             supervisor_options: [],
+            proxy_message_ttl: :infinity,
+            proxy_operation_ttl: nil,
             distribution_strategy: Horde.UniformDistribution
 
   def start_link(opts) do
@@ -50,7 +52,7 @@ defmodule Horde.DynamicSupervisorImpl do
         process_pid_to_id: new_table(:process_pid_to_id),
         name: name
       }
-      |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy])))
+      |> Map.merge(Map.new(Keyword.take(options, [:distribution_strategy, :proxy_message_ttl])))
 
     state = set_own_node_status(state)
 
@@ -145,15 +147,14 @@ defmodule Horde.DynamicSupervisorImpl do
   def handle_call({:start_child, _child_spec}, _from, %{shutting_down: true} = state),
     do: {:reply, {:error, {:shutting_down, "this node is shutting down."}}, state}
 
-  @big_number round(:math.pow(2, 128))
-
   def handle_call({:start_child, child_spec} = msg, from, state) do
     this_name = fully_qualified_name(state.name)
+    proxy_ttl_expired? = proxy_message_ttl(state, from) == 0
 
     child_spec = randomize_child_id(child_spec)
 
     case choose_node(child_spec, state) do
-      {:ok, %{name: ^this_name}} ->
+      {:ok, %{name: node_name}} when node_name == this_name or proxy_ttl_expired? ->
         {reply, new_state} = add_child(child_spec, state)
         {:reply, reply, new_state}
 
@@ -277,14 +278,27 @@ defmodule Horde.DynamicSupervisorImpl do
     end
   end
 
+  @big_number round(:math.pow(2, 128))
+
   defp randomize_child_id(child) do
     Map.put(child, :id, :rand.uniform(@big_number))
+  end
+
+  defp proxy_to_node(_node_name, message, reply_to, %{proxy_operation_ttl: {reply_to, 0}} = state) do
+    message_type = elem(message, 0)
+
+    {:reply,
+     {:error, :proxy_operation_ttl_expired,
+      "a proxied #{message_type} message was discard because its TTL expired"}, state}
   end
 
   defp proxy_to_node(node_name, message, reply_to, state) do
     case Map.get(members(state), node_name) do
       %{status: :alive} ->
-        send(node_name, {:proxy_operation, message, reply_to})
+        case(proxy_message_ttl(state, reply_to)) do
+          :infinity -> send(node_name, {:proxy_operation, message, reply_to})
+          ttl -> send(node_name, {:proxy_operation, message, reply_to, ttl})
+        end
         {:noreply, state}
 
       _ ->
@@ -295,6 +309,12 @@ defmodule Horde.DynamicSupervisorImpl do
          state}
     end
   end
+
+  defp proxy_message_ttl(%{proxy_operation_ttl: {reply_to, ttl}} = _state, reply_to), do: ttl
+  defp proxy_message_ttl(%{proxy_message_ttl: ttl} = _state, _reply_to), do: ttl
+
+  defp decrement_ttl(:infinity), do: :infinity
+  defp decrement_ttl(n) when is_integer(n), do: n - 1
 
   defp set_own_node_status(state, force \\ false)
 
@@ -336,6 +356,12 @@ defmodule Horde.DynamicSupervisorImpl do
   end
 
   def handle_info({:proxy_operation, msg, reply_to}, state) do
+    handle_info({:proxy_operation, msg, reply_to, :infinity}, state)
+  end
+
+  def handle_info({:proxy_operation, msg, reply_to, ttl}, state) do
+    state = %{state | proxy_operation_ttl: {reply_to, decrement_ttl(ttl)}}
+
     case handle_call(msg, reply_to, state) do
       {:reply, reply, new_state} ->
         GenServer.reply(reply_to, reply)
