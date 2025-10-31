@@ -1,10 +1,12 @@
 defmodule Horde.MixProject do
   use Mix.Project
 
+  @version "0.10.0"
+
   def project do
     [
       app: :horde,
-      version: "0.9.1",
+      version: @version,
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -19,14 +21,12 @@ defmodule Horde.MixProject do
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger]
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       {:delta_crdt, "~> 0.6.2"},
@@ -47,7 +47,7 @@ defmodule Horde.MixProject do
     [
       description: "Distributed supervisor & process registry built with DELTA-CRDTs",
       licenses: ["MIT"],
-      maintainers: ["Derek Kraan"],
+      maintainers: ["Derek Kraan", "Adriano Santos"],
       links: %{GitHub: "https://github.com/derekkraan/horde"}
     ]
   end
@@ -57,7 +57,6 @@ defmodule Horde.MixProject do
   end
 
   defp extras do
-    # getting started
     [
       "README.md",
       "CHANGELOG.md",
